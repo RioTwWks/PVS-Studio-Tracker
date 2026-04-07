@@ -1,1 +1,0 @@
-{"version": "8.10", "warnings": [{"fileName": "src/main.cpp", "lineNumber": 42, "warningCode": "V501", "level": "High", "message": "Identical expressions in 'if' condition."}, {"fileName": "src/utils.cpp", "lineNumber": 15, "warningCode": "V1001", "level": "Medium", "message": "Assigned but unused variable."}]}
