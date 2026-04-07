@@ -28,6 +28,11 @@ SQLModel.metadata.create_all(engine)
 # Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
+# Static files
+STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
+if os.path.isdir(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------

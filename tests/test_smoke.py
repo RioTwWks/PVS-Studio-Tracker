@@ -11,14 +11,29 @@ from pvs_tracker import main
 from pvs_tracker.models import Project, SQLModel
 
 SAMPLE_REPORT = {
-    "version": "8.10",
+    "version": 3,
     "warnings": [
         {
-            "fileName": "src/main.cpp",
-            "lineNumber": 42,
-            "warningCode": "V501",
-            "level": "High",
+            "code": "V501",
+            "cwe": 0,
+            "level": 1,
+            "positions": [
+                {
+                    "file": "src/main.cpp",
+                    "line": 42,
+                    "endLine": 42,
+                    "navigation": {
+                        "previousLine": 0,
+                        "currentLine": 0,
+                        "nextLine": 0,
+                        "columns": 0
+                    }
+                }
+            ],
+            "projects": ["demo"],
             "message": "Identical expressions in 'if' condition.",
+            "favorite": False,
+            "falseAlarm": False
         },
     ],
 }
