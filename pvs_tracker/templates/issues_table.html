@@ -1,0 +1,45 @@
+<table class="table table-hover">
+    <thead class="table-light">
+        <tr>
+            <th>Статус</th>
+            <th>Уровень</th>
+            <th>Правило</th>
+            <th>Файл</th>
+            <th>Строка</th>
+            <th>Сообщение</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for issue in issues %}
+        <tr class="severity-{{ issue.severity }}">
+            <td class="status-{{ issue.status }}">{{ issue.status|upper }}</td>
+            <td>{{ issue.severity }}</td>
+            <td><code>{{ issue.rule_code }}</code></td>
+            <td class="text-truncate" style="max-width: 250px;" title="{{ issue.file_path }}">{{ issue.file_path }}</td>
+            <td>{{ issue.line }}</td>
+            <td class="text-truncate" style="max-width: 400px;" title="{{ issue.message }}">{{ issue.message }}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        hx-post="/api/v1/issues/{{ issue.fingerprint }}/ignore"
+                        hx-confirm="Пометить как False Positive?">
+                    🚫 Игнор
+                </button>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center py-4">Предупреждений не найдено</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+<div class="d-flex justify-content-between mt-3">
+    <span>Показано {{ issues|length }} из {{ total }}</span>
+    <div>
+        {% if page > 1 %}
+        <button class="btn btn-sm btn-secondary" hx-get="/ui/issues?project_id={{ project_id }}&page={{ page-1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}" hx-target="#issues-table">← Назад</button>
+        {% endif %}
+        {% if page * per_page < total %}
+        <button class="btn btn-sm btn-secondary" hx-get="/ui/issues?project_id={{ project_id }}&page={{ page+1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}" hx-target="#issues-table">Вперёд →</button>
+        {% endif %}
+    </div>
+</div>

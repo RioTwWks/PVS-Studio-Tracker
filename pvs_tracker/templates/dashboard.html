@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Дашборд: {{ project.name }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">📊 {{ project.name }} — Инкрементальная аналитика</h2>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <canvas id="trendChart"></canvas>
+    </div>
+    <div class="col-md-8">
+        <div class="card p-3">
+            <form hx-get="/ui/issues" hx-target="#issues-table" hx-indicator=".htmx-request" hx-swap="innerHTML">
+                <input type="hidden" name="project_id" value="{{ project.id }}">
+                <div class="row g-2 align-items-end">
+                    <div class="col-auto">
+                        <label class="form-label">Уровень</label>
+                        <select name="severity" class="form-select">
+                            <option value="">Все</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label">Статус</label>
+                        <select name="status_filter" class="form-select">
+                            <option value="existing">Активные</option>
+                            <option value="new">Только новые</option>
+                            <option value="fixed">Исправленные</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label">Поиск</label>
+                        <input type="text" name="q" class="form-control" placeholder="Файл или код правила...">
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-primary">Применить</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="issues-table" hx-get="/ui/issues?project_id={{ project.id }}" hx-trigger="load">
+    <div class="text-center p-5">Загрузка данных...</div>
+</div>
+
+<script>
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ history | map(attribute='timestamp') | map('truncate', 16, true, '') | list | tojson }},
+            datasets: [
+                { label: 'Новые', data: {{ history | map(attribute='new') | list | tojson }}, borderColor: '#dc3545', fill: false },
+                { label: 'Активные', data: {{ history | map(attribute='total') | list | tojson }}, borderColor: '#0d6efd', fill: false },
+                { label: 'Исправленные', data: {{ history | map(attribute='fixed') | list | tojson }}, borderColor: '#198754', fill: false }
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+</script>
+{% endblock %}

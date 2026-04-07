@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+      "env": {},
+      "disabled": false,
+      "description": "Безопасный доступ к файлам проекта. Используется Qwen CLI для чтения шаблонов, Python-модулей и генерации кода в рамках .qwen/mcp.json"
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "pvs_tracker.db"],
+      "env": {},
+      "disabled": false,
+      "description": "Прямой доступ к SQLite БД. Позволяет Qwen проверять схему, выполнять SELECT-запросы и отлаживать инкрементальную логику без запуска UI"
+    },
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "env": {},
+      "disabled": false,
+      "description": "HTTP-клиент для тестирования API. Используется для проверки POST /api/v1/upload, GET /ui/* и webhook-эндпоинтов локально"
+    }
+  }
+}

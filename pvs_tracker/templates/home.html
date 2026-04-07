@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}PVS-Tracker — Главная{% endblock %}
+{% block content %}
+<h2 class="mb-4">🛡️ PVS-Studio Tracker</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <h4>Проекты</h4>
+        {% if projects %}
+        <ul class="list-group mb-3">
+            {% for project in projects %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <a href="/ui/projects/{{ project.id }}/dashboard">{{ project.name }}</a>
+                <span class="badge bg-secondary">{{ project.language }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">Проектов пока нет. Загрузите первый отчёт PVS-Studio.</p>
+        {% endif %}
+    </div>
+
+    <div class="col-md-6">
+        <h4>Загрузить отчёт</h4>
+        {% if current_user %}
+        <form action="/api/v1/upload" method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label class="form-label">Имя проекта</label>
+                <input type="text" name="project_name" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Файл отчёта (JSON)</label>
+                <input type="file" name="file" class="form-control" accept=".json" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Коммит</label>
+                <input type="text" name="commit" class="form-control" placeholder="abc1234">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Ветка</label>
+                <input type="text" name="branch" class="form-control" placeholder="main">
+            </div>
+            <button type="submit" class="btn btn-primary">Загрузить</button>
+        </form>
+        {% else %}
+        <p class="text-muted">Войдите, чтобы загружать отчёты. <a href="/login">Войти</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

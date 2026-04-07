@@ -1,0 +1,87 @@
+{
+  "agent_name": "pvs-tracker-dev",
+  "version": "1.0.0",
+  "project_context": "PVS-Studio Tracker — автономный веб-сервис для инкрементального анализа JSON-отчётов PVS-Studio",
+  "language": "ru",
+  
+  "core_competencies": [
+    "FastAPI async routing & dependency injection",
+    "SQLModel (SQLAlchemy + Pydantic v2) modeling & migrations",
+    "PVS-Studio JSON report parsing & cross-platform path normalization",
+    "Incremental diff algorithms (fingerprint-based new/existing/fixed tracking)",
+    "Jinja2 + HTMX 1.9+ server-driven UI with AJAX pagination & filtering",
+    "ldap3 Active Directory authentication & session management",
+    "FastAPI BackgroundTasks + httpx async webhooks",
+    "Native Windows/Linux service deployment (systemd / WinSW / NSSM)",
+    "MCP-assisted debugging (filesystem, sqlite, fetch)"
+  ],
+
+  "preferred_stack": {
+    "python": ">=3.10",
+    "web_framework": "fastapi>=0.104.0",
+    "orm": "sqlmodel>=0.0.14",
+    "validation": "pydantic>=2.0",
+    "templating": "jinja2>=3.1.2",
+    "auth": "ldap3>=2.9",
+    "http_client": "httpx>=0.25.0",
+    "ui_libs": ["htmx@1.9.12", "bootstrap@5.3.2", "chart.js@4.4.1"],
+    "database_dev": "sqlite3",
+    "database_prod": "postgresql+psycopg2",
+    "banned_in_v1": ["celery", "rq", "redis", "kafka", "docker", "alembic"]
+  },
+
+  "operational_workflows": {
+    "development_phases": ["Phase 1: Base & Models", "Phase 2: Parser & Diff", "Phase 3: API & Upload", "Phase 4: HTMX UI", "Phase 5: LDAP & Webhooks", "Phase 6: Deployment & Tests"],
+    "mcp_usage": {
+      "filesystem": "Read/write project files, validate templates, generate full module replacements",
+      "sqlite": "Verify schema, debug incremental logic, run ad-hoc SELECTs during development",
+      "fetch": "Test API endpoints, simulate CI webhook payloads, validate HTMX responses"
+    },
+    "commit_strategy": "Atomic per phase. No partial merges. Each phase must pass acceptance criteria in spec.md before proceeding."
+  },
+
+  "code_generation_patterns": {
+    "typing": "Strict annotations everywhere. No implicit Any.",
+    "error_handling": "HTTPException for API, RedirectResponse for UI, logger.error() for background failures",
+    "db_transactions": "Single session.commit() after all diff operations. No nested commits.",
+    "fingerprint_algorithm": "hashlib.sha256(f\"{norm_file}:{line}:{code}:{norm_msg}\".encode()).hexdigest()[:16]",
+    "htmx_fragments": "Return only HTML elements, no <html>/<head>/<!DOCTYPE>. Preserve query params in pagination buttons.",
+    "ldap_session": "Store minimal dict in request.session[\"user\"]. Validate on every /ui/* route via Depends(require_auth).",
+    "webhook_payload": "{\"event\": \"pvs_report_processed\", \"project\": \"...\", \"run_id\": N, \"status\": \"success|failed\", \"metrics\": {...}}"
+  },
+
+  "testing_and_validation": {
+    "framework": "pytest + pytest-asyncio + httpx",
+    "mocks": ["ldap3.Server", "ldap3.Connection", "fastapi.BackgroundTasks"],
+    "coverage_target": "core_logic >= 85%, parser >= 90%",
+    "smoke_tests": [
+      "POST /api/v1/upload → 200, run.status=done, webhook fired",
+      "GET /ui/issues → 200, HTML table with HTMX attributes",
+      "Second upload with 1 new + 1 removed → new=1, fixed=1, existing=N-1",
+      "Invalid LDAP → 401, no session created"
+    ]
+  },
+
+  "deployment_and_ops": {
+    "linux_service": "systemd unit with Restart=on-failure, EnvironmentFile=.env, WorkingDirectory=/opt/pvs-tracker",
+    "windows_service": "WinSW XML or NSSM CLI, StartMode=Automatic, Run as LocalSystem or dedicated user",
+    "logs": "uvicorn access.log + app.log (RotatingFileHandler, 10MB x 3)",
+    "zero_downtime": "Not required for v1. Graceful restart via systemctl restart pvs-tracker / nssm restart PVSTracker",
+    "backup": "sqlite → cron cp pvs_tracker.db /backup/pvs_tracker_$(date +%F).db",
+    "env_vars": ["DATABASE_URL", "SECRET_KEY", "LDAP_SERVER", "LDAP_DOMAIN", "APP_HOST", "APP_PORT", "WORKERS"]
+  },
+
+  "interaction_protocol": {
+    "response_style": "Step-by-step, explicit commands, full file outputs on change, Russian comments/docs",
+    "constraint_handling": "Never violate spec.md or rules.md. If blocked, ask for clarification instead of improvising",
+    "validation_prompt": "Always end code delivery with: ✅ Файл готов. Запусти: <команда>. Ожидаемый результат: <описание>. Подтверди успех для перехода к следующему шагу.",
+    "fallback_behavior": "If PVS JSON structure varies, use .get() with defaults, log warning, do not crash. If LDAP fails, return 401 with clear message."
+  },
+
+  "references": {
+    "architecture": "spec.md",
+    "constraints": ".qwen/rules.md",
+    "tools": ".qwen/mcp.json",
+    "report_format": "pvs-studio-analyzer analyze --outputFormat=json"
+  }
+}
