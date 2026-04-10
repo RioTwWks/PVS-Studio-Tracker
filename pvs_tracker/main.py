@@ -213,8 +213,9 @@ async def ui_issues(
 # ---------------------------------------------------------------------------
 
 
-@app.post("/api/v1/upload")
-async def upload_report(
+@app.post("/ui/upload", response_class=HTMLResponse)
+async def upload_report_ui(
+    request: Request,
     project_name: str = Form(...),
     file: UploadFile = Form(...),
     commit: str = Form(None),
@@ -222,6 +223,65 @@ async def upload_report(
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
+    """Handle report upload from UI form and redirect to dashboard."""
+    # 1. Save report file
+    os.makedirs("reports", exist_ok=True)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    safe_filename = file.filename or "report.json"
+    report_path = os.path.join("reports", f"{project_name}_{timestamp}_{safe_filename}")
+    with open(report_path, "wb") as f:
+        f.write(await file.read())
+
+    # 2. Ensure project exists
+    project = session.exec(select(Project).where(Project.name == project_name)).first()
+    if not project:
+        project = Project(name=project_name)
+        session.add(project)
+        session.commit()
+        session.refresh(project)
+
+    # 3. Create run record
+    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+
+    # 4. Parse & classify
+    try:
+        issues = parse_pvs_report(report_path)
+        classify_and_store(session, project.id, run.id, issues)
+        run.status = "done"
+        session.commit()
+        # Redirect to project dashboard
+        return RedirectResponse(
+            url=f"/ui/projects/{project.id}/dashboard",
+            status_code=303,
+        )
+    except Exception as e:
+        run.status = "failed"
+        session.commit()
+        # Show error on home page
+        return templates.TemplateResponse(
+            request,
+            "home.html",
+            {
+                "current_user": get_current_user(request),
+                "projects": session.exec(select(Project).order_by(Project.name)).all(),
+                "error": f"Failed to parse report: {str(e)}",
+            },
+        )
+
+
+@app.post("/api/v1/upload")
+async def upload_report_api(
+    project_name: str = Form(...),
+    file: UploadFile = Form(...),
+    commit: str = Form(None),
+    branch: str = Form(None),
+    session: Session = Depends(get_session),
+    _user: str = Depends(require_auth),
+):
+    """API endpoint for report upload (returns JSON)."""
     # 1. Save report file
     os.makedirs("reports", exist_ok=True)
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")

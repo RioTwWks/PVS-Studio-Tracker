@@ -101,3 +101,29 @@ def test_upload_and_dashboard(client):
     r = client.get(f"/ui/issues?project_id={project_id}&status_filter=new")
     assert r.status_code == 200
     assert "V501" in r.text
+
+
+def test_ui_upload_redirects_to_dashboard(client):
+    """Test that UI upload redirects to project dashboard instead of returning JSON."""
+    # Login
+    r = client.post("/login", data={"username": "bob", "password": "secret"}, follow_redirects=False)
+    assert r.status_code == 303
+
+    # Upload via UI endpoint
+    with open("reports/smoke_test.json", "rb") as f:
+        r = client.post(
+            "/ui/upload",
+            data={"project_name": "ui-test-project", "commit": "def456", "branch": "develop"},
+            files={"file": ("smoke_test.json", f, "application/json")},
+            follow_redirects=False,
+        )
+    # Should redirect (303)
+    assert r.status_code == 303
+    # Check redirect location points to dashboard
+    assert "/ui/projects/" in r.headers["location"]
+    assert "/dashboard" in r.headers["location"]
+
+    # Follow the redirect
+    r = client.get(r.headers["location"])
+    assert r.status_code == 200
+    assert "ui-test-project" in r.text
