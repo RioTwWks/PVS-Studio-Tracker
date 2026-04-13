@@ -76,11 +76,12 @@ def parse_pvs_report(report_path: str) -> list[dict[str, Any]]:
             for pos in positions:
                 file_path = pos.get("file", "")
                 line = int(pos.get("line", 0))
-                
-                # Skip warnings with empty file paths (analysis-level warnings)
+
+                # Use synthetic path for warnings without file location
                 if not file_path:
-                    continue
-                    
+                    file_path = f"__analysis__/{code}"
+                    line = 0
+
                 fp = compute_fingerprint(
                     file=file_path,
                     line=line,

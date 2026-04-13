@@ -130,26 +130,35 @@ def legacy_report_file():
 def test_parse_modern_format(modern_report_file):
     """Test parsing of modern PVS-Studio format with positions array."""
     issues = parse_pvs_report(modern_report_file)
-    
-    # Should have 1 issue (the one with empty file path is skipped)
-    assert len(issues) == 1
-    
-    issue = issues[0]
-    assert issue["file_path"] == "D:\\temp\\project\\src\\MappedFileStorage.cpp"
-    assert issue["line"] == 18
-    assert issue["rule_code"] == "V824"
-    assert issue["severity"] == "High"  # level 1 -> High
-    assert issue["message"] == "It is recommended to use the 'make_unique' function."
-    assert len(issue["fingerprint"]) == 16
+
+    # Should have 2 issues (V824 + V010 with synthetic path)
+    assert len(issues) == 2
+
+    # V824 should have the real file path
+    v824 = [i for i in issues if i["rule_code"] == "V824"][0]
+    assert "MappedFileStorage.cpp" in v824["file_path"]
+    assert v824["line"] == 18
+    assert v824["severity"] == "High"  # level 1 -> High
+    assert v824["message"] == "It is recommended to use the 'make_unique' function."
+    assert len(v824["fingerprint"]) == 16
+
+    # V010 should have synthetic path
+    v010 = [i for i in issues if i["rule_code"] == "V010"][0]
+    assert v010["file_path"] == "__analysis__/V010"
+    assert v010["line"] == 0
+    assert v010["severity"] == "Analysis"  # level 0 -> Analysis
+    assert "Utility" in v010["message"]
 
 
 def test_parse_skips_empty_file_paths(modern_report_file):
-    """Test that warnings with empty file paths are skipped."""
+    """Test that warnings with empty file paths get synthetic paths."""
     issues = parse_pvs_report(modern_report_file)
-    
-    # V010 with empty file path should be skipped
-    file_paths = [i["file_path"] for i in issues]
-    assert "" not in file_paths
+
+    # V010 with empty file path should get a synthetic path
+    v010_issues = [i for i in issues if i["rule_code"] == "V010"]
+    assert len(v010_issues) > 0
+    # Should have synthetic file path
+    assert all(i["file_path"].startswith("__analysis__/") for i in v010_issues)
 
 
 def test_parse_multi_position_warning(multi_position_warning):

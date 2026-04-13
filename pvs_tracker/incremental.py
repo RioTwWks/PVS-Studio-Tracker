@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from pvs_tracker.models import Issue, Run
+from pvs_tracker.models import ErrorClassifier, Issue, Run
 
 
 def classify_and_store(
@@ -24,11 +24,31 @@ def classify_and_store(
         prev_issues = session.exec(select(Issue).where(Issue.run_id == prev_run.id)).all()
         prev_fps = {i.fingerprint for i in prev_issues if i.status != "ignored"}
 
+    # Build a map of rule_code -> classifier_id
+    classifiers = session.exec(select(ErrorClassifier)).all()
+    code_to_classifier_id = {c.rule_code: c.id for c in classifiers}
+
     current_fps: set[str] = set()
     for iss in new_issues:
         current_fps.add(iss["fingerprint"])
         iss["status"] = "new" if iss["fingerprint"] not in prev_fps else "existing"
-        session.add(Issue(run_id=run_id, **iss))
+
+        # Link to classifier if exists
+        rule_code = iss.get("rule_code", "")
+        classifier_id = code_to_classifier_id.get(rule_code)
+
+        issue = Issue(
+            run_id=run_id,
+            fingerprint=iss["fingerprint"],
+            file_path=iss["file_path"],
+            line=iss["line"],
+            rule_code=iss["rule_code"],
+            severity=iss["severity"],
+            message=iss["message"],
+            status=iss["status"],
+            classifier_id=classifier_id,
+        )
+        session.add(issue)
 
     # Mark disappeared issues as fixed in the previous run
     if prev_run:

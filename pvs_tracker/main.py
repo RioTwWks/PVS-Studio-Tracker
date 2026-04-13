@@ -8,9 +8,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import Session, select
 
-from pvs_tracker.models import Issue, Project, Run, SQLModel, create_engine
+from pvs_tracker.models import Issue, Project, Run, SQLModel, create_engine, ErrorClassifier
 from pvs_tracker.parser import parse_pvs_report
 from pvs_tracker.incremental import classify_and_store
+from pvs_tracker.classifier_parser import parse_classifier_csv
 
 # ---------------------------------------------------------------------------
 # App & DB
@@ -24,6 +25,29 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pvs_tracker.db")
 
 engine = create_engine(DATABASE_URL)
 SQLModel.metadata.create_all(engine)
+
+
+def _load_error_classifiers(session: Session) -> None:
+    """Load error classifier data from Actual_warnings.csv if not already present."""
+    # Check if classifiers are already loaded
+    existing = session.exec(select(ErrorClassifier).limit(1)).first()
+    if existing:
+        return
+
+    # Try to load from CSV
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Actual_warnings.csv")
+    if not os.path.exists(csv_path):
+        return
+
+    classifiers = parse_classifier_csv(csv_path)
+    for clf in classifiers:
+        session.add(ErrorClassifier(**clf))
+    session.commit()
+
+
+# Load classifiers on startup
+with Session(engine) as init_session:
+    _load_error_classifiers(init_session)
 
 # Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -110,8 +134,8 @@ async def ui_dashboard(project_id: int, request: Request, session: Session = Dep
 
     runs = session.exec(
         select(Run)
-        .where(Run.project_id == project_id)
-        .order_by(Run.timestamp.desc())
+        .where(Run.project_id == project_id, Run.status == "done")
+        .order_by(Run.timestamp.asc())  # Oldest first for trend chart
         .limit(10),
     ).all()
 
@@ -145,12 +169,11 @@ async def ui_issues(
     request: Request,
     project_id: int,
     severity: str = "",
-    status_filter: str = "existing",
+    status_filter: str = "",
     q: str = "",
     page: int = 1,
     session: Session = Depends(get_session),
 ):
-    # Find the latest run for this project
     latest_run = session.exec(
         select(Run)
         .where(Run.project_id == project_id, Run.status == "done")
@@ -182,6 +205,9 @@ async def ui_issues(
         query = query.where(Issue.severity == severity)  # type: ignore[arg-type]
     if status_filter:
         query = query.where(Issue.status == status_filter)  # type: ignore[arg-type]
+    else:
+        # Default: show active issues (new + existing)
+        query = query.where(Issue.status.in_(["new", "existing"]))  # type: ignore[attr-defined]
     if q:
         like = f"%{q}%"
         query = query.where(  # type: ignore[call-overload]
@@ -190,6 +216,10 @@ async def ui_issues(
 
     total_count = session.exec(select(Issue).where(Issue.run_id == latest_run.id)).all()
     issues = session.exec(query.offset((page - 1) * per_page).limit(per_page)).all()
+
+    # Fetch all classifiers for lookup
+    classifiers = session.exec(select(ErrorClassifier)).all()
+    classifier_map = {c.id: c for c in classifiers}
 
     return templates.TemplateResponse(
         request,
@@ -204,6 +234,7 @@ async def ui_issues(
             "severity": severity,
             "status_filter": status_filter,
             "q": q,
+            "classifier_map": classifier_map,
         },
     )
 
@@ -325,15 +356,15 @@ def api_dashboard(project_id: int, session: Session = Depends(get_session)):
 
     runs = session.exec(
         select(Run)
-        .where(Run.project_id == project_id)
-        .order_by(Run.timestamp.desc())
+        .where(Run.project_id == project_id, Run.status == "done")
+        .order_by(Run.timestamp.asc())  # Oldest first for trend chart
         .limit(10),
     ).all()
 
-    trends = []
+    history = []
     for r in runs:
         issues = session.exec(select(Issue).where(Issue.run_id == r.id)).all()
-        trends.append(
+        history.append(
             {
                 "timestamp": r.timestamp.isoformat(),
                 "commit": r.commit,
@@ -343,7 +374,23 @@ def api_dashboard(project_id: int, session: Session = Depends(get_session)):
                 "fixed": len([i for i in issues if i.status == "fixed"]),
             }
         )
-    return {"project": project.name, "history": trends}
+    
+    # Get classifier data for summary
+    classifiers = session.exec(select(ErrorClassifier)).all()
+    classifier_summary = {
+        "total_rules": len(classifiers),
+        "by_type": {},
+        "by_priority": {},
+    }
+    for c in classifiers:
+        classifier_summary["by_type"][c.type] = classifier_summary["by_type"].get(c.type, 0) + 1
+        classifier_summary["by_priority"][c.priority] = classifier_summary["by_priority"].get(c.priority, 0) + 1
+    
+    return {
+        "project": project.name,
+        "history": history,
+        "classifier_summary": classifier_summary,
+    }
 
 
 @app.post("/api/v1/issues/{fingerprint}/ignore")

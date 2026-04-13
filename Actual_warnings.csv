@@ -1,0 +1,417 @@
+﻿key;type;priority;Name
+V1001;BUG;MAJOR;Variable is assigned but not used by the end of the function.
+V1002;BUG;MAJOR;Class that contains pointers, constructor and destructor is copied by the automatically generated operator= or copy constructor.
+V1003;BUG;MAJOR;Macro expression is dangerous or suspicious.
+V1004;BUG;MAJOR;Pointer was used unsafely after its check for nullptr.
+V1005;BUG;MAJOR;The resource was acquired using 'X' function but was released using incompatible 'Y' function.
+V1006;BUG;MAJOR;Several shared_ptr objects are initialized by the same pointer. A double memory deallocation will occur.
+V1007;BUG;MAJOR;Value from the uninitialized optional is used. It may be an error.
+V1008;BUG;MAJOR;No more than one iteration of the loop will be performed. Consider inspecting the 'for' operator.
+V1009;BUG;MAJOR;Check the array initialization. Only the first element is initialized explicitly.
+V101;BUG;MAJOR;Implicit assignment type conversion to memsize type.
+V1010;BUG;MAJOR;Unchecked tainted data is used in expression.
+V1011;BUG;MAJOR;Function execution could be deferred. Consider specifying execution policy explicitly.
+V1012;BUG;MAJOR;The expression is always false. Overflow check is incorrect.
+V1013;BUG;MAJOR;Suspicious subexpression in a sequence of similar comparisons.
+V1014;BUG;MAJOR;Structures with members of real type are compared byte-wise.
+V1015;BUG;MAJOR;Suspicious simultaneous use of bitwise and logical operators.
+V1016;BUG;MAJOR;The value is out of range of enum values. This causes unspecified or undefined behavior.
+V1017;BUG;MAJOR;Variable of the 'string_view' type references a temporary object, which will be removed after evaluation of an expression.
+V1018;BUG;MAJOR;Usage of a suspicious mutex wrapper. It is probably unused, uninitialized, or already locked.
+V1019;BUG;MAJOR;Compound assignment expression is used inside condition.
+V102;BUG;MAJOR;Usage of non memsize type for pointer arithmetic.
+V1020;BUG;MAJOR;Function exited without performing epilogue actions. It is possible that there is an error.
+V1021;BUG;MAJOR;The variable is assigned the same value on several loop iterations.
+V1022;BUG;MAJOR;Exception was thrown by pointer. Consider throwing it by value instead.
+V1023;BUG;MAJOR;A pointer without owner is added to the container by the 'emplace_back' method. A memory leak will occur in case of an exception.
+V1024;BUG;MAJOR;Potential use of invalid data. The stream is checked for EOF before reading from it but is not checked after reading.
+V1025;BUG;MAJOR;New variable with default value is created instead of 'std::unique_lock' that locks on the mutex.
+V1026;BUG;MAJOR;The variable is incremented in the loop. Undefined behavior will occur in case of signed integer overflow.
+V1027;BUG;MAJOR;Pointer to an object of the class is cast to unrelated class.
+V1028;BUG;MAJOR;Possible overflow. Consider casting operands, not the result.
+V1029;BUG;MAJOR;Numeric Truncation Error. Return value of function is written to N-bit variable.
+V103;BUG;MAJOR;Implicit type conversion from memsize type to 32-bit type.
+V1030;BUG;MAJOR;Variable is used after it is moved.
+V1031;BUG;MAJOR;Function is not declared. The passing of data to or from this function may be affected.
+V1032;BUG;MAJOR;Pointer is cast to a more strictly aligned pointer type.
+V1033;BUG;MAJOR;Variable is declared as auto in C. Its default type is int.
+V1034;BUG;MAJOR;Do not use real-type variables as loop counters.
+V1035;BUG;MAJOR;Only values returned from fgetpos() can be used as arguments to fsetpos().
+V1036;BUG;MAJOR;Potentially unsafe double-checked locking.
+V104;BUG;MAJOR;Implicit type conversion to memsize type in an arithmetic expression.
+V105;BUG;MAJOR;N operand of '?:' operation: implicit type conversion to memsize type.
+V106;BUG;MAJOR;Implicit type conversion N argument of function 'foo' to memsize type.
+V107;BUG;MAJOR;Implicit type conversion N argument of function 'foo' to 32-bit type.
+V108;BUG;MAJOR;Incorrect index type: 'foo[not a memsize-type]'. Use memsize type instead.
+V109;BUG;MAJOR;Implicit type conversion of return value to memsize type.
+V110;BUG;MAJOR;Implicit type conversion of return value from memsize type to 32-bit type.
+V111;BUG;MAJOR;Call of function 'foo' with variable number of arguments. N argument has memsize type.
+V112;BUG;MAJOR;Dangerous magic number N used.
+V113;BUG;MAJOR;Implicit type conversion from memsize to double type or vice versa.
+V114;BUG;MAJOR;Dangerous explicit type pointer conversion.
+V115;BUG;MAJOR;Memsize type is used for throw.
+V116;BUG;MAJOR;Memsize type is used for catch.
+V117;BUG;MAJOR;Memsize type is used in the union.
+V118;BUG;MAJOR;malloc() function accepts a dangerous expression in the capacity of an argument.
+V119;BUG;MAJOR;More than one sizeof() operator is used in one expression.
+V120;BUG;MAJOR;Member operator[] of object 'foo' is declared with 32-bit type argument, but is called with memsize type argument.
+V121;BUG;MAJOR;Implicit conversion of the type of 'new' operator's argument to size_t type.
+V122;BUG;MAJOR;Memsize type is used in the struct/class.
+V123;BUG;MAJOR;"Allocation of memory by the pattern ""(X*)malloc(sizeof(Y))"" where the sizes of X and Y types are not equal."
+V124;BUG;MAJOR;Function 'Foo' writes/reads 'N' bytes. The alignment rules and type sizes have been changed. Consider reviewing this value.
+V125;BUG;MAJOR;It is not advised to declare type 'T' as 32-bit type.
+V126;BUG;MAJOR;Be advised that the size of the type 'long' varies between LLP64/LP64 data models.
+V127;BUG;MAJOR;An overflow of the 32-bit variable is possible inside a long cycle which utilizes a memsize-type loop counter.
+V128;BUG;MAJOR;A variable of the memsize type is read from a stream. Consider verifying the compatibility of 32 and 64 bit versions of the application in the context of a stored data.
+V2001;BUG;MAJOR;Consider using the extended version of the 'foo' function here.
+V2003;BUG;MAJOR;Explicit conversion from 'float/double' type to signed integer type.
+V2004;BUG;MAJOR;Explicit conversion from 'float/double' type to unsigned integer type.
+V2005;BUG;MAJOR;C-style explicit type casting is utilized. Consider using: static_cast/const_cast/reinterpret_cast.
+V2006;BUG;MAJOR;Implicit type conversion from enum type to integer type.
+V2007;BUG;MAJOR;This expression can be simplified. One of the operands in the operation equals NN. Probably it is a mistake.
+V2008;BUG;MAJOR;Cyclomatic complexity: NN. Consider refactoring the 'Foo' function.
+V2009;BUG;MAJOR;Consider passing the 'Foo' argument as a pointer/reference to const.
+V201;BUG;MAJOR;Explicit conversion from 32-bit integer type to memsize type.
+V2010;BUG;MAJOR;Handling of two different exception types is identical.
+V2011;BUG;MAJOR;Consider inspecting signed and unsigned function arguments. See NN argument of function 'Foo' in derived class and base class.
+V2012;BUG;MAJOR;Possibility of decreased performance. It is advised to pass arguments to std::unary_function/std::binary_function template as references.
+V2013;BUG;MAJOR;Consider inspecting the correctness of handling the N argument in the 'Foo' function.
+V2014;BUG;MAJOR;Don't use terminating functions in library code.
+V202;BUG;MAJOR;Explicit conversion from 32-bit integer type to memsize type.
+V203;BUG;MAJOR;Explicit conversion from memsize type to 32-bit integer type.
+V204;BUG;MAJOR;Explicit type conversion from memsize to double type or vice versa.
+V205;BUG;MAJOR;Explicit conversion from 32-bit integer type to pointer type.
+V206;BUG;MAJOR;Explicit conversion of pointer type to 32-bit integer type.
+V207;BUG;MAJOR;Explicit conversion from 'void *' to 'int *'.
+V220;BUG;MAJOR;A 32-bit variable is utilized as a reference to a pointer. A write outside the bounds of this variable may occur.
+V221;BUG;MAJOR;Suspicious sequence of types castings: memsize -> 32-bit integer -> memsize.
+V2501;BUG;MAJOR;MISRA. Octal constants should not be used.
+V2503;BUG;MAJOR;MISRA. Implicitly specified enumeration constants should be unique – consider specifying non-unique constants explicitly.
+V2504;BUG;MAJOR;MISRA. Size of an array is not specified.
+V2512;BUG;MAJOR;MISRA. The macro with the 'setjmp' name and the function with the 'longjmp' name should not be used.
+V2514;BUG;MAJOR;MISRA. Unions should not be used.
+V2516;BUG;MAJOR;MISRA. The 'if' ... 'else if' construct should be terminated with an 'else' statement.
+V2519;BUG;MAJOR;MISRA. Every 'switch' statement should have a 'default' label, which, in addition to the terminating 'break' statement, should contain either a statement or a comment.
+V2524;BUG;MAJOR;MISRA. A switch-label should only appear at the top level of the compound statement forming the body of a 'switch' statement.
+V2527;BUG;MAJOR;MISRA. A switch-expression should not have Boolean type. Consider using of 'if-else' construct.
+V2528;BUG;MAJOR;MISRA. The comma operator should not be used.
+V301;BUG;MAJOR;Unexpected function overloading behavior. See N argument of function 'foo' in derived class 'derived' and base class 'base'.
+V302;BUG;MAJOR;Member operator[] of 'foo' class has a 32-bit type argument. Use memsize-type here.
+V303;BUG;MAJOR;The function is deprecated in the Win64 system. It is safer to use the 'foo' function.
+V501;BUG;MAJOR;Identical sub-expressions to the left and to the right of 'foo' operator.
+V502;BUG;MAJOR;The '?:' operator may not work as expected. The '?:' operator has a lower priority than the 'foo' operator.
+V503;BUG;MAJOR;Nonsensical comparison: pointer < 0.
+V504;BUG;MAJOR;"Semicolon ';' is probably missing after the 'return' keyword."
+V505;BUG;MAJOR;The 'alloca' function is used inside the loop. This can quickly overflow stack.
+V506;BUG;MAJOR;Pointer to local variable 'X' is stored outside the scope of this variable. Such a pointer will become invalid.
+V507;BUG;MAJOR;Pointer to local array 'X' is stored outside the scope of this array. Such a pointer will become invalid.
+V508;BUG;MAJOR;The 'new type(n)' pattern was detected. Probably meant: 'new type[n]'.
+V509;BUG;MAJOR;Exceptions raised inside noexcept functions must be wrapped in a try..catch block.
+V510;BUG;MAJOR;The 'Foo' function receives class-type variable as Nth actual argument. This is unexpected behavior.
+V511;BUG;MAJOR;The sizeof() operator returns pointer size instead of array size.
+V512;BUG;MAJOR;Call of the 'Foo' function will lead to buffer overflow.
+V513;BUG;MAJOR;Use _beginthreadex/_endthreadex functions instead of CreateThread/ExitThread functions.
+V514;BUG;MAJOR;Potential logical error. Size of a pointer is divided by another value.
+V515;BUG;MAJOR;The 'delete' operator is applied to non-pointer.
+V516;BUG;MAJOR;Non-null function pointer is compared to null. Consider inspecting the expression.
+V517;BUG;MAJOR;Potential logical error. The 'if (A) {...} else if (A) {...}' pattern was detected.
+V518;BUG;MAJOR;The 'malloc' function allocates suspicious amount of memory calculated by 'strlen(expr)'. Perhaps the correct expression is strlen(expr) + 1.
+V519;BUG;MAJOR;The 'x' variable is assigned values twice successively. Perhaps this is a mistake.
+V520;BUG;MAJOR;Comma operator ',' in array index expression.
+V521;BUG;MAJOR;Expressions that use comma operator ',' are dangerous. Make sure the expression is correct.
+V522;BUG;MAJOR;Possible null pointer dereference.
+V523;BUG;MAJOR;The 'then' statement is equivalent to the 'else' statement.
+V524;BUG;MAJOR;It is suspicious that the body of 'Foo_1' function is fully equivalent to the body of 'Foo_2' function.
+V525;BUG;MAJOR;Code contains collection of similar blocks. Check items X, Y, Z, ... in lines N1, N2, N3, ...
+V526;BUG;MAJOR;The 'strcmp' function returns 0 if corresponding strings are equal. Consider inspecting the condition for mistakes.
+V527;BUG;MAJOR;The 'zero' value is assigned to pointer. Probably meant: *ptr = zero.
+V528;BUG;MAJOR;Pointer is compared with 'zero' value. Probably meant: *ptr != zero.
+V529;BUG;MAJOR;"Suspicious semicolon ';' after 'if/for/while' operator."
+V530;BUG;MAJOR;Return value of 'Foo' function is required to be used.
+V531;BUG;MAJOR;The sizeof() operator is multiplied by sizeof(). Consider inspecting the expression.
+V532;BUG;MAJOR;Consider inspecting the statement of '*pointer++' pattern. Probably meant: '(*pointer)++'.
+V533;BUG;MAJOR;It is possible that a wrong variable is incremented inside the 'for' operator. Consider inspecting 'X'.
+V534;BUG;MAJOR;It is possible that a wrong variable is compared inside the 'for' operator. Consider inspecting 'X'.
+V535;BUG;MAJOR;The 'X' variable is used for this loop and outer loops.
+V536;BUG;MAJOR;Constant value is represented by an octal form.
+V537;BUG;MAJOR;Potential incorrect use of item 'X'. Consider inspecting the expression.
+V538;BUG;MAJOR;The line contains control character 0x0B (vertical tabulation).
+V539;BUG;MAJOR;Iterators are passed as arguments to 'Foo' function. Consider inspecting the expression.
+V540;BUG;MAJOR;Member 'x' should point to string terminated by two 0 characters.
+V541;BUG;MAJOR;String is printed into itself. Consider inspecting the expression.
+V542;BUG;MAJOR;Suspicious type cast: 'Type1' to ' Type2'. Consider inspecting the expression.
+V544;BUG;MAJOR;It is suspicious that the value 'X' of HRESULT type is compared with 'Y'.
+V545;BUG;MAJOR;Conditional expression of 'if' statement is incorrect for the HRESULT type value 'Foo'. The SUCCEEDED or FAILED macro should be used instead.
+V546;BUG;MAJOR;The 'Foo(Foo)' class member is initialized with itself.
+V547;BUG;MAJOR;Expression is always true/false.
+V548;BUG;MAJOR;TYPE X[][] is not equivalent to TYPE **X. Consider inspecting type casting.
+V549;BUG;MAJOR;The 'first' argument of 'Foo' function is equal to the 'second' argument.
+V550;BUG;MAJOR;Suspicious precise comparison. Consider using a comparison with defined precision: fabs(A - B) < Epsilon or fabs(A - B) > Epsilon.
+V551;BUG;MAJOR;Unreachable code under a 'case' label.
+V552;BUG;MAJOR;A bool type variable is incremented. Perhaps another variable should be incremented instead.
+V553;BUG;MAJOR;Length of function body or class declaration is more than 2000 lines. Consider refactoring the code.
+V554;BUG;MAJOR;Incorrect use of smart pointer.
+V555;BUG;MAJOR;Expression of the 'A - B > 0' kind will work as 'A != B'.
+V556;BUG;MAJOR;Values of different enum types are compared.
+V557;BUG;MAJOR;Possible array overrun.
+V558;BUG;MAJOR;Function returns pointer/reference to temporary local object.
+V559;BUG;MAJOR;Suspicious assignment inside the conditional expression of 'if/while/for' statement.
+V560;BUG;MAJOR;Part of conditional expression is always true/false.
+V561;BUG;MAJOR;Consider assigning value to 'foo' variable instead of declaring it anew.
+V562;BUG;MAJOR;Bool type value is compared with value of N. Consider inspecting the expression.
+V563;BUG;MAJOR;An 'else' branch may apply to the previous 'if' statement.
+V564;BUG;MAJOR;The '&' or '|' operator is applied to bool type value. Check for missing parentheses or use the '&&' or '||' operator.
+V565;BUG;MAJOR;Empty exception handler. Silent suppression of exceptions can hide errors in source code during testing.
+V566;BUG;MAJOR;Integer constant is converted to pointer. Check for an error or bad coding style.
+V567;BUG;MAJOR;Modification of variable is unsequenced relative to another operation on the same variable. This may lead to undefined behavior.
+V568;BUG;MAJOR;It is suspicious that the argument of sizeof() operator is the expression.
+V569;BUG;MAJOR;Truncation of constant value.
+V570;BUG;MAJOR;Variable is assigned to itself.
+V571;BUG;MAJOR;Recurring check. This condition was already verified in previous line.
+V572;BUG;MAJOR;Object created using 'new' operator is immediately cast to another type. Consider inspecting the expression.
+V573;BUG;MAJOR;Use of uninitialized variable 'Foo'. The variable was used to initialize itself.
+V574;BUG;MAJOR;Pointer is used both as an array and as a pointer to single object.
+V575;BUG;MAJOR;Function receives suspicious argument.
+V576;BUG;MAJOR;Incorrect format. Consider checking the Nth actual argument of the 'Foo' function.
+V577;BUG;MAJOR;Label is present inside switch(). Check for typos and consider using the 'default:' operator instead.
+V578;BUG;MAJOR;Suspicious bitwise operation was detected. Consider inspecting it.
+V579;BUG;MAJOR;The 'Foo' function receives the pointer and its size as arguments. This may be a potential error. Inspect the Nth argument.
+V580;BUG;MAJOR;Suspicious explicit type casting. Consider inspecting the expression.
+V581;BUG;MAJOR;Conditional expressions of 'if' statements located next to each other are identical.
+V582;BUG;MAJOR;Consider reviewing the source code that uses the container.
+V583;BUG;MAJOR;The '?:' operator, regardless of its conditional expression, always returns the same value.
+V584;BUG;MAJOR;Same value is present on both sides of the operator. The expression is incorrect or can be simplified.
+V585;BUG;MAJOR;Attempt to release memory that stores the 'Foo' local variable.
+V586;BUG;MAJOR;The 'Foo' function is called twice to deallocate the same resource.
+V587;BUG;MAJOR;"Suspicious sequence of assignments: A = B; B = A;."
+V588;BUG;MAJOR;Expression of the 'A =+ B' kind is used. Possibly meant: 'A += B'. Consider inspecting the expression.
+V589;BUG;MAJOR;Expression of the 'A =- B' kind is used. Possibly meant: 'A -= B'. Consider inspecting the expression.
+V590;BUG;MAJOR;Possible excessive expression or typo. Consider inspecting the expression.
+V591;BUG;MAJOR;Non-void function must return value.
+V592;BUG;MAJOR;Expression is enclosed by parentheses twice: ((expression)). One pair of parentheses is unnecessary or typo is present.
+V593;BUG;MAJOR;Expression 'A = B == C' is calculated as 'A = (B == C)'. Consider inspecting the expression.
+V594;BUG;MAJOR;Pointer to array is out of array bounds.
+V595;BUG;MAJOR;Pointer was used before its check for nullptr. Check lines: N1, N2.
+V596;BUG;MAJOR;Object was created but is not used. Check for missing 'throw' keyword.
+V597;BUG;MAJOR;Compiler may delete 'memset' function call that is used to clear 'Foo' buffer. Use the RtlSecureZeroMemory() function to erase private data.
+V598;BUG;MAJOR;Memory manipulation function is used to work with a class object containing a virtual table pointer. The result of such an operation may be unexpected.
+V599;BUG;MAJOR;The virtual destructor is not present, although the 'Foo' class contains virtual functions.
+V600;BUG;MAJOR;The 'Foo' pointer is always not equal to NULL. Consider inspecting the condition.
+V601;BUG;MAJOR;Suspicious implicit type casting.
+V602;BUG;MAJOR;The '<' operator should probably be replaced with '<<'. Consider inspecting this expression.
+V603;BUG;MAJOR;Object was created but not used. If you wish to call constructor, use 'this->Foo::Foo(....)'.
+V604;BUG;MAJOR;Number of iterations in loop equals size of a pointer. Consider inspecting the expression.
+V605;BUG;MAJOR;Unsigned value is compared to the NN number. Consider inspecting the expression.
+V606;BUG;MAJOR;Ownerless token 'Foo'.
+V607;BUG;MAJOR;Ownerless expression 'Foo'.
+V608;BUG;MAJOR;Recurring sequence of explicit type casts.
+V609;BUG;MAJOR;Possible division or mod by zero.
+V610;BUG;MAJOR;Undefined behavior. Check the shift operator.
+V611;BUG;MAJOR;Memory allocation and deallocation methods are incompatible.
+V612;BUG;MAJOR;Unconditional 'break/continue/return/goto' within a loop.
+V613;BUG;MAJOR;Suspicious pointer arithmetic with 'malloc/new'.
+V614;BUG;MAJOR;Use of 'Foo' uninitialized variable.
+V615;BUG;MAJOR;Suspicious explicit conversion from 'float *' type to 'double *' type.
+V616;BUG;MAJOR;Use of 'Foo' named constant with 0 value in bitwise operation.
+V617;BUG;MAJOR;Argument of the '|' bitwise operation always contains non-zero value. Consider inspecting the condition.
+V618;BUG;MAJOR;"Dangerous call of 'Foo' function. The passed line may contain format specification. Example of safe code: printf(""%s"", str);"
+V619;BUG;MAJOR;Array is used as pointer to single object.
+V620;BUG;MAJOR;Expression of sizeof(T)*N kind is summed up with pointer to T type. Consider inspecting the expression.
+V621;BUG;MAJOR;Loop may execute incorrectly or may not execute at all. Consider inspecting the 'for' operator.
+V622;BUG;MAJOR;First 'case' operator may be missing. Consider inspecting the 'switch' statement.
+V623;BUG;MAJOR;Temporary object is created and then destroyed. Consider inspecting the '?:' operator.
+V624;BUG;MAJOR;Use of constant NN. The resulting value may be inaccurate. Consider using the M_NN constant from <math.h>.
+V625;BUG;MAJOR;Initial and final values of the iterator are the same. Consider inspecting the 'for' operator.
+V626;BUG;MAJOR;"It's possible that ',' should be replaced by ';'. Consider checking for typos."
+V627;BUG;MAJOR;Argument of sizeof() is a macro, which expands to a number. Consider inspecting the expression.
+V628;BUG;MAJOR;It is possible that a line was commented out improperly, thus altering the program's operation logic.
+V629;BUG;MAJOR;Bit shifting of the 32-bit value with a subsequent expansion to the 64-bit type. Consider inspecting the expression.
+V630;BUG;MAJOR;The 'malloc' function is used to allocate memory for an array of objects that are classes containing constructors/destructors.
+V631;BUG;MAJOR;Defining absolute path to file or directory is considered a poor coding style. Consider inspecting the 'Foo' function call.
+V632;BUG;MAJOR;Argument is of the 'T' type. Consider inspecting the NN argument of the 'Foo' function.
+V633;BUG;MAJOR;The '!=' operator should probably be used here. Consider inspecting the expression.
+V634;BUG;MAJOR;Priority of '+' operation is higher than priority of '<<' operation. Consider using parentheses in the expression.
+V635;BUG;MAJOR;Length should be probably multiplied by sizeof(wchar_t). Consider inspecting the expression.
+V636;BUG;MAJOR;Expression was implicitly cast from integer type to real type. Consider using an explicit type cast to avoid overflow or loss of a fractional part.
+V637;BUG;MAJOR;Use of two opposite conditions. The second condition is always false.
+V638;BUG;MAJOR;Terminal null is present inside a string. Use of '\0xNN' characters. Probably meant: '\xNN'.
+V639;BUG;MAJOR;One of closing ')' parentheses is probably positioned incorrectly. Consider inspecting the expression for function call.
+V640;BUG;MAJOR;Code's operational logic does not correspond with its formatting.
+V641;BUG;MAJOR;Buffer size is not a multiple of element size.
+V642;BUG;MAJOR;Function result is saved inside the 'byte' type variable. Significant bits may be lost. This may break the program's logic.
+V643;BUG;MAJOR;Suspicious pointer arithmetic. Value of 'char' type is added to a string pointer.
+V644;BUG;MAJOR;Suspicious function declaration. Consider creating a 'T' type object.
+V645;BUG;MAJOR;Function call may lead to buffer overflow. Bounds should not contain size of a buffer, but a number of characters it can hold.
+V646;BUG;MAJOR;The 'else' keyword may be missing. Consider inspecting the program's logic.
+V647;BUG;MAJOR;Value of 'A' type is assigned to a pointer of 'B' type.
+V648;BUG;MAJOR;Priority of '&&' operation is higher than priority of '||' operation.
+V649;BUG;MAJOR;Two 'if' statements with identical conditional expressions. The first 'if' statement contains function return. This means that the second 'if' statement is senseless.
+V650;BUG;MAJOR;Type casting is used 2 times in a row. The '+' operation is executed. Probably meant: (T1)((T2)a + b).
+V651;BUG;MAJOR;Suspicious operation of 'sizeof(X)/sizeof(T)' kind, where 'X' is of the 'class' type.
+V652;BUG;MAJOR;Operation is executed 3 or more times in a row.
+V653;BUG;MAJOR;Suspicious string consisting of two parts is used for initialization. Comma may be missing.
+V654;BUG;MAJOR;Condition of a loop is always true/false.
+V655;BUG;MAJOR;Strings were concatenated but not used. Consider inspecting the expression.
+V656;BUG;MAJOR;Variables are initialized through the call to the same function. It's probably an error or un-optimized code.
+V657;BUG;MAJOR;Function always returns the same value of NN. Consider inspecting the function.
+V658;BUG;MAJOR;Value is subtracted from unsigned variable. It can result in an overflow. In such a case, the comparison operation may behave unexpectedly.
+V659;BUG;MAJOR;Functions' declarations with 'Foo' name differ in 'const' keyword only, while these functions' bodies have different composition. It is suspicious and can possibly be an error.
+V660;BUG;MAJOR;Program contains an unused label and function call: 'CC:AA()'. Probably meant: 'CC::AA()'.
+V661;BUG;MAJOR;Suspicious expression 'A[B < C]'. Probably meant 'A[B] < C'.
+V662;BUG;MAJOR;Different containers are used to set up initial and final values of iterator. Consider inspecting the loop expression.
+V663;BUG;MAJOR;Infinite loop is possible. The 'cin.eof()' condition is insufficient to break from the loop. Consider adding the 'cin.fail()' function call to the conditional expression.
+V664;BUG;MAJOR;Pointer is dereferenced in the member initializer list before it is checked for null in the body of a constructor.
+V665;BUG;MAJOR;Possible incorrect use of '#pragma warning(default: X)'. The '#pragma warning(push/pop)' should be used instead.
+V666;BUG;MAJOR;Value may not correspond with the length of a string passed with YY argument. Consider inspecting the NNth argument of the 'Foo' function.
+V667;BUG;MAJOR;The 'throw' operator does not have any arguments and is not located within the 'catch' block.
+V668;BUG;MAJOR;Possible meaningless check for null, as memory was allocated using 'new' operator. Memory allocation will lead to an exception.
+V669;BUG;MAJOR;Argument is a non-constant reference. The analyzer is unable to determine the position where this argument is modified. Consider checking the function for an error.
+V670;BUG;MAJOR;Uninitialized class member is used to initialize another member. Remember that members are initialized in the order of their declarations inside a class.
+V671;BUG;MAJOR;The 'swap' function may interchange a variable with itself.
+V672;BUG;MAJOR;It is possible that creating a new variable is unnecessary. One of the function's arguments has the same name and this argument is a reference.
+V673;BUG;MAJOR;More than N bits are required to store the value, but the expression evaluates to the T type which can only hold K bits.
+V674;BUG;MAJOR;Expression contains a suspicious mix of integer and real types.
+V675;BUG;MAJOR;Writing into read-only memory.
+V676;BUG;MAJOR;Incorrect comparison of BOOL type variable with TRUE.
+V678;BUG;MAJOR;Object is used as an argument to its own method. Consider checking the first actual argument of the 'Foo' function.
+V679;BUG;MAJOR;The 'X' variable was not initialized. This variable is passed by reference to the 'Foo' function in which its value will be used.
+V680;BUG;MAJOR;The 'delete A, B' expression only destroys the 'A' object. Then the ',' operator returns a resulting value from the right side of the expression.
+V681;BUG;MAJOR;The language standard does not define order in which 'Foo' functions are called during evaluation of arguments.
+V682;BUG;MAJOR;Suspicious literal: '/r'. It is possible that a backslash should be used instead: '\r'.
+V683;BUG;MAJOR;The 'i' variable should probably be incremented instead of the 'n' variable. Consider inspecting the loop expression.
+V684;BUG;MAJOR;Value of variable is not modified. It is possible that '1' should be present instead of '0'. Consider inspecting the expression.
+V685;BUG;MAJOR;The expression contains a comma. Consider inspecting the return statement.
+V686;BUG;MAJOR;Pattern A || (A && ...) was detected. The expression is excessive or contains a logical error.
+V687;BUG;MAJOR;Size of array calculated by sizeof() operator was added to a pointer. It is possible that the number of elements should be calculated by sizeof(A)/sizeof(A[0]).
+V688;BUG;MAJOR;The 'foo' local variable has the same name as one of class members. This can result in confusion.
+V689;BUG;MAJOR;Destructor of 'Foo' class is not declared as virtual. A smart pointer may not destroy an object correctly.
+V690;BUG;MAJOR;The class implements a copy constructor/operator=, but lacks the operator=/copy constructor.
+V691;BUG;MAJOR;Empirical analysis. Possible typo inside the string literal. The 'foo' word is suspicious.
+V692;BUG;MAJOR;Inappropriate attempt to append a null character to a string. To determine the length of a string by 'strlen' function correctly, use a string ending with a null terminator in the first place.
+V693;BUG;MAJOR;It is possible that 'i < X.size()' should be used instead of 'X.size()'. Consider inspecting conditional expression of the loop.
+V694;BUG;MAJOR;The condition (ptr - const_value) is only false if the value of a pointer equals a magic constant.
+V695;BUG;MAJOR;Range intersections are possible within conditional expressions.
+V696;BUG;MAJOR;The 'continue' operator will terminate 'do { ... } while (FALSE)' loop because the condition is always false.
+V697;BUG;MAJOR;Number of elements in the allocated array equals the size of a pointer in bytes.
+V698;BUG;MAJOR;Functions of strcmp() kind can return any values, not only -1, 0, or 1.
+V699;BUG;MAJOR;It is possible that 'foo = bar == baz ? .... : ....' should be used here instead of 'foo = bar = baz ? .... : ....'. Consider inspecting the expression.
+V700;BUG;MAJOR;"It is suspicious that variable is initialized through itself. Consider inspecting the 'T foo = foo = x;' expression."
+V701;BUG;MAJOR;Possible realloc() leak: when realloc() fails to allocate memory, original pointer is lost. Consider assigning realloc() to a temporary pointer.
+V702;BUG;MAJOR;Classes should always be derived from std::exception (and alike) as 'public'.
+V703;BUG;MAJOR;It is suspicious that the 'foo' field in derived class overwrites field in base class.
+V704;BUG;MAJOR;The expression is always false on newer compilers. Avoid using 'this == 0' comparison.
+V705;BUG;MAJOR;It is possible that 'else' block was forgotten or commented out, thus altering the program's operation logics.
+V706;BUG;MAJOR;Suspicious division: sizeof(X) / Value. Size of every element in X array is not equal to divisor.
+V707;BUG;MAJOR;Giving short names to global variables is considered to be bad practice.
+V708;BUG;MAJOR;Dangerous construction is used: 'm[x] = m.size()', where 'm' is of 'T' class. This may lead to undefined behavior.
+V709;BUG;MAJOR;Suspicious comparison found: 'a == b == c'. Remember that 'a == b == c' is not equal to 'a == b && b == c'.
+V710;BUG;MAJOR;Suspicious declaration. There is no point to declare constant reference to a number.
+V711;BUG;MAJOR;It is dangerous to create a local variable within a loop with a same name as a variable controlling this loop.
+V712;BUG;MAJOR;Compiler may optimize out this loop or make it infinite. Use volatile variable(s) or synchronization primitives to avoid this.
+V713;BUG;MAJOR;Pointer was used in the logical expression before its check for nullptr in the same logical expression.
+V714;BUG;MAJOR;Variable is not passed into foreach loop by reference, but its value is changed inside of the loop.
+V715;BUG;MAJOR;The 'while' operator has empty body. This pattern is suspicious.
+V716;BUG;MAJOR;Suspicious type conversion: HRESULT -> BOOL (BOOL -> HRESULT).
+V717;BUG;MAJOR;It is suspicious to cast object of base class V to derived class U.
+V718;BUG;MAJOR;The 'Foo' function should not be called from 'DllMain' function.
+V719;BUG;MAJOR;The switch statement does not cover all values of the enum.
+V720;BUG;MAJOR;The 'SuspendThread' function is usually used when developing a debugger. See documentation for details.
+V721;BUG;MAJOR;The VARIANT_BOOL type is used incorrectly. The true value (VARIANT_TRUE) is defined as -1.
+V722;BUG;MAJOR;Abnormality within similar comparisons. It is possible that a typo is present inside the expression.
+V723;BUG;MAJOR;Function returns a pointer to the internal string buffer of a local object, which will be destroyed.
+V724;BUG;MAJOR;Converting integers or pointers to BOOL can lead to a loss of high-order bits. Non-zero value can become 'FALSE'.
+V725;BUG;MAJOR;Dangerous cast of 'this' to 'void*' type in the 'Base' class, as it is followed by a subsequent cast to 'Class' type.
+V726;BUG;MAJOR;Attempt to free memory containing the 'int A[10]' array by using the 'free(A)' function.
+V727;BUG;MAJOR;Return value of 'wcslen' function is not multiplied by 'sizeof(wchar_t)'.
+V728;BUG;MAJOR;Excessive check can be simplified. The '||' operator is surrounded by opposite expressions 'x' and '!x'.
+V729;BUG;MAJOR;Function body contains the 'X' label that is not used by any 'goto' statements.
+V730;BUG;MAJOR;Not all members of a class are initialized inside the constructor.
+V731;BUG;MAJOR;The variable of char type is compared with pointer to string.
+V732;BUG;MAJOR;Unary minus operator does not modify a bool type value.
+V733;BUG;MAJOR;It is possible that macro expansion resulted in incorrect evaluation order.
+V734;BUG;MAJOR;"Excessive expression. Examine the substrings ""abc"" and ""abcd""."
+V735;BUG;MAJOR;"Possibly an incorrect HTML. The ""</XX>"" closing tag was encountered, while the ""</YY>"" tag was expected."
+V736;BUG;MAJOR;The behavior is undefined for arithmetic or comparisons with pointers that do not point to members of the same array.
+V737;BUG;MAJOR;It is possible that ',' comma is missing at the end of the string.
+V738;BUG;MAJOR;Temporary anonymous object is used.
+V739;BUG;MAJOR;EOF should not be compared with a value of the 'char' type. Consider using the 'int' type.
+V740;BUG;MAJOR;Exception is of the 'int' type because NULL is defined as 0. Keyword 'nullptr' can be used for 'pointer' type exception.
+V741;BUG;MAJOR;"Use of the throw (a, b); pattern. It is possible that type name was omitted: throw MyException(a, b);."
+V742;BUG;MAJOR;Function receives an address of a 'char' type variable instead of pointer to a buffer.
+V743;BUG;MAJOR;The memory areas must not overlap. Use 'memmove' function.
+V744;BUG;MAJOR;Temporary object is immediately destroyed after being created. Consider naming the object.
+V745;BUG;MAJOR;A 'wchar_t *' type string is incorrectly converted to 'BSTR' type string.
+V746;BUG;MAJOR;Object slicing. An exception should be caught by reference rather than by value.
+V747;BUG;MAJOR;Suspicious expression inside parentheses. A function name may be missing.
+V748;BUG;MAJOR;Memory for 'getline' function should be allocated only by 'malloc' or 'realloc' functions. Consider inspecting the first parameter of 'getline' function.
+V749;BUG;MAJOR;Destructor of the object will be invoked a second time after leaving the object's scope.
+V750;BUG;MAJOR;BSTR string becomes invalid. Notice that BSTR strings store their length before start of the text.
+V751;BUG;MAJOR;Parameter is not used inside function's body.
+V752;BUG;MAJOR;Creating an object with placement new requires a buffer of large size.
+V753;BUG;MAJOR;The '&=' operation always sets a value of 'Foo' variable to zero.
+V754;BUG;MAJOR;The expression of 'foo(foo(x))' pattern is excessive or contains an error.
+V755;BUG;MAJOR;Copying from potentially tainted data source. Buffer overflow is possible.
+V756;BUG;MAJOR;The 'X' counter is not used inside a nested loop. Consider inspecting usage of 'Y' counter.
+V757;BUG;MAJOR;It is possible that an incorrect variable is compared with null after type conversion using 'dynamic_cast'.
+V758;BUG;MAJOR;Reference was invalidated because of destruction of the temporary object returned by the function.
+V759;BUG;MAJOR;Violated order of exception handlers. Exception caught by handler for base class.
+V760;BUG;MAJOR;Two identical text blocks were detected. The second block starts with NN string.
+V761;BUG;MAJOR;NN identical blocks were found.
+V762;BUG;MAJOR;Consider inspecting virtual function arguments. See NN argument of function 'Foo' in derived class and base class.
+V763;BUG;MAJOR;Parameter is always rewritten in function body before being used.
+V764;BUG;MAJOR;Possible incorrect order of arguments passed to function.
+V765;BUG;MAJOR;Compound assignment expression 'X += X + N' is suspicious. Consider inspecting it for a possible error.
+V766;BUG;MAJOR;An item with the same key has already been added.
+V767;BUG;MAJOR;Suspicious access to element by a constant index inside a loop.
+V768;BUG;MAJOR;Variable is of enum type. It is suspicious that it is used as a variable of a Boolean-type.
+V769;BUG;MAJOR;The pointer in the expression equals nullptr. The resulting value is meaningless and should not be used.
+V770;BUG;MAJOR;Possible use of left shift operator instead of comparison operator.
+V771;BUG;MAJOR;The '?:' operator uses constants from different enums.
+V772;BUG;MAJOR;Calling the 'delete' operator for a void pointer will cause undefined behavior.
+V773;BUG;MAJOR;Function exited without releasing the pointer/handle. A memory/resource leak is possible.
+V774;BUG;MAJOR;Pointer was used after the memory was released.
+V775;BUG;MAJOR;It is suspicious that the BSTR data type is compared using a relational operator.
+V776;BUG;MAJOR;Potentially infinite loop. The variable in the loop exit condition does not change its value between iterations.
+V777;BUG;MAJOR;Dangerous widening type conversion from an array of derived-class objects to a base-class pointer.
+V778;BUG;MAJOR;Two similar code fragments. Perhaps, it is a typo and 'X' variable should be used instead of 'Y'.
+V779;BUG;MAJOR;Unreachable code was detected. It is possible that an error is present.
+V780;BUG;MAJOR;The object of non-passive (non-PDS) type cannot be used with the function.
+V781;BUG;MAJOR;Value of a variable is checked after it is used. Possible error in program's logic. Check lines: N1, N2.
+V782;BUG;MAJOR;It is pointless to compute the distance between the elements of different arrays.
+V783;BUG;MAJOR;Possible dereference of invalid iterator 'X'.
+V784;BUG;MAJOR;The size of the bit mask is less than the size of the first operand. This will cause the loss of the higher bits.
+V785;BUG;MAJOR;Constant expression in switch statement.
+V786;BUG;MAJOR;Assigning the value C to the X variable looks suspicious. The value range of the variable: [A, B].
+V787;BUG;MAJOR;Wrong variable is probably used in the for operator as an index.
+V788;BUG;MAJOR;Review captured variable in lambda expression.
+V789;BUG;MAJOR;Iterators for the container, used in the range-based for loop, become invalid upon a function call.
+V790;BUG;MAJOR;It is suspicious that the assignment operator takes an object by a non-constant reference and returns this object.
+V792;BUG;MAJOR;The function located to the right of the '|' and '&' operators will be called regardless of the value of the left operand. Consider using '||' and '&&' instead.
+V793;BUG;MAJOR;It is suspicious that the result of the statement is a part of the condition. Perhaps, this statement should have been compared with something else.
+V794;BUG;MAJOR;The assignment operator should be protected from the case of 'this == &src'.
+V795;BUG;MAJOR;Size of the 'time_t' type is not 64 bits. After the year 2038, the program will work incorrectly.
+V796;BUG;MAJOR;A 'break' statement is probably missing in a 'switch' statement.
+V797;BUG;MAJOR;The function is used as if it returned a bool type. The return value of the function should probably be compared with std::string::npos.
+V798;BUG;MAJOR;The size of the dynamic array can be less than the number of elements in the initializer.
+V799;BUG;MAJOR;Variable is not used after memory is allocated for it. Consider checking the use of this variable.
+V801;BUG;MAJOR;Decreased performance. It is better to redefine the N function argument as a reference. Consider replacing 'const T' with 'const .. &T' / 'const .. *T'.
+V802;BUG;MAJOR;On 32-bit/64-bit platform, structure size can be reduced from N to K bytes by rearranging the fields according to their sizes in decreasing order.
+V803;BUG;MAJOR;Decreased performance. It is more effective to use the prefix form of ++it. Replace iterator++ with ++iterator.
+V804;BUG;MAJOR;Decreased performance. The 'Foo' function is called twice in the specified expression to calculate length of the same string.
+V805;BUG;MAJOR;Decreased performance. It is inefficient to identify an empty string by using 'strlen(str) > 0' construct. A more efficient way is to check: str[0] != '\0'.
+V806;BUG;MAJOR;Decreased performance. The expression of strlen(MyStr.c_str()) kind can be rewritten as MyStr.length().
+V807;BUG;MAJOR;Decreased performance. Consider creating a pointer/reference to avoid using the same expression repeatedly.
+V808;BUG;MAJOR;An array/object was declared but was not utilized.
+V809;BUG;MAJOR;Verifying that a pointer value is not NULL is not required. The 'if (ptr != NULL)' check can be removed.
+V810;BUG;MAJOR;Decreased performance. The 'A' function was called several times with identical arguments. The result should possibly be saved to a temporary variable, which then could be used while calling the 'B' function.
+V811;BUG;MAJOR;Decreased performance. Excessive type casting: string -> char * -> string.
+V812;BUG;MAJOR;Decreased performance. Ineffective use of the 'count' function. It can possibly be replaced by the call to the 'find' function.
+V813;BUG;MAJOR;Decreased performance. The argument should probably be rendered as a constant pointer/reference.
+V814;BUG;MAJOR;Decreased performance. The 'strlen' function was called multiple times inside the body of a loop.
+V815;BUG;MAJOR;Decreased performance. Consider replacing the expression 'AA' with 'BB'.
+V816;BUG;MAJOR;It is more efficient to catch exception by reference rather than by value.
+V817;BUG;MAJOR;It is more efficient to search for 'X' character rather than a string.
+V818;BUG;MAJOR;It is more efficient to use an initialization list rather than an assignment operator.
+V819;BUG;MAJOR;Decreased performance. Memory is allocated and released multiple times inside the loop body.
+V820;BUG;MAJOR;The variable is not used after copying. Copying can be replaced with move/swap for optimization.
+V821;BUG;MAJOR;The variable can be constructed in a lower level scope.

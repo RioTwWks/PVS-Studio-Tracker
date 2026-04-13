@@ -11,6 +11,16 @@ class Project(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class ErrorClassifier(SQLModel, table=True):
+    """Reference classifier for PVS-Studio warning codes."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    rule_code: str = Field(unique=True, index=True)  # V1001, V1002, etc.
+    type: str  # BUG, SECURITY, etc.
+    priority: str  # CRITICAL, MAJOR, MINOR, etc.
+    name: str  # Short description
+    description: str = ""  # Optional detailed description
+
+
 class Run(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="project.id")
@@ -24,6 +34,7 @@ class Run(SQLModel, table=True):
 class Issue(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     run_id: int = Field(foreign_key="run.id")
+    classifier_id: Optional[int] = Field(default=None, foreign_key="errorclassifier.id")
     fingerprint: str = Field(index=True)  # stable ID for tracking
     file_path: str
     line: int

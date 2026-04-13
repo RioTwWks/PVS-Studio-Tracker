@@ -4,6 +4,8 @@
             <th>Статус</th>
             <th>Уровень</th>
             <th>Правило</th>
+            <th>Тип</th>
+            <th>Приоритет</th>
             <th>Файл</th>
             <th>Строка</th>
             <th>Сообщение</th>
@@ -12,13 +14,40 @@
     </thead>
     <tbody>
         {% for issue in issues %}
+        {% set classifier = classifier_map.get(issue.classifier_id) %}
         <tr class="severity-{{ issue.severity }}">
             <td class="status-{{ issue.status }}">{{ issue.status|upper }}</td>
             <td>{{ issue.severity }}</td>
             <td><code>{{ issue.rule_code }}</code></td>
+            <td>
+                {% if classifier %}
+                <span class="badge bg-info">{{ classifier.type }}</span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if classifier %}
+                <span class="badge 
+                    {% if classifier.priority == 'CRITICAL' %}bg-danger
+                    {% elif classifier.priority == 'MAJOR' %}bg-warning
+                    {% elif classifier.priority == 'MINOR' %}bg-secondary
+                    {% else %}bg-light text-dark
+                    {% endif %}">
+                    {{ classifier.priority }}
+                </span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
             <td class="text-truncate" style="max-width: 250px;" title="{{ issue.file_path }}">{{ issue.file_path }}</td>
             <td>{{ issue.line }}</td>
-            <td class="text-truncate" style="max-width: 400px;" title="{{ issue.message }}">{{ issue.message }}</td>
+            <td class="text-truncate" style="max-width: 400px;" title="{{ issue.message }}">
+                {{ issue.message }}
+                {% if classifier %}
+                <br><small class="text-muted">{{ classifier.name }}</small>
+                {% endif %}
+            </td>
             <td>
                 <button class="btn btn-sm btn-outline-secondary"
                         hx-post="/api/v1/issues/{{ issue.fingerprint }}/ignore"
@@ -28,7 +57,7 @@
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center py-4">Предупреждений не найдено</td></tr>
+        <tr><td colspan="9" class="text-center py-4">Предупреждений не найдено</td></tr>
         {% endfor %}
     </tbody>
 </table>
