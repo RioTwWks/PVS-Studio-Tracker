@@ -1,65 +1,115 @@
 {% extends "base.html" %}
 {% block title %}Дашборд: {{ project.name }}{% endblock %}
 {% block content %}
-<h2 class="mb-4">📊 {{ project.name }} — Инкрементальная аналитика</h2>
 
-<div class="row mb-4">
-    <div class="col-md-4">
-        <canvas id="trendChart"></canvas>
+<div class="dashboard-header fade-in">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-bar-chart-line"></i> {{ project.name }}</h2>
+            <p class="text-muted mb-0" data-i18n="dashboard_title">Инкрементальная аналитика PVS-Studio</p>
+        </div>
+        <a href="/" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> <span data-i18n="back">Назад</span>
+        </a>
     </div>
-    <div class="col-md-8">
-        <div class="card p-3">
-            <form hx-get="/ui/issues" hx-target="#issues-table" hx-indicator=".htmx-request" hx-swap="innerHTML">
+</div>
+
+{# --- Summary Stats --- #}
+{% if history and history|length > 0 %}
+{% set latest = history[-1] %}
+<div class="row g-3 mb-4 fade-in">
+    <div class="col-md-4">
+        <div class="stat-card stat-new">
+            <div class="stat-value animate-count" data-target="{{ latest.new }}">{{ latest.new }}</div>
+            <div class="stat-label"><i class="bi bi-plus-circle"></i> <span data-i18n="stat_new">Новые</span></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card stat-active">
+            <div class="stat-value animate-count" data-target="{{ latest.total }}">{{ latest.total }}</div>
+            <div class="stat-label"><i class="bi bi-activity"></i> <span data-i18n="stat_active">Активные</span></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card stat-fixed">
+            <div class="stat-value animate-count" data-target="{{ latest.fixed }}">{{ latest.fixed }}</div>
+            <div class="stat-label"><i class="bi bi-check-circle"></i> <span data-i18n="stat_fixed">Исправленные</span></div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# --- Chart + Filters Row --- #}
+<div class="row g-4 mb-4 fade-in">
+    <div class="col-lg-8">
+        <div class="chart-wrapper">
+            <h5 class="mb-3 fw-semibold"><i class="bi bi-graph-up"></i> <span data-i18n="trend_chart_title">Тренд по запускам</span></h5>
+            <div style="height: 420px; position: relative;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="filter-card h-100">
+            <h5 class="mb-3 fw-semibold"><i class="bi bi-funnel"></i> <span data-i18n="filters_title">Фильтры</span></h5>
+            <form hx-get="/ui/issues" hx-target="#issues-table" hx-indicator="#issues-table" hx-swap="innerHTML">
                 <input type="hidden" name="project_id" value="{{ project.id }}">
-                <div class="row g-2 align-items-end">
-                    <div class="col-auto">
-                        <label class="form-label">Уровень</label>
-                        <select name="severity" class="form-select">
-                            <option value="">Все</option>
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <label class="form-label">Статус</label>
-                        <select name="status_filter" class="form-select">
-                            <option value="">Активные</option>
-                            <option value="new">Только новые</option>
-                            <option value="existing">Только существующие</option>
-                            <option value="fixed">Исправленные</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <label class="form-label">Поиск</label>
-                        <input type="text" name="q" class="form-control" placeholder="Файл или код правила...">
-                    </div>
-                    <div class="col-auto">
-                        <button class="btn btn-primary">Применить</button>
-                    </div>
+
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="severity_label">Уровень серьёзности</label>
+                    <select name="severity" class="form-select">
+                        <option value="" data-i18n="severity_all">Все</option>
+                        <option value="High">🔴 <span data-i18n="severity_high">High</span></option>
+                        <option value="Medium">🟡 <span data-i18n="severity_medium">Medium</span></option>
+                        <option value="Low">🟢 <span data-i18n="severity_low">Low</span></option>
+                    </select>
                 </div>
+
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="status_label">Статус</label>
+                    <select name="status_filter" class="form-select">
+                        <option value="" data-i18n="status_active">Активные</option>
+                        <option value="new" data-i18n="status_new_only">Только новые</option>
+                        <option value="existing" data-i18n="status_existing_only">Только существующие</option>
+                        <option value="fixed" data-i18n="status_fixed_only">Исправленные</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="search_label">Поиск</label>
+                    <input type="text" name="q" class="form-control" data-i18n-placeholder="search_placeholder" placeholder="Файл, правило, сообщение…">
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> <span data-i18n="apply_button">Применить</span>
+                </button>
             </form>
         </div>
     </div>
 </div>
 
-<div id="issues-table" hx-get="/ui/issues?project_id={{ project.id }}" hx-trigger="load">
-    <div class="text-center p-5">Загрузка данных...</div>
+{# --- Issues Table --- #}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0 fw-semibold"><i class="bi bi-table"></i> <span data-i18n="issues_title">Предупреждения</span></h5>
+    </div>
+    <div id="issues-table" hx-get="/ui/issues?project_id={{ project.id }}" hx-trigger="load">
+        <div class="htmx-loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden" data-i18n="loading_data">Загрузка данных…</span>
+            </div>
+            <span data-i18n="loading_data">Загрузка данных…</span>
+        </div>
+    </div>
 </div>
 
 <script>
-    const ctx = document.getElementById('trendChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: {{ history | map(attribute='timestamp') | map('truncate', 16, true, '') | list | tojson }},
-            datasets: [
-                { label: 'Новые', data: {{ history | map(attribute='new') | list | tojson }}, borderColor: '#dc3545', fill: false },
-                { label: 'Активные', data: {{ history | map(attribute='total') | list | tojson }}, borderColor: '#0d6efd', fill: false },
-                { label: 'Исправленные', data: {{ history | map(attribute='fixed') | list | tojson }}, borderColor: '#198754', fill: false }
-            ]
-        },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    document.addEventListener('DOMContentLoaded', () => {
+        const historyData = {{ history | tojson }};
+        if (historyData && historyData.length > 0) {
+            createTrendChart('trendChart', historyData);
+        }
     });
 </script>
+
 {% endblock %}

@@ -1,74 +1,131 @@
-<table class="table table-hover">
-    <thead class="table-light">
-        <tr>
-            <th>Статус</th>
-            <th>Уровень</th>
-            <th>Правило</th>
-            <th>Тип</th>
-            <th>Приоритет</th>
-            <th>Файл</th>
-            <th>Строка</th>
-            <th>Сообщение</th>
-            <th>Действия</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for issue in issues %}
-        {% set classifier = classifier_map.get(issue.classifier_id) %}
-        <tr class="severity-{{ issue.severity }}">
-            <td class="status-{{ issue.status }}">{{ issue.status|upper }}</td>
-            <td>{{ issue.severity }}</td>
-            <td><code>{{ issue.rule_code }}</code></td>
-            <td>
-                {% if classifier %}
-                <span class="badge bg-info">{{ classifier.type }}</span>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th><i class="bi bi-tag"></i> <span data-i18n="status">Статус</span></th>
+                    <th><i class="bi bi-exclamation-diamond"></i> <span data-i18n="level">Уровень</span></th>
+                    <th><i class="bi bi-code-slash"></i> <span data-i18n="rule">Правило</span></th>
+                    <th><i class="bi bi-collection"></i> <span data-i18n="type">Тип</span></th>
+                    <th><i class="bi bi-sort-down"></i> <span data-i18n="priority">Приоритет</span></th>
+                    <th><i class="bi bi-file-earmark-code"></i> <span data-i18n="file">Файл</span></th>
+                    <th><i class="bi bi-text-paragraph"></i> <span data-i18n="line">Строка</span></th>
+                    <th><i class="bi bi-chat-left-text"></i> <span data-i18n="message">Сообщение</span></th>
+                    <th><i class="bi bi-gear"></i> <span data-i18n="actions">Действия</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for issue in issues %}
+                {% set classifier = classifier_map.get(issue.classifier_id) %}
+                <tr class="severity-{{ issue.severity }}">
+                    <td class="status-{{ issue.status }}">
+                        {% if issue.status == 'new' %}
+                        <i class="bi bi-plus-circle"></i>
+                        {% elif issue.status == 'fixed' %}
+                        <i class="bi bi-check-circle"></i>
+                        {% elif issue.status == 'ignored' %}
+                        <i class="bi bi-x-octagon"></i>
+                        {% else %}
+                        <i class="bi bi-circle"></i>
+                        {% endif %}
+                        {{ issue.status|upper }}
+                    </td>
+                    <td>
+                        {% if issue.severity == 'High' %}
+                        <span class="text-danger fw-semibold">🔴 High</span>
+                        {% elif issue.severity == 'Medium' %}
+                        <span class="text-warning fw-semibold">🟡 Medium</span>
+                        {% else %}
+                        <span class="text-success fw-semibold">🟢 Low</span>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ issue.rule_code }}</code></td>
+                    <td>
+                        {% if classifier %}
+                        <span class="badge bg-info text-dark">{{ classifier.type }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if classifier %}
+                        <span class="badge
+                            {% if classifier.priority == 'CRITICAL' %}bg-danger
+                            {% elif classifier.priority == 'MAJOR' %}bg-warning text-dark
+                            {% elif classifier.priority == 'MINOR' %}bg-secondary
+                            {% else %}bg-light text-dark
+                            {% endif %}">
+                            {{ classifier.priority }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="file-truncate" title="{{ issue.file_path }}">{{ issue.file_path }}</span>
+                    </td>
+                    <td class="text-center"><span class="badge bg-light text-dark">{{ issue.line }}</span></td>
+                    <td>
+                        <div class="message-truncate" title="{{ issue.message }}">
+                            {{ issue.message }}
+                        </div>
+                        {% if classifier %}
+                        <br><small class="text-muted"><i class="bi bi-info-circle"></i> {{ classifier.name }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if issue.status != 'ignored' %}
+                        <button class="btn btn-sm btn-outline-danger"
+                                hx-post="/api/v1/issues/{{ issue.fingerprint }}/ignore"
+                                hx-confirm="{{ ignore_confirm|default('Mark as False Positive?') }}"
+                                hx-swap="none"
+                                data-i18n-title="ignore_button_title"
+                                title="Пометить как ложное срабатывание">
+                            <i class="bi bi-eye-slash"></i>
+                        </button>
+                        {% else %}
+                        <span class="text-muted"><i class="bi bi-check-lg"></i></span>
+                        {% endif %}
+                    </td>
+                </tr>
                 {% else %}
-                <span class="text-muted">—</span>
-                {% endif %}
-            </td>
-            <td>
-                {% if classifier %}
-                <span class="badge 
-                    {% if classifier.priority == 'CRITICAL' %}bg-danger
-                    {% elif classifier.priority == 'MAJOR' %}bg-warning
-                    {% elif classifier.priority == 'MINOR' %}bg-secondary
-                    {% else %}bg-light text-dark
-                    {% endif %}">
-                    {{ classifier.priority }}
-                </span>
-                {% else %}
-                <span class="text-muted">—</span>
-                {% endif %}
-            </td>
-            <td class="text-truncate" style="max-width: 250px;" title="{{ issue.file_path }}">{{ issue.file_path }}</td>
-            <td>{{ issue.line }}</td>
-            <td class="text-truncate" style="max-width: 400px;" title="{{ issue.message }}">
-                {{ issue.message }}
-                {% if classifier %}
-                <br><small class="text-muted">{{ classifier.name }}</small>
-                {% endif %}
-            </td>
-            <td>
-                <button class="btn btn-sm btn-outline-secondary"
-                        hx-post="/api/v1/issues/{{ issue.fingerprint }}/ignore"
-                        hx-confirm="Пометить как False Positive?">
-                    🚫 Игнор
-                </button>
-            </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="9" class="text-center py-4">Предупреждений не найдено</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
-<div class="d-flex justify-content-between mt-3">
-    <span>Показано {{ issues|length }} из {{ total }}</span>
-    <div>
-        {% if page > 1 %}
-        <button class="btn btn-sm btn-secondary" hx-get="/ui/issues?project_id={{ project_id }}&page={{ page-1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}" hx-target="#issues-table">← Назад</button>
-        {% endif %}
-        {% if page * per_page < total %}
-        <button class="btn btn-sm btn-secondary" hx-get="/ui/issues?project_id={{ project_id }}&page={{ page+1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}" hx-target="#issues-table">Вперёд →</button>
-        {% endif %}
+                <tr>
+                    <td colspan="9" class="text-center py-5">
+                        <div class="empty-state py-4">
+                            <div class="empty-icon">🔍</div>
+                            <p class="mb-0" data-i18n="no_issues">Предупреждений не найдено</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+
+    {# --- Pagination --- #}
+    {% if issues|length > 0 or total > 0 %}
+    <div class="card-footer d-flex justify-content-between align-items-center py-2">
+        <span class="pagination-info">
+            <span data-i18n="showing">Показано</span> <strong>{{ issues|length }}</strong> <span data-i18n="of">из</span> <strong>{{ total }}</strong>
+        </span>
+        <div class="btn-group btn-group-sm" role="group">
+            {% if page > 1 %}
+            <button class="btn btn-secondary"
+                    hx-get="/ui/issues?project_id={{ project_id }}&page={{ page-1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
+                    hx-target="#issues-table"
+                    hx-indicator="#issues-table">
+                <i class="bi bi-chevron-left"></i> <span data-i18n="prev_page">Назад</span>
+            </button>
+            {% endif %}
+            {% if page * per_page < total %}
+            <button class="btn btn-secondary"
+                    hx-get="/ui/issues?project_id={{ project_id }}&page={{ page+1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
+                    hx-target="#issues-table"
+                    hx-indicator="#issues-table">
+                <span data-i18n="next_page">Вперёд</span> <i class="bi bi-chevron-right"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>

@@ -18,17 +18,19 @@
 | **БД** | SQLite для dev, PostgreSQL для prod. Движок инициализируется один раз в `db.py`. Миграции не требуются в v1 (авто-создание таблиц через `SQLModel.metadata.create_all`). |
 | **Очереди** | Только `FastAPI.BackgroundTasks`. **Запрещено**: Celery, RQ, Redis, Kafka в v1. |
 | **Async/Sync** | `async def` для HTTP-эндпоинтов. БД-операции выполняются в потоке через `SQLModel` (синхронный `Session` с `yield`). `httpx` для вебхуков. |
-| **Модульность** | Один файл = одна ответственность. Не объединять `models.py`, `parser.py` и `auth.py`. |
+| **Модульность** | Один файл = одна ответственность. Не объединять `models.py`, `parser.py`, `auth.py`, `classifier_parser.py`. |
+| **Error Classifier** | `ErrorClassifier` таблица заполняется из `Actual_warnings.csv` при старте. Issues автоматически линкуются по `rule_code` в `incremental.py`. |
 
 ---
 
 ## 🐍 3. Python & Backend стандарты
 - **Type Hints:** Обязательны везде. `def func(x: str) -> dict[str, Any]:`
 - **Pydantic v2:** Используется для конфигов, запросов/ответов API. Валидация на входе, не в бизнес-логике.
-- **SQLModel:** 
+- **SQLModel:**
   - Все модели наследуют `SQLModel, table=True`
   - Внешние ключи через `Field(foreign_key="table.id")`
-  - Индексы: `fingerprint`, `run_id`, `status`, `project_id`
+  - Индексы: `fingerprint`, `run_id`, `status`, `project_id`, `rule_code` (ErrorClassifier)
+  - `Issue.classifier_id` — nullable FK to `ErrorClassifier.id`
 - **Логирование:** `import logging`. `logger = logging.getLogger(__name__)`. **Запрещено** `print()`.
 - **Обработка ошибок:** `HTTPException(status_code=..., detail="...")` для API. Для UI — редирект на `/login` или страница ошибки с `status_code`.
 - **Зависимости FastAPI:** `Depends(get_session)`, `Depends(require_auth)`. Не создавать сессии вручную в роутах.
@@ -37,11 +39,15 @@
 
 ## 🌐 4. Frontend (Jinja2 + HTMX) правила
 - **Наследование:** Все шаблоны расширяют `base.html`. Никаких дубликатов `<head>`/`<nav>`.
-- **HTMX-фрагменты:** 
+- **HTMX-фрагменты:**
   - Возвращают **только** HTML-кусок (например, `<table>...</table>`).
   - Не содержат `<!DOCTYPE>`, `<html>`, `<script>` (кроме инлайн-обработчиков, если неизбежно).
   - `hx-target` всегда указывает на конкретный `id`.
-- **Пагинация & Фильтры:** 
+- **Upload Forms:**
+  - Формы в UI используют `/ui/upload`, который **редиректит на дашборд** (303)
+  - API endpoint `/api/v1/upload` возвращает JSON для CI/CD и скриптов
+  - Никогда не возвращать JSON из UI форм — всегда redirect
+- **Пагинация & Фильтры:**
   - Состояние передаётся в URL query params.
   - При клике "Вперёд" HTMX подгружает `/ui/issues?page=N&severity=...` и заменяет `#issues-table`.
   - Текущие фильтры сохраняются в кнопках пагинации.
@@ -60,7 +66,7 @@
 ---
 
 ## 🧠 6. Инкрементальная логика и парсинг
-- **Фингерпринт:** 
+- **Фингерпринт:**
   ```python
   norm_file = file.replace("\\", "/").strip()
   norm_msg = " ".join(message.split())
@@ -70,10 +76,14 @@
   1. Загрузить `current_fps` из нового отчёта.
   2. Получить `prev_fps` из последнего `Run.status == "done"`.
   3. Классификация в одной транзакции:
-     - `∉ prev_fps` → `status="new"`
-     - `∈ prev_fps` → `status="existing"`
-     - `prev_fps - current_fps` → обновить `status="fixed"` у записей предыдущего `run_id`
+     - `∉ prev_fps` → создать `Issue` в **текущем** run со `status="new"`
+     - `∈ prev_fps` → создать `Issue` в **текущем** run со `status="existing"`
+     - `prev_fps - current_fps` → создать **новый** `Issue` в **текущем** run со `status="fixed"` (НЕ менять записи предыдущего run!)
   4. `session.commit()` только после всех операций.
+- **Error Classifier Linkage:**
+  - При создании `Issue` в `classify_and_store()`, автоматически линкуется `classifier_id` по `rule_code`
+  - Строится словарь `{rule_code: classifier_id}` из таблицы `ErrorClassifier`
+  - Если `rule_code` не найден, `classifier_id` остаётся `None`
 - **Устойчивость парсера:** PVS JSON меняет поля между версиями. Использовать `.get()`, fallback'ы, `try/except KeyError`. Не падать при неизвестных ключах.
 
 ---
@@ -101,7 +111,8 @@
 - Возвращать HTML из /api/* маршрутов
 - Игнорировать type hints или использовать Any без обоснования
 - Делать синхронные HTTP-запросы в async-эндпоинтах
-- Менять статус "fixed" у текущего рана (только у предыдущего!)
+- Менять статус "fixed" у записей предыдущего run (создавать новые записи в текущем run!)
+- Считать "total" как сумму new+existing одного run (использовать кумулятивную логику!)
 ```
 
 ---
@@ -125,4 +136,7 @@
 - [ ] Webhook отправляется асинхронно после обработки
 - [ ] LDAP-авторизация блокирует доступ к `/ui/*` без сессии
 - [ ] Инкрементальный diff корректно ставит `new`/`fixed`/`existing`
+- [ ] ErrorClassifier загружается из CSV при старте
+- [ ] Issues корректно линкуются к ErrorClassifier по rule_code
+- [ ] UI отображает classifier type/priority badges
 - [ ] Нет `print()`, нет хардкодов, все типы указаны

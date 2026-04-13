@@ -26,19 +26,25 @@ pvs-tracker/
 ├── main.py                 # Точка входа, роуты, middleware, запуск
 ├── config.py               # Настройки из .env, валидация
 ├── db.py                   # Инициализация движка, создание таблиц
-├── models.py               # SQLModel схемы
-├── parser.py               # Разбор PVS JSON, нормализация путей
-├── incremental.py          # Алгоритм diff (new/existing/fixed)
+├── models.py               # SQLModel схемы (Project, Run, Issue, ErrorClassifier)
+├── parser.py               # Разбор PVS JSON (modern + legacy форматы), нормализация путей
+├── incremental.py          # Алгоритм diff (new/existing/fixed) + classifier linkage
+├── classifier_parser.py    # Парсер Actual_warnings.csv для ErrorClassifier
 ├── auth.py                 # LDAP bind, сессии, защита роутов
 ├── webhooks.py             # Асинхронные уведомления
 ├── templates/
 │   ├── base.html
 │   ├── login.html
 │   ├── dashboard.html
-│   └── issues_table.html   # HTMX-фрагмент
+│   └── issues_table.html   # HTMX-фрагмент (с classifier badges)
 ├── static/                 # CSS/JS (если понадобится кастом)
 ├── reports/                # Хранилище загруженных файлов
+├── Actual_warnings.csv     # Классификатор ошибок (416 правил)
 ├── .env.example
+├── tests/
+│   ├── conftest.py         # pytest fixtures (updated for modern format)
+│   ├── test_smoke.py       # smoke tests (updated for modern format)
+│   └── test_parser.py      # parser tests (modern + legacy formats)
 └── README.md
 ```
 
@@ -53,6 +59,14 @@ class Project(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     webhook_url: str | None = None  # URL для уведомлений
 
+class ErrorClassifier(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    rule_code: str = Field(unique=True, index=True)  # V1001, V1002, etc.
+    type: str  # BUG, SECURITY, etc.
+    priority: str  # CRITICAL, MAJOR, MINOR, etc.
+    name: str  # Short description
+    description: str = ""  # Optional detailed description
+
 class Run(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="project.id")
@@ -66,13 +80,14 @@ class Run(SQLModel, table=True):
 class Issue(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     run_id: int = Field(foreign_key="run.id", index=True)
+    classifier_id: int | None = Field(default=None, foreign_key="errorclassifier.id")
     fingerprint: str = Field(index=True, max_length=16)
     file_path: str
     line: int
     rule_code: str
     severity: str  # High | Medium | Low | Analysis
     message: str
-    status: str = "existing"  # new | existing | fixed
+    status: str = "existing"  # new | existing | fixed | ignored
 
 class IgnoredIssue(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -87,7 +102,54 @@ class IgnoredIssue(SQLModel, table=True):
 
 ## 🔑 4. Ядровая логика
 
-### 4.1 Фингерпринтинг предупреждений
+### 4.1 Парсинг PVS-Studio JSON
+
+**Поддерживаемые форматы:**
+
+**Современный формат (актуальный):**
+```json
+{
+  "version": 3,
+  "warnings": [
+    {
+      "code": "V824",
+      "level": 1,
+      "positions": [
+        {
+          "file": "D:\\project\\src\\file.cpp",
+          "line": 18,
+          "endLine": 18
+        }
+      ],
+      "message": "It is recommended to use 'make_unique'."
+    }
+  ]
+}
+```
+
+**Legacy формат:**
+```json
+{
+  "version": "8.10",
+  "warnings": [
+    {
+      "fileName": "src/file.cpp",
+      "lineNumber": 18,
+      "warningCode": "V824",
+      "level": "High",
+      "message": "It is recommended to use 'make_unique'."
+    }
+  ]
+}
+```
+
+**Правила парсинга:**
+- Одно предупреждение может иметь несколько `positions[]` — каждая создаёт отдельный issue
+- Numeric level mapping: `0` → "Analysis", `1` → "High", `2` → "Medium", `3` → "Low"
+- Warnings с пустым `file` в positions пропускаются (meta-warnings)
+- Parser автоматически определяет формат и обрабатывает оба варианта
+
+### 4.2 Фингерпринтинг предупреждений
 ```python
 def compute_fingerprint(file: str, line: int, code: str, message: str) -> str:
     norm_file = file.replace("\\", "/").strip()
@@ -97,7 +159,7 @@ def compute_fingerprint(file: str, line: int, code: str, message: str) -> str:
 ```
 ⚠️ **Важно:** Нормализация путей критична для кросс-платформенности (Windows CI → Linux сервер).
 
-### 4.2 Инкрементальный diff
+### 4.3 Инкрементальный diff
 1. Загрузить `current_issues` из нового отчёта
 2. Получить `prev_fps` из последнего `Run.status == "done"`
 3. Классифицировать:
@@ -114,7 +176,8 @@ def compute_fingerprint(file: str, line: int, code: str, message: str) -> str:
 
 | Метод | Путь | Тип | Описание |
 |-------|------|-----|----------|
-| `POST` | `/api/v1/upload` | API | Multipart: `project_name`, `file` (JSON), `commit`, `branch`, `webhook_url` |
+| `POST` | `/ui/upload` | UI | **Form upload** — multipart form, **redirects to dashboard** (303) |
+| `POST` | `/api/v1/upload` | API | **API upload** — multipart JSON, returns JSON response |
 | `GET` | `/api/v1/projects/{id}/trends` | API | JSON с историей запусков (timestamps, new, fixed, total) |
 | `GET` | `/ui/projects` | UI/HTMX | Список проектов |
 | `GET` | `/ui/dashboard/{id}` | UI/HTMX | Главная страница проекта (график + форма фильтров) |
@@ -122,9 +185,12 @@ def compute_fingerprint(file: str, line: int, code: str, message: str) -> str:
 | `POST` | `/api/v1/issues/{fp}/ignore` | API | Добавление в `IgnoredIssue` |
 | `GET`/`POST` | `/login`, `/logout` | UI | LDAP авторизация |
 
-🔹 Все `/ui/*` маршруты возвращают `HTMLResponse` через Jinja2.  
-🔹 Все `/api/*` маршруты возвращают JSON.  
+🔹 Все `/ui/*` маршруты возвращают `HTMLResponse` через Jinja2.
+🔹 Все `/api/*` маршруты возвращают JSON.
 🔹 Фильтры: `severity`, `status`, `q` (поиск по файлу/коду), `page`, `per_page`.
+🔹 **Upload flow**: 
+  - Browser form → `/ui/upload` → HTTP 303 redirect → `/ui/projects/{id}/dashboard`
+  - CI/CD script → `/api/v1/upload` → JSON response `{"status": "success", "run_id": N, "total_issues": M}`
 
 ---
 

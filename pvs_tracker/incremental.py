@@ -50,14 +50,25 @@ def classify_and_store(
         )
         session.add(issue)
 
-    # Mark disappeared issues as fixed in the previous run
+    # Record disappeared issues as fixed in the *current* run
     if prev_run:
         fixed_fps = prev_fps - current_fps
         for fp in fixed_fps:
-            fixed_issue = session.exec(
+            prev_issue = session.exec(
                 select(Issue).where(Issue.fingerprint == fp, Issue.run_id == prev_run.id)
             ).first()
-            if fixed_issue and fixed_issue.status not in ("ignored",):
-                fixed_issue.status = "fixed"
+            if prev_issue and prev_issue.status not in ("ignored", "fixed"):
+                fixed_issue = Issue(
+                    run_id=run_id,
+                    fingerprint=prev_issue.fingerprint,
+                    file_path=prev_issue.file_path,
+                    line=prev_issue.line,
+                    rule_code=prev_issue.rule_code,
+                    severity=prev_issue.severity,
+                    message=prev_issue.message,
+                    status="fixed",
+                    classifier_id=prev_issue.classifier_id,
+                )
+                session.add(fixed_issue)
 
     session.commit()

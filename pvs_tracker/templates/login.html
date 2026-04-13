@@ -1,30 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Вход — PVS-Tracker{% endblock %}
+{% block title %}<span data-i18n="login_title">Вход</span> — PVS-Tracker{% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-5">
-        <div class="card mt-5">
-            <div class="card-header">
-                <h4 class="mb-0">🔐 Вход</h4>
+
+<div class="row justify-content-center fade-in">
+    <div class="col-md-5 col-lg-4">
+        <div class="card mt-5 shadow-lg">
+            <div class="card-header text-center">
+                <h4 class="mb-0">
+                    <i class="bi bi-box-arrow-in-right"></i> <span data-i18n="login_title">Вход в систему</span>
+                </h4>
             </div>
-            <div class="card-body">
+            <div class="card-body p-4">
                 {% if error %}
-                <div class="alert alert-danger">{{ error }}</div>
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                </div>
                 {% endif %}
+
                 <form method="post" action="/login">
                     <div class="mb-3">
-                        <label class="form-label">Имя пользователя</label>
-                        <input type="text" name="username" class="form-control" required autofocus>
+                        <label class="form-label" data-i18n="username_label">Имя пользователя</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" name="username" class="form-control" data-i18n-placeholder="username_placeholder" placeholder="username" required autofocus>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Пароль</label>
-                        <input type="password" name="password" class="form-control" required>
+                    <div class="mb-4">
+                        <label class="form-label" data-i18n="password_label">Пароль</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                            <input type="password" name="password" class="form-control" data-i18n-placeholder="password_placeholder" placeholder="password" required>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Войти</button>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-arrow-right-circle"></i> <span data-i18n="submit_login">Войти</span>
+                    </button>
                 </form>
-                <p class="text-muted mt-3 small">MVP: принимаются любые учётные данные</p>
+
+                <div class="text-center mt-3">
+                    <span class="badge bg-secondary">MVP</span>
+                    <p class="text-muted mt-2 small mb-0" data-i18n="mvp_note">Принимаются любые учётные данные</p>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}

@@ -139,17 +139,30 @@ async def ui_dashboard(project_id: int, request: Request, session: Session = Dep
         .limit(10),
     ).all()
 
+    # Compute cumulative active/fixed counts across runs
+    all_fps: set[str] = set()
+    fixed_fps: set[str] = set()
     history = []
     for r in runs:
         issues = session.exec(select(Issue).where(Issue.run_id == r.id)).all()
+        for i in issues:
+            if i.status in ("new", "existing"):
+                all_fps.add(i.fingerprint)
+            elif i.status == "fixed":
+                fixed_fps.add(i.fingerprint)
+
+        active_count = len(all_fps - fixed_fps)
+        new_count = len([i for i in issues if i.status == "new"])
+        fixed_count = len([i for i in issues if i.status == "fixed"])
+
         history.append(
             {
                 "timestamp": r.timestamp.isoformat(),
                 "commit": r.commit or "—",
                 "branch": r.branch or "—",
-                "total": len([i for i in issues if i.status in ("new", "existing")]),
-                "new": len([i for i in issues if i.status == "new"]),
-                "fixed": len([i for i in issues if i.status == "fixed"]),
+                "total": active_count,
+                "new": new_count,
+                "fixed": fixed_count,
             }
         )
 
@@ -361,20 +374,33 @@ def api_dashboard(project_id: int, session: Session = Depends(get_session)):
         .limit(10),
     ).all()
 
+    # Compute cumulative active/fixed counts across runs
+    all_fps: set[str] = set()
+    fixed_fps: set[str] = set()
     history = []
     for r in runs:
         issues = session.exec(select(Issue).where(Issue.run_id == r.id)).all()
+        for i in issues:
+            if i.status in ("new", "existing"):
+                all_fps.add(i.fingerprint)
+            elif i.status == "fixed":
+                fixed_fps.add(i.fingerprint)
+
+        active_count = len(all_fps - fixed_fps)
+        new_count = len([i for i in issues if i.status == "new"])
+        fixed_count = len([i for i in issues if i.status == "fixed"])
+
         history.append(
             {
                 "timestamp": r.timestamp.isoformat(),
                 "commit": r.commit,
                 "branch": r.branch,
-                "total": len([i for i in issues if i.status in ("new", "existing")]),
-                "new": len([i for i in issues if i.status == "new"]),
-                "fixed": len([i for i in issues if i.status == "fixed"]),
+                "total": active_count,
+                "new": new_count,
+                "fixed": fixed_count,
             }
         )
-    
+
     # Get classifier data for summary
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_summary = {

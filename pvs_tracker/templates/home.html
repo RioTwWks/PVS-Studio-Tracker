@@ -1,57 +1,122 @@
 {% extends "base.html" %}
-{% block title %}PVS-Tracker — Главная{% endblock %}
+{% block title %}PVS-Tracker — <span data-i18n="app_title">Home</span>{% endblock %}
 {% block content %}
-<h2 class="mb-4">🛡️ PVS-Studio Tracker</h2>
 
-{% if error %}
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-    <strong>Ошибка:</strong> {{ error }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
-{% endif %}
-
-<div class="row">
-    <div class="col-md-6">
-        <h4>Проекты</h4>
-        {% if projects %}
-        <ul class="list-group mb-3">
-            {% for project in projects %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <a href="/ui/projects/{{ project.id }}/dashboard">{{ project.name }}</a>
-                <span class="badge bg-secondary">{{ project.language }}</span>
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-muted">Проектов пока нет. Загрузите первый отчёт PVS-Studio.</p>
-        {% endif %}
+<div class="fade-in">
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold mb-2">
+            <i class="bi bi-shield-check text-primary"></i> <span data-i18n="app_title">PVS-Studio Tracker</span>
+        </h1>
+        <p class="text-muted lead" data-i18n="app_subtitle">Инкрементальный трекер предупреждений статического анализа</p>
     </div>
 
-    <div class="col-md-6">
-        <h4>Загрузить отчёт</h4>
-        {% if current_user %}
-        <form action="/ui/upload" method="post" enctype="multipart/form-data">
-            <div class="mb-3">
-                <label class="form-label">Имя проекта</label>
-                <input type="text" name="project_name" class="form-control" required>
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> <strong data-i18n="error_label">Ошибка:</strong> {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        {# --- Projects Column --- #}
+        <div class="col-md-6">
+            <div class="upload-section h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="section-header mb-0">
+                        <i class="bi bi-folder2-open"></i> <span data-i18n="projects">Проекты</span>
+                    </h4>
+                </div>
+
+                {% if projects %}
+                <div class="list-group list-group-flush">
+                    {% for project in projects %}
+                    <a href="/ui/projects/{{ project.id }}/dashboard" class="project-link-card mb-2">
+                        <div>
+                            <div class="project-name">{{ project.name }}</div>
+                            <small class="text-muted" data-i18n="click_for_dashboard">Нажмите для просмотра дашборда</small>
+                        </div>
+                        <span class="badge bg-secondary">{{ project.language }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">📂</div>
+                    <p class="mb-0"><span data-i18n="no_projects">Проектов пока нет.</span><br><span data-i18n="no_projects_hint">Загрузите первый отчёт PVS-Studio, чтобы начать.</span></p>
+                </div>
+                {% endif %}
             </div>
-            <div class="mb-3">
-                <label class="form-label">Файл отчёта (JSON)</label>
-                <input type="file" name="file" class="form-control" accept=".json" required>
+        </div>
+
+        {# --- Upload Column --- #}
+        <div class="col-md-6">
+            <div class="upload-section h-100">
+                <h4 class="section-header mb-3">
+                    <i class="bi bi-cloud-arrow-up"></i> <span data-i18n="upload_report">Загрузить отчёт</span>
+                </h4>
+
+                {% if current_user %}
+                <form action="/ui/upload" method="post" enctype="multipart/form-data" id="upload-form">
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="project_name_label">Имя проекта</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-tag"></i></span>
+                            <input type="text" name="project_name" class="form-control" data-i18n-placeholder="project_name_placeholder" placeholder="MyProject" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="report_file_label">Файл отчёта (JSON)</label>
+                        <input type="file" name="file" class="form-control" accept=".json" id="report-file" required>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-sm-6">
+                            <label class="form-label" data-i18n="commit_label">Коммит</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-git"></i></span>
+                                <input type="text" name="commit" class="form-control" data-i18n-placeholder="commit_placeholder" placeholder="abc1234">
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" data-i18n="branch_label">Ветка</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-diagram-3"></i></span>
+                                <input type="text" name="branch" class="form-control" data-i18n-placeholder="branch_placeholder" placeholder="main">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="upload-btn">
+                        <i class="bi bi-upload"></i> <span data-i18n="upload_button">Загрузить отчёт</span>
+                    </button>
+                </form>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">🔐</div>
+                    <p class="mb-2" data-i18n="login_to_upload">Войдите, чтобы загружать отчёты.</p>
+                    <a href="/login" class="btn btn-primary btn-sm">
+                        <i class="bi bi-box-arrow-in-right"></i> <span data-i18n="login">Войти</span>
+                    </a>
+                </div>
+                {% endif %}
             </div>
-            <div class="mb-3">
-                <label class="form-label">Коммит</label>
-                <input type="text" name="commit" class="form-control" placeholder="abc1234">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Ветка</label>
-                <input type="text" name="branch" class="form-control" placeholder="main">
-            </div>
-            <button type="submit" class="btn btn-primary">Загрузить</button>
-        </form>
-        {% else %}
-        <p class="text-muted">Войдите, чтобы загружать отчёты. <a href="/login">Войти</a></p>
-        {% endif %}
+        </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const fileInput = document.getElementById('report-file');
+        if (fileInput) {
+            fileInput.addEventListener('change', () => {
+                const fileName = fileInput.files[0]?.name || '';
+                if (fileName) {
+                    fileInput.setAttribute('title', fileName);
+                }
+            });
+        }
+    });
+</script>
+
 {% endblock %}
