@@ -159,7 +159,16 @@ function createTrendChart(canvasId, historyData) {
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     const colors = getChartColors(theme);
 
-    const labels = historyData.map((d) => d.timestamp);
+    // Build labels: show commit hash + timestamp if available
+    const labels = historyData.map((d) => {
+        if (d.commit && d.commit !== '—') {
+            // Short commit hash (6 chars) + date
+            const shortHash = d.commit.substring(0, 6);
+            const date = new Date(d.timestamp).toLocaleDateString();
+            return `${shortHash} (${date})`;
+        }
+        return new Date(d.timestamp).toLocaleDateString();
+    });
     const newData = historyData.map((d) => d.new);
     const activeData = historyData.map((d) => d.total);
     const fixedData = historyData.map((d) => d.fixed);
@@ -236,6 +245,24 @@ function createTrendChart(canvasId, historyData) {
                     bodyFont: { size: 12 },
                     displayColors: true,
                     boxPadding: 4,
+                    callbacks: {
+                        title: function (items) {
+                            if (items.length > 0) {
+                                const idx = items[0].dataIndex;
+                                const d = historyData[idx];
+                                const parts = [];
+                                if (d.branch && d.branch !== '—') {
+                                    parts.push(`${I18n.t('chart_branch_label')}: ${d.branch}`);
+                                }
+                                if (d.commit && d.commit !== '—') {
+                                    parts.push(`${I18n.t('chart_commit_label')}: ${d.commit}`);
+                                }
+                                parts.push(`${I18n.t('chart_date_label')}: ${new Date(d.timestamp).toLocaleString()}`);
+                                return parts.join(' | ');
+                            }
+                            return '';
+                        },
+                    },
                 },
             },
             scales: {

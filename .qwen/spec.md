@@ -30,21 +30,26 @@ pvs-tracker/
 ├── parser.py               # Разбор PVS JSON (modern + legacy форматы), нормализация путей
 ├── incremental.py          # Алгоритм diff (new/existing/fixed) + classifier linkage
 ├── classifier_parser.py    # Парсер Actual_warnings.csv для ErrorClassifier
+├── code_viewer.py          # Code Viewer: inline view + standalone page with file browser
+├── file_resolver.py        # Безопасное разрешение путей (защита от path traversal)
 ├── auth.py                 # LDAP bind, сессии, защита роутов
 ├── webhooks.py             # Асинхронные уведомления
 ├── templates/
 │   ├── base.html
 │   ├── login.html
-│   ├── dashboard.html
-│   └── issues_table.html   # HTMX-фрагмент (с classifier badges)
-├── static/                 # CSS/JS (если понадобится кастом)
+│   ├── dashboard.html          # Tabbed interface: Issues + Code tabs
+│   ├── issues_table.html       # HTMX-фрагмент (с classifier badges + code view button)
+│   ├── code_view.html          # HTMX partial: inline code view (NO base.html inheritance)
+│   └── code_viewer_page.html   # Standalone code viewer with file browser
+├── static/                 # CSS/JS (custom styles for code viewer)
 ├── reports/                # Хранилище загруженных файлов
 ├── Actual_warnings.csv     # Классификатор ошибок (416 правил)
 ├── .env.example
 ├── tests/
 │   ├── conftest.py         # pytest fixtures (updated for modern format)
 │   ├── test_smoke.py       # smoke tests (updated for modern format)
-│   └── test_parser.py      # parser tests (modern + legacy formats)
+│   ├── test_parser.py      # parser tests (modern + legacy formats)
+│   └── test_code_viewer.py # code viewer tests
 └── README.md
 ```
 

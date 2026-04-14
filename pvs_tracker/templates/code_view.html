@@ -1,0 +1,110 @@
+{# HTMX partial template — no base.html inheritance to avoid duplicate navbar #}
+<div class="code-view-inline fade-in">
+    {% if error %}
+    <div class="alert alert-danger fade-in" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    </div>
+    {% elif lines %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h6 class="mb-1">
+                <i class="bi bi-file-earmark-code"></i>
+                <code class="file-path-display">{{ file_path }}</code>
+            </h6>
+            {% if abs_path %}
+            <small class="text-fallback">
+                <i class="bi bi-folder2"></i> {{ abs_path }}
+            </small>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="code-container border rounded fade-in">
+        <table class="code-table">
+            <tbody>
+                {% for line_num in range(1, lines|length + 1) %}
+                {% set code = lines[line_num - 1] %}
+                {% set has_warnings = line_num in warnings_by_line %}
+                <tr class="code-row {% if has_warnings %}line-with-issue{% endif %} {% if target_line and line_num == target_line %}line-target{% endif %}"
+                    id="L{{ line_num }}"
+                    data-line="{{ line_num }}">
+                    <td class="line-num select-none">{{ line_num }}</td>
+                    <td class="line-code"><pre>{{ code.rstrip() }}</pre></td>
+                    <td class="line-gutter">
+                        {% if has_warnings %}
+                        {% for issue in warnings_by_line[line_num] %}
+                        {% set classifier = classifier_map.get(issue.classifier_id) %}
+                        <div class="issue-badge"
+                             data-bs-toggle="tooltip"
+                             data-bs-placement="left"
+                             title="{{ issue.rule_code }}: {{ issue.message }}">
+                            <span class="severity-badge-{{ issue.severity }}">
+                                {% if issue.severity == 'High' %}
+                                🔴
+                                {% elif issue.severity == 'Medium' %}
+                                🟡
+                                {% else %}
+                                🟢
+                                {% endif %}
+                                {{ issue.rule_code }}
+                            </span>
+                            {% if classifier %}
+                            <span class="classifier-badge-inline">
+                                {{ classifier.type }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="code-summary mt-3 fade-in">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="stat-card stat-active">
+                    <div class="stat-value">{{ warnings_by_line|length }}</div>
+                    <div class="stat-label"><i class="bi bi-exclamation-diamond"></i> <span data-i18n="lines_with_issues">Строки с предупреждениями</span></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="stat-value">{{ lines|length }}</div>
+                    <div class="stat-label"><i class="bi bi-text-paragraph"></i> <span data-i18n="total_lines">Всего строк</span></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    {% set clean_lines = lines|length - warnings_by_line|length %}
+                    <div class="stat-value">{{ clean_lines }}</div>
+                    <div class="stat-label"><i class="bi bi-check-circle"></i> <span data-i18n="clean_lines">Чистые строки</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Scroll to target line if specified
+    {% if target_line %}
+    document.addEventListener("DOMContentLoaded", () => {
+        const el = document.getElementById("L{{ target_line }}");
+        if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("highlight-target");
+            setTimeout(() => el.classList.remove("highlight-target"), 3000);
+        }
+    });
+    {% endif %}
+
+    // Initialize Bootstrap tooltips
+    document.addEventListener("DOMContentLoaded", () => {
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        const tooltips = [...tooltipTriggerList].map(el => new bootstrap.Tooltip(el));
+    });
+</script>

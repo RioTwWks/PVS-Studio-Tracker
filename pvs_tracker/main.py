@@ -8,10 +8,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import Session, select
 
-from pvs_tracker.models import Issue, Project, Run, SQLModel, create_engine, ErrorClassifier
+from pvs_tracker.models import Issue, Project, Run, SQLModel, ErrorClassifier
 from pvs_tracker.parser import parse_pvs_report
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
+from pvs_tracker.db import engine
+import pvs_tracker.code_viewer as code_viewer_module
+from pvs_tracker.code_viewer import router as code_viewer_router
 
 # ---------------------------------------------------------------------------
 # App & DB
@@ -21,10 +24,54 @@ app = FastAPI(title="PVS-Studio Tracker")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "dev-change-me"))
 
 BASE_DIR = os.path.dirname(__file__)
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pvs_tracker.db")
 
-engine = create_engine(DATABASE_URL)
-SQLModel.metadata.create_all(engine)
+
+def _migrate_database() -> None:
+    """Apply schema migrations for existing databases."""
+    # Create all tables (safe if they already exist)
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        # Check if migration is needed
+        try:
+            projects = session.exec(select(Project).limit(1)).all()
+            if projects and hasattr(projects[0], "source_root_win"):
+                # Already migrated
+                return
+        except Exception:
+            pass
+
+        # Execute raw SQL to add new columns (SQLite)
+        from sqlalchemy import text
+
+        try:
+            with engine.connect() as conn:
+                # Add source_root_win
+                try:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE project ADD COLUMN source_root_win VARCHAR"
+                        )
+                    )
+                    conn.commit()
+                except Exception:
+                    pass  # Column may already exist
+
+                # Add source_root_linux
+                try:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE project ADD COLUMN source_root_linux VARCHAR"
+                        )
+                    )
+                    conn.commit()
+                except Exception:
+                    pass  # Column may already exist
+        except Exception:
+            pass  # Migration failed, continue anyway
+
+
+_migrate_database()
 
 
 def _load_error_classifiers(session: Session) -> None:
@@ -51,6 +98,10 @@ with Session(engine) as init_session:
 
 # Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+
+# Register code_viewer router and pass templates reference
+code_viewer_module.templates = templates
+app.include_router(code_viewer_router)
 
 # Static files
 STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
@@ -127,17 +178,47 @@ async def home(request: Request, session: Session = Depends(get_session)):
 
 
 @app.get("/ui/projects/{project_id}/dashboard", response_class=HTMLResponse)
-async def ui_dashboard(project_id: int, request: Request, session: Session = Depends(get_session)):
+async def ui_dashboard(
+    project_id: int,
+    request: Request,
+    branch: str = "",
+    session: Session = Depends(get_session),
+):
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
-    runs = session.exec(
+    # Collect all distinct branches from runs
+    all_runs = session.exec(
         select(Run)
         .where(Run.project_id == project_id, Run.status == "done")
-        .order_by(Run.timestamp.asc())  # Oldest first for trend chart
-        .limit(10),
+        .order_by(Run.timestamp.desc()),
     ).all()
+
+    branches: list[str] = []
+    for r in all_runs:
+        b = (r.branch or "").strip()
+        if b and b not in branches:
+            branches.append(b)
+
+    # Determine active branch: explicit param > main > master > first available
+    if branch:
+        active_branch = branch
+    elif "main" in branches:
+        active_branch = "main"
+    elif "master" in branches:
+        active_branch = "master"
+    elif branches:
+        active_branch = branches[0]
+    else:
+        active_branch = ""
+
+    # Filter runs by active branch
+    run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
+    if active_branch:
+        run_query = run_query.where(Run.branch == active_branch)
+    run_query = run_query.order_by(Run.timestamp.asc()).limit(10)
+    runs = session.exec(run_query).all()
 
     # Compute cumulative active/fixed counts across runs
     all_fps: set[str] = set()
@@ -173,6 +254,8 @@ async def ui_dashboard(project_id: int, request: Request, session: Session = Dep
             "current_user": get_current_user(request),
             "project": project,
             "history": history,
+            "branches": branches,
+            "active_branch": active_branch,
         },
     )
 
@@ -181,18 +264,30 @@ async def ui_dashboard(project_id: int, request: Request, session: Session = Dep
 async def ui_issues(
     request: Request,
     project_id: int,
+    branch: str = "",
     severity: str = "",
     status_filter: str = "",
     q: str = "",
     page: int = 1,
     session: Session = Depends(get_session),
 ):
-    latest_run = session.exec(
-        select(Run)
-        .where(Run.project_id == project_id, Run.status == "done")
-        .order_by(Run.timestamp.desc())
-        .limit(1),
-    ).first()
+    # Determine which run to show issues from
+    if branch:
+        # Get the latest run for the specific branch
+        latest_run = session.exec(
+            select(Run)
+            .where(Run.project_id == project_id, Run.status == "done", Run.branch == branch)
+            .order_by(Run.timestamp.desc())
+            .limit(1),
+        ).first()
+    else:
+        # Get the latest run overall
+        latest_run = session.exec(
+            select(Run)
+            .where(Run.project_id == project_id, Run.status == "done")
+            .order_by(Run.timestamp.desc())
+            .limit(1),
+        ).first()
 
     if not latest_run:
         return templates.TemplateResponse(
@@ -205,9 +300,11 @@ async def ui_issues(
                 "page": page,
                 "per_page": 50,
                 "project_id": project_id,
+                "branch": branch,
                 "severity": severity,
                 "status_filter": status_filter,
                 "q": q,
+                "run_id": None,
             },
         )
 
@@ -244,10 +341,12 @@ async def ui_issues(
             "page": page,
             "per_page": per_page,
             "project_id": project_id,
+            "branch": branch,
             "severity": severity,
             "status_filter": status_filter,
             "q": q,
             "classifier_map": classifier_map,
+            "run_id": latest_run.id,
         },
     )
 
@@ -362,17 +461,42 @@ async def upload_report_api(
 
 
 @app.get("/api/v1/projects/{project_id}/dashboard")
-def api_dashboard(project_id: int, session: Session = Depends(get_session)):
+def api_dashboard(project_id: int, branch: str = "", session: Session = Depends(get_session)):
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
-    runs = session.exec(
+    # Collect all distinct branches from runs
+    all_runs = session.exec(
         select(Run)
         .where(Run.project_id == project_id, Run.status == "done")
-        .order_by(Run.timestamp.asc())  # Oldest first for trend chart
-        .limit(10),
+        .order_by(Run.timestamp.desc()),
     ).all()
+
+    branches: list[str] = []
+    for r in all_runs:
+        b = (r.branch or "").strip()
+        if b and b not in branches:
+            branches.append(b)
+
+    # Determine active branch: explicit param > main > master > first available
+    if branch:
+        active_branch = branch
+    elif "main" in branches:
+        active_branch = "main"
+    elif "master" in branches:
+        active_branch = "master"
+    elif branches:
+        active_branch = branches[0]
+    else:
+        active_branch = ""
+
+    # Filter runs by active branch
+    run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
+    if active_branch:
+        run_query = run_query.where(Run.branch == active_branch)
+    run_query = run_query.order_by(Run.timestamp.asc()).limit(10)
+    runs = session.exec(run_query).all()
 
     # Compute cumulative active/fixed counts across runs
     all_fps: set[str] = set()
@@ -411,9 +535,11 @@ def api_dashboard(project_id: int, session: Session = Depends(get_session)):
     for c in classifiers:
         classifier_summary["by_type"][c.type] = classifier_summary["by_type"].get(c.type, 0) + 1
         classifier_summary["by_priority"][c.priority] = classifier_summary["by_priority"].get(c.priority, 0) + 1
-    
+
     return {
         "project": project.name,
+        "branches": branches,
+        "active_branch": active_branch,
         "history": history,
         "classifier_summary": classifier_summary,
     }
@@ -433,3 +559,33 @@ async def ignore_issue(
         issue.status = "ignored"
     session.commit()
     return {"status": "ignored", "fingerprint": fingerprint}
+
+
+@app.put("/api/v1/projects/{project_id}/source-roots")
+async def update_source_roots(
+    project_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    _user: str = Depends(require_auth),
+):
+    """Update project source root directories (Windows and Linux)."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    body = await request.json()
+    source_root_win = body.get("source_root_win")
+    source_root_linux = body.get("source_root_linux")
+
+    # Update fields if provided
+    if source_root_win is not None:
+        project.source_root_win = source_root_win if source_root_win else None
+    if source_root_linux is not None:
+        project.source_root_linux = source_root_linux if source_root_linux else None
+
+    session.commit()
+    return {
+        "status": "success",
+        "source_root_win": project.source_root_win,
+        "source_root_linux": project.source_root_linux,
+    }

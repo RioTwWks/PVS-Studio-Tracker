@@ -14,20 +14,27 @@ graph TD
   Browser[Browser UI] -->|POST /ui/upload (form)| API[FastAPI]
   CI[CI/CD Pipeline] -->|POST /api/v1/upload (JSON)| API[FastAPI]
   API -->|UI: redirect 303| Dashboard[/ui/projects/{id}/dashboard]
+  API -->|UI: code viewer| CodeViewer[/ui/file + /ui/projects/{id}/code-viewer]
   API -->|API: JSON| JSONResponse[API Response]
   API --> Parser[parser.py]
   API --> Classifier[classifier_parser.py]
+  API --> FileResolver[file_resolver.py]
   API --> DB[(SQLite/PostgreSQL)]
   Parser --> Diff[incremental.py]
   Classifier --> DB[(ErrorClassifier Table)]
   Diff --> DB
   DB --> UI[Jinja2+HTMX]
+  CodeViewer --> DB
+  CodeViewer --> FileResolver
+  FileResolver --> SourceFiles[Source Files on Disk]
   API --> Webhook[httpx BackgroundTasks]
   Webhook --> External[Telegram/CI/Slack]
   UI --> Chart[Chart.js]
   UI --> i18n[I18n RU/EN]
   UI --> Theme[Dark Blue Theme]
   UI --> ClassifierInfo[Classifier Badges]
+  UI --> CodeTab[Code Tab (inline viewer)]
+  CodeViewer --> CodeViewerPage[Standalone Code Viewer Page]
 ```
 
 ## ⚖️ Ключевые решения и почему
@@ -48,13 +55,37 @@ graph TD
 | **График: chronological order** | Newest first | Trend chart показывает oldest → newest для визуализации тренда |
 | **Error Classifier из CSV** | Хардкод в коде | Гибкое обновление правил без изменения кода, 416 правил из Actual_warnings.csv |
 | **Автозагрузка classifiers** | Ручной импорт | Удобство, автоматически при старте приложения |
+| **Branch Switcher** | Отдельная таблица распределения | Команды работают с несколькими ветками — переключатель фильтрует весь дашборд (график + issues) |
+| **Commit hash 6 chars** | Полный хэш или 7 chars | Стандартная короткая форма хэша, компактно для оси X |
+| **Code Viewer: tabs** | Боковая панель | SonarQube-style UX, полное использование экрана, удобнее для работы с кодом |
+| **Code Viewer: file browser** | Только inline view | Отдельная страница с файловым браузером для навигации по всем файлам с предупреждениями |
+| **Secure file resolver** | Прямой доступ к файлам | Защита от path traversal, поддержка Windows/Linux путей, кэширование с инвалидацией по mtime |
+| **HTMX partial без base.html** | Наследование base.html | Избежание дублирования навигации при HTMX-загрузке кода во вкладку Code |
 
 ## 🎨 Frontend
-- **CSS**: `static/style.css` — CSS custom properties, тёмно-синяя палитра (`#0b1a2e`, `#0f2240`, `#142d50`), smooth transitions
-- **JS**: `static/app.js` — `ThemeManager` (light/dark), `I18n` (RU/EN toggle), `createTrendChart` (Chart.js wrapper), `showToast`, animated counters
+- **CSS**: `static/style.css` — CSS custom properties, тёмно-синяя палитра (`#0b1a2e`, `#0f2240`, `#142d50`), smooth transitions, code viewer styles
+- **JS**: `static/app.js` — `ThemeManager` (light/dark), `I18n` (RU/EN toggle), `createTrendChart` (Chart.js wrapper), `showToast`, animated counters, `switchToCodeTab()` for tab switching
 - **Translations**: `static/translations.json` — словарь ru/en, ключи через `data-i18n` / `data-i18n-placeholder`
 - **Icons**: Bootstrap Icons CDN (`bi bi-*`)
 - **Таблицы в dark mode**: `[data-theme="dark"] .card .table { ... !important }` — принудительно перебивает белый фон Bootstrap
+- **Вкладки (Tabs)**: Dashboard использует Bootstrap tabs для разделения Issues и Code Viewer. HTMX загружает код в `#code-viewer-content`, JS переключает на вкладку Code
+- **Code Viewer стили**: `.nav-tabs`, `.file-browser-card`, `.code-table`, `.line-with-issue`, `.issue-badge`, `.code-container` — все поддерживают dark theme
+
+## 🌿 Branch & Commit Tracking
+- **Branch Switcher**: В верхней части дашборда — выпадающий список веток. При выборе ветки весь дашборд (график + таблица issues) перезагружается с фильтром по выбранной ветке. URL: `?branch=<name>`
+- **Commit Hashes on Chart**: Ось X графика показывает короткий хэш коммита (6 символов) + дату. При наведении тултип показывает полный хэш коммита, имя ветки и полную дату/время
+
+## 🔍 Code Viewer
+- **Inline tab view**: На дашборде вкладка "Код" загружает исходный файл с предупреждениями при клике на кнопку "View Code" в таблице issues
+- **Standalone page**: `/ui/projects/{id}/code-viewer` — полнофункциональная страница с файловым браузером (список файлов с предупреждениями слева) и отображением кода (справа)
+- **Line-level annotations**: Каждая строка с предупреждением показывает цветные бейджи (severity + rule code) в правой колонке
+- **Target highlighting**: Клик на issue прокручивает и подсвечивает конкретную строку с анимацией flash
+- **Secure file access**: `file_resolver.py` защищает от path traversal, поддерживает Windows/Linux абсолютные пути, кэширует файлы с инвалидацией по mtime
+- **File browser**: Показывает все файлы с предупреждениями, отсортированные по количеству issues, с бейджами-счётчиками
+- **HTMX partial template**: `code_view.html` — частичный шаблон БЕЗ наследования `base.html`, чтобы избежать дублирования навигации при HTMX-загрузке
+- **Routes**:
+  - `GET /ui/file?project_id=&file_path=&line=&run_id=` — inline code snippet (HTMX partial, no base.html)
+  - `GET /ui/projects/{id}/code-viewer?run_id=` — standalone code viewer page with file browser
 
 ## ⚠️ Известные нюансы PVS-Studio
 1. **Два формата JSON**: Современный формат использует `positions[].file`, `positions[].line`, `code`, numeric `level` (0-3). Legacy формат использует `fileName`, `lineNumber`, `warningCode`, string `level`/`severity`. Parser поддерживает оба формата.

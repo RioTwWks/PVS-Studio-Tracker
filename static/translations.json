@@ -16,6 +16,7 @@
     "commit_placeholder": "abc1234",
     "branch_label": "Ветка",
     "branch_placeholder": "main",
+    "branch_switcher_label": "Ветка:",
     "upload_button": "Загрузить отчёт",
     "login_to_upload": "Войдите, чтобы загружать отчёты.",
     "dashboard_title": "Инкрементальная аналитика PVS-Studio",
@@ -69,7 +70,20 @@
     "chart_legend_active": "Активные",
     "chart_legend_new": "Новые",
     "chart_legend_fixed": "Исправленные",
-    "toast_ignored": "Предупреждение помечено как False Positive"
+    "chart_branch_label": "Ветка",
+    "chart_commit_label": "Коммит",
+    "chart_date_label": "Дата",
+    "toast_ignored": "Предупреждение помечено как False Positive",
+    "view_code_button": "Просмотреть код",
+    "code_viewer_tab": "Код",
+    "code_viewer_tab_hint": "Выберите предупреждение на вкладке «Предупреждения» для просмотра кода",
+    "code_viewer_page_title": "Просмотр исходного кода",
+    "file_browser_title": "Файлы с предупреждениями",
+    "no_files_with_warnings": "Нет файлов с предупреждениями",
+    "select_file_hint": "Выберите файл для просмотра кода",
+    "lines_with_issues": "Строки с предупреждениями",
+    "total_lines": "Всего строк",
+    "clean_lines": "Чистые строки"
   },
   "en": {
     "app_title": "PVS-Studio Tracker",
@@ -88,6 +102,7 @@
     "commit_placeholder": "abc1234",
     "branch_label": "Branch",
     "branch_placeholder": "main",
+    "branch_switcher_label": "Branch:",
     "upload_button": "Upload Report",
     "login_to_upload": "Log in to upload reports.",
     "dashboard_title": "PVS-Studio Incremental Analysis",
@@ -141,6 +156,19 @@
     "chart_legend_active": "Active",
     "chart_legend_new": "New",
     "chart_legend_fixed": "Fixed",
-    "toast_ignored": "Warning marked as False Positive"
+    "chart_branch_label": "Branch",
+    "chart_commit_label": "Commit",
+    "chart_date_label": "Date",
+    "toast_ignored": "Warning marked as False Positive",
+    "view_code_button": "View code",
+    "code_viewer_tab": "Code",
+    "code_viewer_tab_hint": "Select a warning on the 'Warnings' tab to view code",
+    "code_viewer_page_title": "Source Code Viewer",
+    "file_browser_title": "Files with warnings",
+    "no_files_with_warnings": "No files with warnings",
+    "select_file_hint": "Select a file to view code",
+    "lines_with_issues": "Lines with warnings",
+    "total_lines": "Total lines",
+    "clean_lines": "Clean lines"
   }
 }

@@ -10,8 +10,16 @@
   - **API**: `POST /api/v1/upload` accepts PVS-Studio JSON reports with project name, commit, and branch (returns JSON)
 - **Incremental Classification** — Each warning gets a stable fingerprint (SHA-256 of `file:line:code:message`), enabling tracking across runs: **new**, **existing**, **fixed**, **ignored**
 - **Error Classifier** — Automatically links issues to `ErrorClassifier` table (loaded from `Actual_warnings.csv` on startup) with `type`, `priority`, and description metadata
-- **Dashboard** — `GET /api/v1/projects/{id}/dashboard` returns trend data for the last 10 runs with classifier summary statistics
+- **Branch Switcher** — Dashboard has a branch dropdown that filters all data (trend chart + issues table) by the selected branch. Switching branches reloads the dashboard with `?branch=<name>` query parameter
+- **Dashboard** — `GET /api/v1/projects/{id}/dashboard?branch=<name>` returns trend data for the last 10 runs, filtered by branch. Also returns `branches` list and `active_branch`. Dashboard uses **tabbed interface**: Issues tab (warnings table) and Code tab (inline code viewer)
+- **Code Viewer** — SonarQube-style code inspection:
+  - **Inline tab view**: Dashboard "Code" tab loads source code with warning annotations when clicking the code button on any issue
+  - **Standalone page**: `/ui/projects/{id}/code-viewer` provides a full-page code browser with file tree on the left and code display on the right
+  - **Line-level annotations**: Each line with warnings shows colored badges (severity + rule code) in a gutter column
+  - **Target highlighting**: Clicking an issue scrolls to and highlights the specific line
+  - **Secure file access**: Path traversal protection via `file_resolver.py`
 - **Web UI** — Jinja2 templates with HTMX + Bootstrap + Chart.js for interactive dashboards, displays classifier type/priority badges
+- **Commit Hashes on Chart** — Trend chart x-axis labels show short commit hash (6 chars) + date; tooltips show full commit hash, branch, and full timestamp
 - **Auth** — Simple bypass auth for MVP (accepts any credentials); LDAP stub in `auth.py`
 - **False Positive Management** — `POST /api/v1/issues/{fingerprint}/ignore` marks issues as ignored
 
@@ -25,21 +33,27 @@ pvs_tracker/
 ├── parser.py         # PVS-Studio JSON parser + fingerprinting
 ├── incremental.py    # Classification logic (new/existing/fixed)
 ├── classifier_parser.py  # CSV classifier parser (Actual_warnings.csv)
+├── code_viewer.py    # Code viewer routes (inline + standalone page)
+├── file_resolver.py  # Secure file path resolution (path traversal protection)
+├── db.py             # Database engine and session management
 ├── auth.py           # LDAP auth helpers (stub)
 └── templates/
     ├── base.html         # Base layout (Bootstrap + HTMX + Chart.js + dark theme + i18n)
     ├── home.html         # Home: projects list + upload form
     ├── login.html        # Login page
-    ├── dashboard.html    # Dashboard with trend chart + stat cards + filters
-    └── issues_table.html # Issues table with filters & pagination (HTMX partial, shows classifier info)
+    ├── dashboard.html    # Dashboard with trend chart + stat cards + filters + tabs (Issues/Code)
+    ├── issues_table.html # Issues table with filters & pagination (HTMX partial, shows classifier info)
+    ├── code_view.html    # HTMX partial: inline code view (NO base.html inheritance to avoid duplicate navbar)
+    └── code_viewer_page.html # Standalone code viewer page with file browser
 static/
-├── style.css             # Custom CSS with CSS variables, dark theme (dark blue), transitions
+├── style.css             # Custom CSS with CSS variables, dark theme (dark blue), transitions, code viewer styles
 ├── app.js                # ThemeManager, I18n (RU/EN), Chart.js wrapper, animated counters, toasts
 └── translations.json     # Bilingual strings (ru/en) keyed by i18n identifiers
 tests/
 ├── conftest.py           # pytest fixtures
 ├── test_smoke.py         # Smoke tests
-└── test_classifier.py    # Error classifier tests
+├── test_classifier.py    # Error classifier tests
+└── test_code_viewer.py   # Code viewer tests
 ```
 
 ### Tech Stack
@@ -139,6 +153,9 @@ mypy .
   - `total` = count of `new` + `existing` issues in this specific run
   - For the last run, `fixed` is always 0 (no next run to compare against)
   - Example: Run1 has 3 issues (V501, V824, V010), Run2 has 1 issue (V010) → Run1: {new:1, fixed:2, total:1}, Run2: {new:0, fixed:0, total:1}
+  - **X-axis labels**: Show short commit hash (6 chars) + date (e.g., `abc123 (04/13/2026)`). If no commit, shows date only
+  - **Tooltips**: Show full commit hash, branch name, and full timestamp in the format `Branch: main | Commit: abc1234def... | Date: 04/13/2026, 10:30:00 AM`
+- **Branch Switcher**: Dashboard displays a branch dropdown (populated from distinct branches of all runs for the project). Selecting a branch filters both the trend chart (showing only runs from that branch) and the issues table (showing issues from the latest run of that branch). The filter is applied via `?branch=<name>` query parameter, causing a full dashboard reload
 - **Default Issues Filter**: The issues table defaults to showing **active** issues (`new` + `existing`) when no status filter is specified. This ensures first-time uploads display their "new" issues instead of showing "Предупреждений не найдено".
 - **Dual Upload Endpoints**: 
   - `/ui/upload` — For browser-based form submission, **redirects to project dashboard** (HTTP 303) after successful upload
@@ -147,7 +164,7 @@ mypy .
   - Home page form uses `/ui/upload` to ensure proper UX flow
 - **SQLite default**: Simple setup; swappable via `DATABASE_URL` env var
 - **HTMX UI**: Server-rendered templates with dynamic updates, minimal custom JS
-- **Dark Blue Theme**: Deep navy palette (`#0b1a2e`, `#0f2240`, `#142d50`) via CSS custom properties — not black/gray. Tables explicitly override Bootstrap's white backgrounds with `[data-theme="dark"] ... !important` selectors
+- **Dark Blue Theme**: Deep navy palette (`#0b1a2e`, `#0f2240`, `#142d50`) via CSS custom properties — not black/gray. Tables explicitly override Bootstrap's white backgrounds with `[data-theme="dark"] ... !important` selectors. **No black text in dark mode**: all Bootstrap `text-dark`, `text-muted`, `bg-light text-dark`, `bg-info text-dark`, `bg-warning text-dark` usages are overridden with custom CSS classes (`.text-fallback`, `.badge-classifier`, `.badge-line`, `.badge-priority-*`, `.severity-badge-*`) and a global `[data-theme="dark"] .text-muted` override to ensure readability.
 - **i18n (RU/EN)**: Client-side language toggle via `I18n` module, `data-i18n`/`data-i18n-placeholder` attributes, `static/translations.json` dictionary
 - **Theme persistence**: Both theme and language stored in `localStorage`, auto-detects `prefers-color-scheme`
 - **MVP Auth**: Any credentials accepted; replace with LDAP via `auth.py` for production

@@ -32,49 +32,59 @@
                     </td>
                     <td>
                         {% if issue.severity == 'High' %}
-                        <span class="text-danger fw-semibold">🔴 High</span>
+                        <span class="severity-badge-high">🔴 High</span>
                         {% elif issue.severity == 'Medium' %}
-                        <span class="text-warning fw-semibold">🟡 Medium</span>
+                        <span class="severity-badge-medium">🟡 Medium</span>
                         {% else %}
-                        <span class="text-success fw-semibold">🟢 Low</span>
+                        <span class="severity-badge-low">🟢 Low</span>
                         {% endif %}
                     </td>
                     <td><code>{{ issue.rule_code }}</code></td>
                     <td>
                         {% if classifier %}
-                        <span class="badge bg-info text-dark">{{ classifier.type }}</span>
+                        <span class="badge badge-classifier">{{ classifier.type }}</span>
                         {% else %}
-                        <span class="text-muted">—</span>
+                        <span class="text-fallback">—</span>
                         {% endif %}
                     </td>
                     <td>
                         {% if classifier %}
                         <span class="badge
-                            {% if classifier.priority == 'CRITICAL' %}bg-danger
-                            {% elif classifier.priority == 'MAJOR' %}bg-warning text-dark
-                            {% elif classifier.priority == 'MINOR' %}bg-secondary
-                            {% else %}bg-light text-dark
+                            {% if classifier.priority == 'CRITICAL' %}badge-priority-critical
+                            {% elif classifier.priority == 'MAJOR' %}badge-priority-major
+                            {% elif classifier.priority == 'MINOR' %}badge-priority-minor
+                            {% else %}badge-priority-other
                             {% endif %}">
                             {{ classifier.priority }}
                         </span>
                         {% else %}
-                        <span class="text-muted">—</span>
+                        <span class="text-fallback">—</span>
                         {% endif %}
                     </td>
                     <td>
                         <span class="file-truncate" title="{{ issue.file_path }}">{{ issue.file_path }}</span>
                     </td>
-                    <td class="text-center"><span class="badge bg-light text-dark">{{ issue.line }}</span></td>
+                    <td class="text-center"><span class="badge badge-line">{{ issue.line }}</span></td>
                     <td>
                         <div class="message-truncate" title="{{ issue.message }}">
                             {{ issue.message }}
                         </div>
                         {% if classifier %}
-                        <br><small class="text-muted"><i class="bi bi-info-circle"></i> {{ classifier.name }}</small>
+                        <br><small class="text-fallback"><i class="bi bi-info-circle"></i> {{ classifier.name }}</small>
                         {% endif %}
                     </td>
                     <td>
                         {% if issue.status != 'ignored' %}
+                        <button class="btn btn-sm btn-outline-primary"
+                                hx-get="/ui/file?project_id={{ project_id }}&file_path={{ issue.file_path }}&line={{ issue.line }}{% if run_id %}&run_id={{ run_id }}{% endif %}"
+                                hx-target="#code-viewer-content"
+                                hx-indicator="#code-viewer-content"
+                                hx-swap="innerHTML"
+                                hx-on::after-request="switchToCodeTab()"
+                                data-i18n-title="view_code_button"
+                                title="View code">
+                            <i class="bi bi-code-square"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-danger"
                                 hx-post="/api/v1/issues/{{ issue.fingerprint }}/ignore"
                                 hx-confirm="{{ ignore_confirm|default('Mark as False Positive?') }}"
@@ -84,7 +94,7 @@
                             <i class="bi bi-eye-slash"></i>
                         </button>
                         {% else %}
-                        <span class="text-muted"><i class="bi bi-check-lg"></i></span>
+                        <span class="text-fallback"><i class="bi bi-check-lg"></i></span>
                         {% endif %}
                     </td>
                 </tr>
@@ -111,7 +121,7 @@
         <div class="btn-group btn-group-sm" role="group">
             {% if page > 1 %}
             <button class="btn btn-secondary"
-                    hx-get="/ui/issues?project_id={{ project_id }}&page={{ page-1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
+                    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch }}&page={{ page-1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
                     hx-target="#issues-table"
                     hx-indicator="#issues-table">
                 <i class="bi bi-chevron-left"></i> <span data-i18n="prev_page">Назад</span>
@@ -119,7 +129,7 @@
             {% endif %}
             {% if page * per_page < total %}
             <button class="btn btn-secondary"
-                    hx-get="/ui/issues?project_id={{ project_id }}&page={{ page+1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
+                    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch }}&page={{ page+1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
                     hx-target="#issues-table"
                     hx-indicator="#issues-table">
                 <span data-i18n="next_page">Вперёд</span> <i class="bi bi-chevron-right"></i>

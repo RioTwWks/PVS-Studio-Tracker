@@ -14,6 +14,21 @@
     </div>
 </div>
 
+{# --- Branch Switcher --- #}
+{% if branches %}
+<div class="branch-switcher-card mb-4 fade-in">
+    <div class="d-flex align-items-center gap-2">
+        <label class="form-label mb-0 fw-semibold" data-i18n="branch_switcher_label">Ветка:</label>
+        <select class="form-select form-select-sm" id="branch-switcher" style="max-width: 260px;"
+                onchange="window.location.href='?branch=' + encodeURIComponent(this.value)">
+            {% for b in branches %}
+            <option value="{{ b }}" {% if b == active_branch %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+{% endif %}
+
 {# --- Summary Stats --- #}
 {% if history and history|length > 0 %}
 {% set latest = history[-1] %}
@@ -54,6 +69,7 @@
             <h5 class="mb-3 fw-semibold"><i class="bi bi-funnel"></i> <span data-i18n="filters_title">Фильтры</span></h5>
             <form hx-get="/ui/issues" hx-target="#issues-table" hx-indicator="#issues-table" hx-swap="innerHTML">
                 <input type="hidden" name="project_id" value="{{ project.id }}">
+                <input type="hidden" name="branch" value="{{ active_branch }}">
 
                 <div class="mb-3">
                     <label class="form-label" data-i18n="severity_label">Уровень серьёзности</label>
@@ -88,20 +104,188 @@
     </div>
 </div>
 
-{# --- Issues Table --- #}
+{# --- Tabs Navigation: Issues + Code Viewer + Settings --- #}
 <div class="fade-in">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0 fw-semibold"><i class="bi bi-table"></i> <span data-i18n="issues_title">Предупреждения</span></h5>
-    </div>
-    <div id="issues-table" hx-get="/ui/issues?project_id={{ project.id }}" hx-trigger="load">
-        <div class="htmx-loading">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden" data-i18n="loading_data">Загрузка данных…</span>
+    <ul class="nav nav-tabs mb-4" id="dashboardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="issues-tab" data-bs-toggle="tab"
+                    data-bs-target="#issues-pane" type="button" role="tab"
+                    aria-controls="issues-pane" aria-selected="true">
+                <i class="bi bi-table"></i> <span data-i18n="issues_title">Предупреждения</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="code-tab" data-bs-toggle="tab"
+                    data-bs-target="#code-viewer-pane" type="button" role="tab"
+                    aria-controls="code-viewer-pane" aria-selected="false">
+                <i class="bi bi-file-earmark-code"></i> <span data-i18n="code_viewer_tab">Код</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="settings-tab" data-bs-toggle="tab"
+                    data-bs-target="#settings-pane" type="button" role="tab"
+                    aria-controls="settings-pane" aria-selected="false">
+                <i class="bi bi-gear"></i> Настройки проекта
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="dashboardTabContent">
+        {# --- Issues Tab --- #}
+        <div class="tab-pane fade show active" id="issues-pane" role="tabpanel" aria-labelledby="issues-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0 fw-semibold"><i class="bi bi-exclamation-triangle"></i> <span data-i18n="issues_title">Предупреждения</span></h5>
             </div>
-            <span data-i18n="loading_data">Загрузка данных…</span>
+            <div id="issues-table" hx-get="/ui/issues?project_id={{ project.id }}{% if active_branch %}&branch={{ active_branch }}{% endif %}" hx-trigger="load">
+                <div class="htmx-loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden" data-i18n="loading_data">Загрузка данных…</span>
+                    </div>
+                    <span data-i18n="loading_data">Загрузка данных…</span>
+                </div>
+            </div>
+        </div>
+
+        {# --- Code Viewer Tab --- #}
+        <div class="tab-pane fade" id="code-viewer-pane" role="tabpanel" aria-labelledby="code-tab">
+            <div id="code-viewer-content" class="p-4 text-center text-muted">
+                <i class="bi bi-hand-index" style="font-size: 3rem;"></i>
+                <p class="mt-3" data-i18n="code_viewer_tab_hint">Выберите предупреждение на вкладке «Предупреждения» для просмотра кода</p>
+            </div>
+        </div>
+
+        {# --- Settings Tab --- #}
+        <div class="tab-pane fade" id="settings-pane" role="tabpanel" aria-labelledby="settings-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0 fw-semibold"><i class="bi bi-gear"></i> Настройки проекта</h5>
+            </div>
+
+            {# --- Source Root Settings --- #}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-folder2"></i> Корневая директория исходников
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        <i class="bi bi-info-circle"></i>
+                        Укажите пути к директориям с исходным кодом для каждой ОС.
+                        Code Viewer автоматически определит текущую ОС и использует соответствующий путь.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-windows"></i> Windows:
+                        </label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="text" id="source-root-win" class="form-control"
+                                   value="{{ project.source_root_win or '' }}"
+                                   placeholder="C:\Projects\my-project\src">
+                            <span id="source-root-win-status" class="text-fallback" style="display: none;"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-ubuntu"></i> Linux:
+                        </label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="text" id="source-root-linux" class="form-control"
+                                   value="{{ project.source_root_linux or '' }}"
+                                   placeholder="/home/user/projects/my-project/src">
+                            <span id="source-root-linux-status" class="text-fallback" style="display: none;"></span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="saveSourceRoots()">
+                        <i class="bi bi-check-lg"></i> Сохранить оба пути
+                    </button>
+
+                    <small class="text-fallback mt-2 d-block">
+                        <i class="bi bi-lightbulb"></i> Укажите оба пути, если проект анализируется на разных ОС. Можно заполнить только один.
+                    </small>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    // Enable Bootstrap tab API for HTMX content loading
+    document.addEventListener('DOMContentLoaded', () => {
+        const tabEl = document.getElementById('code-tab');
+        if (tabEl) {
+            tabEl.addEventListener('shown.bs.tab', (event) => {
+                // Optional: trigger HTMX load on first tab activation
+            });
+        }
+    });
+
+    // Switch to code viewer tab after loading code
+    function switchToCodeTab() {
+        const codeTab = document.getElementById('code-tab');
+        if (codeTab) {
+            const bsTab = new bootstrap.Tab(codeTab);
+            bsTab.show();
+        }
+    }
+
+    // Save source_root settings (both Windows and Linux)
+    async function saveSourceRoots() {
+        const winInput = document.getElementById('source-root-win');
+        const linuxInput = document.getElementById('source-root-linux');
+        const winStatus = document.getElementById('source-root-win-status');
+        const linuxStatus = document.getElementById('source-root-linux-status');
+
+        const winValue = winInput.value.trim();
+        const linuxValue = linuxInput.value.trim();
+
+        if (!winValue && !linuxValue) {
+            winInput.classList.add('is-invalid');
+            linuxInput.classList.add('is-invalid');
+            return;
+        }
+        winInput.classList.remove('is-invalid');
+        linuxInput.classList.remove('is-invalid');
+
+        try {
+            const response = await fetch('/api/v1/projects/{{ project.id }}/source-roots', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source_root_win: winValue || null,
+                    source_root_linux: linuxValue || null
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // Show success for both
+                [winStatus, linuxStatus].forEach(status => {
+                    status.textContent = '✓ Сохранено';
+                    status.style.color = '#198754';
+                    status.style.display = 'inline';
+                    setTimeout(() => { status.style.display = 'none'; }, 2000);
+                });
+            } else {
+                const errorMsg = result.detail || 'Неизвестная ошибка';
+                [winStatus, linuxStatus].forEach(status => {
+                    status.textContent = '✗ ' + errorMsg;
+                    status.style.color = '#dc3545';
+                    status.style.display = 'inline';
+                    setTimeout(() => { status.style.display = 'none'; }, 3000);
+                });
+            }
+        } catch (error) {
+            [winStatus, linuxStatus].forEach(status => {
+                status.textContent = '✗ Ошибка сети';
+                status.style.color = '#dc3545';
+                status.style.display = 'inline';
+                setTimeout(() => { status.style.display = 'none'; }, 3000);
+            });
+        }
+    }
+</script>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {

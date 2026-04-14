@@ -8,6 +8,14 @@ class Project(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True, index=True)
     language: str = "c++"
+    source_root_win: Optional[str] = Field(
+        default=None,
+        description="Root directory for source files on Windows server (e.g., C:\\Projects\\src)",
+    )
+    source_root_linux: Optional[str] = Field(
+        default=None,
+        description="Root directory for source files on Linux server (e.g., /home/user/src)",
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
