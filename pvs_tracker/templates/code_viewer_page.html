@@ -2,17 +2,17 @@
 {% block title %}{{ project.name }} — Code Viewer{% endblock %}
 {% block content %}
 
-<div class="code-viewer-page fade-in">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="sq-code-viewer-page fade-in">
+    <div class="sq-page-header-flex mb-4">
         <div>
-            <h4 class="mb-1">
+            <h4 class="sq-page-subtitle mb-1">
                 <i class="bi bi-file-earmark-code"></i>
-                <span data-i18n="code_viewer_page_title">Просмотр исходного кода</span>
+                <span data-i18n="code_viewer_page_title">Code Viewer</span>
             </h4>
-            <p class="text-muted mb-0">{{ project.name }}</p>
+            <p class="sq-page-meta mb-0">{{ project.name }}</p>
         </div>
-        <a href="/ui/projects/{{ project.id }}/dashboard" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> <span data-i18n="back">Назад</span>
+        <a href="/ui/projects/{{ project.id }}/dashboard" class="sq-btn sq-btn-outline sq-btn-sm">
+            <i class="bi bi-arrow-left"></i> <span data-i18n="back">Back</span>
         </a>
     </div>
 
@@ -20,29 +20,29 @@
     <div class="row g-4">
         {# --- Left: File Tree --- #}
         <div class="col-lg-3">
-            <div class="file-browser-card">
-                <div class="file-browser-header">
+            <div class="sq-file-browser">
+                <div class="sq-file-browser-header">
                     <i class="bi bi-folder2-open"></i>
-                    <span data-i18n="file_browser_title">Файлы с предупреждениями</span>
+                    <span data-i18n="file_browser_title">Files with warnings</span>
                 </div>
-                <div class="file-browser-content" id="file-tree">
+                <div class="sq-file-browser-content" id="file-tree">
                     {% if files_with_warnings %}
-                    <ul class="file-list list-group list-group-flush">
+                    <ul class="sq-file-list">
                         {% for file_info in files_with_warnings %}
-                        <li class="list-group-item file-item"
+                        <li class="sq-file-item"
                             hx-get="/ui/file?project_id={{ project.id }}&file_path={{ file_info.file_path }}{% if run_id %}&run_id={{ run_id }}{% endif %}"
                             hx-target="#code-display"
                             hx-indicator="#code-display"
                             hx-swap="innerHTML"
                             onclick="setActiveFile(this)">
                             <i class="bi bi-file-earmark"></i>
-                            <span class="file-name" title="{{ file_info.file_path }}">{{ file_info.file_path }}</span>
-                            <span class="badge bg-danger ms-2">{{ file_info.warning_count }}</span>
+                            <span class="sq-file-name" title="{{ file_info.file_path }}">{{ file_info.file_path }}</span>
+                            <span class="sq-file-count">{{ file_info.warning_count }}</span>
                         </li>
                         {% endfor %}
                     </ul>
                     {% else %}
-                    <p class="text-muted text-center py-3" data-i18n="no_files_with_warnings">Нет файлов с предупреждениями</p>
+                    <p class="sq-empty-text" data-i18n="no_files_with_warnings">No files with warnings</p>
                     {% endif %}
                 </div>
             </div>
@@ -51,9 +51,9 @@
         {# --- Right: Code Display --- #}
         <div class="col-lg-9">
             <div id="code-display">
-                <div class="code-placeholder text-center py-5">
+                <div class="sq-code-placeholder text-center py-5">
                     <i class="bi bi-hand-index" style="font-size: 4rem;"></i>
-                    <p class="mt-3 text-muted" data-i18n="select_file_hint">Выберите файл для просмотра кода</p>
+                    <p class="mt-3 sq-page-meta" data-i18n="select_file_hint">Select a file to view code</p>
                 </div>
             </div>
         </div>
@@ -62,13 +62,13 @@
 
 <script>
     function setActiveFile(element) {
-        document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
-        element.classList.add('active');
+        document.querySelectorAll('.sq-file-item').forEach(el => el.classList.remove('sq-active'));
+        element.classList.add('sq-active');
     }
 
     // Auto-select first file on page load
     document.addEventListener('DOMContentLoaded', () => {
-        const firstFile = document.querySelector('.file-item');
+        const firstFile = document.querySelector('.sq-file-item');
         if (firstFile) {
             firstFile.click();
         }

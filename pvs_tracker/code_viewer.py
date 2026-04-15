@@ -2,7 +2,7 @@
 
 import asyncio
 import functools
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -18,6 +18,13 @@ router = APIRouter()
 
 # Module-level templates reference (set in main.py after app init)
 templates: Optional[Jinja2Templates] = None
+
+
+def _extract_file_name(file_path: str) -> str:
+    """Extract file name from path (works with both / and \\ separators)."""
+    # Normalize to forward slashes for consistent parsing
+    normalized = file_path.replace("\\", "/")
+    return PurePosixPath(normalized).name
 
 
 # File reading cache with mtime-based invalidation
@@ -67,6 +74,7 @@ async def view_code(
             {
                 "project": project,
                 "file_path": file_path,
+                "file_name": _extract_file_name(file_path),
                 "abs_path": "",
                 "lines": [],
                 "warnings_by_line": {},
@@ -83,6 +91,7 @@ async def view_code(
             {
                 "project": project,
                 "file_path": file_path,
+                "file_name": _extract_file_name(file_path),
                 "abs_path": "",
                 "lines": [],
                 "warnings_by_line": {},
@@ -135,6 +144,7 @@ async def view_code(
         {
             "project": project,
             "file_path": file_path,
+            "file_name": _extract_file_name(file_path),
             "abs_path": str(abs_path),
             "lines": lines,
             "warnings_by_line": warnings_by_line,

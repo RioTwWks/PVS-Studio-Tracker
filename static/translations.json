@@ -5,6 +5,7 @@
     "login": "Войти",
     "logout": "Выйти",
     "back": "Назад",
+    "home": "Главная",
     "projects": "Проекты",
     "upload_report": "Загрузить отчёт",
     "no_projects": "Проектов пока нет.",
@@ -21,6 +22,7 @@
     "login_to_upload": "Войдите, чтобы загружать отчёты.",
     "dashboard_title": "Инкрементальная аналитика PVS-Studio",
     "trend_chart_title": "Тренд по запускам",
+    "filters": "Фильтры",
     "filters_title": "Фильтры",
     "severity_label": "Уровень серьёзности",
     "severity_all": "Все",
@@ -75,6 +77,7 @@
     "chart_date_label": "Дата",
     "toast_ignored": "Предупреждение помечено как False Positive",
     "view_code_button": "Просмотреть код",
+    "code_viewer": "Просмотр кода",
     "code_viewer_tab": "Код",
     "code_viewer_tab_hint": "Выберите предупреждение на вкладке «Предупреждения» для просмотра кода",
     "code_viewer_page_title": "Просмотр исходного кода",
@@ -83,7 +86,12 @@
     "select_file_hint": "Выберите файл для просмотра кода",
     "lines_with_issues": "Строки с предупреждениями",
     "total_lines": "Всего строк",
-    "clean_lines": "Чистые строки"
+    "clean_lines": "Чистые строки",
+    "settings": "Настройки",
+    "tab_overview": "Обзор",
+    "tab_issues": "Предупреждения",
+    "tab_code": "Код",
+    "tab_settings": "Настройки"
   },
   "en": {
     "app_title": "PVS-Studio Tracker",
@@ -91,6 +99,7 @@
     "login": "Login",
     "logout": "Logout",
     "back": "Back",
+    "home": "Home",
     "projects": "Projects",
     "upload_report": "Upload Report",
     "no_projects": "No projects yet.",
@@ -107,6 +116,7 @@
     "login_to_upload": "Log in to upload reports.",
     "dashboard_title": "PVS-Studio Incremental Analysis",
     "trend_chart_title": "Run Trend",
+    "filters": "Filters",
     "filters_title": "Filters",
     "severity_label": "Severity Level",
     "severity_all": "All",
@@ -161,6 +171,7 @@
     "chart_date_label": "Date",
     "toast_ignored": "Warning marked as False Positive",
     "view_code_button": "View code",
+    "code_viewer": "Code Viewer",
     "code_viewer_tab": "Code",
     "code_viewer_tab_hint": "Select a warning on the 'Warnings' tab to view code",
     "code_viewer_page_title": "Source Code Viewer",
@@ -169,6 +180,11 @@
     "select_file_hint": "Select a file to view code",
     "lines_with_issues": "Lines with warnings",
     "total_lines": "Total lines",
-    "clean_lines": "Clean lines"
+    "clean_lines": "Clean lines",
+    "settings": "Settings",
+    "tab_overview": "Overview",
+    "tab_issues": "Issues",
+    "tab_code": "Code",
+    "tab_settings": "Settings"
   }
 }

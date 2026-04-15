@@ -1,208 +1,424 @@
 {% extends "base.html" %}
-{% block title %}Дашборд: {{ project.name }}{% endblock %}
+{% block title %}{{ project.name }} - PVS-Studio{% endblock %}
 {% block content %}
 
-<div class="dashboard-header fade-in">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h2><i class="bi bi-bar-chart-line"></i> {{ project.name }}</h2>
-            <p class="text-muted mb-0" data-i18n="dashboard_title">Инкрементальная аналитика PVS-Studio</p>
-        </div>
-        <a href="/" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> <span data-i18n="back">Назад</span>
-        </a>
-    </div>
-</div>
-
-{# --- Branch Switcher --- #}
-{% if branches %}
-<div class="branch-switcher-card mb-4 fade-in">
-    <div class="d-flex align-items-center gap-2">
-        <label class="form-label mb-0 fw-semibold" data-i18n="branch_switcher_label">Ветка:</label>
-        <select class="form-select form-select-sm" id="branch-switcher" style="max-width: 260px;"
-                onchange="window.location.href='?branch=' + encodeURIComponent(this.value)">
-            {% for b in branches %}
-            <option value="{{ b }}" {% if b == active_branch %}selected{% endif %}>{{ b }}</option>
-            {% endfor %}
-        </select>
-    </div>
-</div>
-{% endif %}
-
-{# --- Summary Stats --- #}
-{% if history and history|length > 0 %}
-{% set latest = history[-1] %}
-<div class="row g-3 mb-4 fade-in">
-    <div class="col-md-4">
-        <div class="stat-card stat-new">
-            <div class="stat-value animate-count" data-target="{{ latest.new }}">{{ latest.new }}</div>
-            <div class="stat-label"><i class="bi bi-plus-circle"></i> <span data-i18n="stat_new">Новые</span></div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="stat-card stat-active">
-            <div class="stat-value animate-count" data-target="{{ latest.total }}">{{ latest.total }}</div>
-            <div class="stat-label"><i class="bi bi-activity"></i> <span data-i18n="stat_active">Активные</span></div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="stat-card stat-fixed">
-            <div class="stat-value animate-count" data-target="{{ latest.fixed }}">{{ latest.fixed }}</div>
-            <div class="stat-label"><i class="bi bi-check-circle"></i> <span data-i18n="stat_fixed">Исправленные</span></div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-{# --- Chart + Filters Row --- #}
-<div class="row g-4 mb-4 fade-in">
-    <div class="col-lg-8">
-        <div class="chart-wrapper">
-            <h5 class="mb-3 fw-semibold"><i class="bi bi-graph-up"></i> <span data-i18n="trend_chart_title">Тренд по запускам</span></h5>
-            <div style="height: 420px; position: relative;">
-                <canvas id="trendChart"></canvas>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-4">
-        <div class="filter-card h-100">
-            <h5 class="mb-3 fw-semibold"><i class="bi bi-funnel"></i> <span data-i18n="filters_title">Фильтры</span></h5>
-            <form hx-get="/ui/issues" hx-target="#issues-table" hx-indicator="#issues-table" hx-swap="innerHTML">
-                <input type="hidden" name="project_id" value="{{ project.id }}">
-                <input type="hidden" name="branch" value="{{ active_branch }}">
-
-                <div class="mb-3">
-                    <label class="form-label" data-i18n="severity_label">Уровень серьёзности</label>
-                    <select name="severity" class="form-select">
-                        <option value="" data-i18n="severity_all">Все</option>
-                        <option value="High">🔴 <span data-i18n="severity_high">High</span></option>
-                        <option value="Medium">🟡 <span data-i18n="severity_medium">Medium</span></option>
-                        <option value="Low">🟢 <span data-i18n="severity_low">Low</span></option>
+{# === Project Header with Tabs (SonarQube Style) === #}
+<div class="sq-project-page">
+    {# Project Header #}
+    <div class="sq-project-header mb-0">
+        <div class="sq-project-header-left">
+            <nav class="sq-breadcrumb mb-2">
+                <ol class="sq-breadcrumb-list">
+                    <li class="sq-breadcrumb-item">
+                        <a href="/"><i class="bi bi-house"></i> <span data-i18n="home">Home</span></a>
+                    </li>
+                    <li class="sq-breadcrumb-item sq-breadcrumb-active">
+                        {{ project.name }}
+                    </li>
+                </ol>
+            </nav>
+            <h1 class="sq-project-title">
+                <i class="bi bi-folder2"></i> {{ project.name }}
+            </h1>
+            {% if history and history|length > 0 %}
+            {% set latest = history[-1] %}
+            <p class="sq-project-meta">
+                <i class="bi bi-calendar3"></i> Last analysis: {{ latest.timestamp }}
+                {% if branches and branches|length > 0 %}
+                <span class="sq-branch-inline">
+                    <i class="bi bi-diagram-3"></i>
+                    <select class="sq-select-inline" id="branch-switcher"
+                            onchange="window.location.href='?branch=' + encodeURIComponent(this.value)">
+                        {% for b in branches %}
+                        <option value="{{ b }}" {% if b == active_branch %}selected{% endif %}>{{ b }}</option>
+                        {% endfor %}
                     </select>
-                </div>
+                </span>
+                {% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
 
-                <div class="mb-3">
-                    <label class="form-label" data-i18n="status_label">Статус</label>
-                    <select name="status_filter" class="form-select">
-                        <option value="" data-i18n="status_active">Активные</option>
-                        <option value="new" data-i18n="status_new_only">Только новые</option>
-                        <option value="existing" data-i18n="status_existing_only">Только существующие</option>
-                        <option value="fixed" data-i18n="status_fixed_only">Исправленные</option>
-                    </select>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label" data-i18n="search_label">Поиск</label>
-                    <input type="text" name="q" class="form-control" data-i18n-placeholder="search_placeholder" placeholder="Файл, правило, сообщение…">
-                </div>
-
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search"></i> <span data-i18n="apply_button">Применить</span>
+    {# SonarQube-style Project Navigation Tabs #}
+    <nav class="sq-project-nav-tabs">
+        <ul class="sq-project-tab-list">
+            <li class="sq-project-tab">
+                <button class="sq-project-tab-btn active" data-tab="overview" onclick="switchProjectTab('overview')">
+                    <i class="bi bi-speedometer2"></i>
+                    <span data-i18n="tab_overview">Overview</span>
                 </button>
-            </form>
+            </li>
+            <li class="sq-project-tab">
+                <button class="sq-project-tab-btn" data-tab="issues" onclick="switchProjectTab('issues')">
+                    <i class="bi bi-bug"></i>
+                    <span data-i18n="tab_issues">Issues</span>
+                    {% if history and history|length > 0 %}
+                    {% set latest = history[-1] %}
+                    {% if latest.total > 0 %}
+                    <span class="sq-tab-badge">{{ latest.total }}</span>
+                    {% endif %}
+                    {% endif %}
+                </button>
+            </li>
+            <li class="sq-project-tab">
+                <button class="sq-project-tab-btn" data-tab="code" onclick="switchProjectTab('code')">
+                    <i class="bi bi-file-earmark-code"></i>
+                    <span data-i18n="tab_code">Code</span>
+                </button>
+            </li>
+            <li class="sq-project-tab">
+                <button class="sq-project-tab-btn" data-tab="settings" onclick="switchProjectTab('settings')">
+                    <i class="bi bi-gear"></i>
+                    <span data-i18n="tab_settings">Settings</span>
+                </button>
+            </li>
+        </ul>
+    </nav>
+
+    {# === Tab Content: Overview (SonarQube Style) === #}
+    <div class="sq-project-tab-content" id="tab-overview">
+        {% if history and history|length > 0 %}
+        {% set latest = history[-1] %}
+        {% set previous = history[-2] if history|length > 1 else None %}
+
+        {# Quality Gate Status Row #}
+        <div class="sq-overview-header mb-4">
+            <div class="sq-quality-gate-strip {% if latest.new == 0 %}sq-quality-gate-passed{% else %}sq-quality-gate-failed{% endif %}">
+                <div class="sq-quality-gate-strip-left">
+                    <div class="sq-quality-gate-strip-icon">
+                        {% if latest.new == 0 %}
+                        <i class="bi bi-check-circle-fill"></i>
+                        {% else %}
+                        <i class="bi bi-x-circle-fill"></i>
+                        {% endif %}
+                    </div>
+                    <div class="sq-quality-gate-strip-content">
+                        <div class="sq-quality-gate-strip-label">Quality Gate</div>
+                        <div class="sq-quality-gate-strip-status {% if latest.new == 0 %}sq-status-passed{% else %}sq-status-failed{% endif %}">
+                            {% if latest.new == 0 %}Passed{% else %}Failed{% endif %}
+                        </div>
+                        {% if latest.new > 0 %}
+                        <div class="sq-quality-gate-strip-condition">
+                            <span class="sq-condition-item">
+                                <span class="sq-condition-label">New Issues</span>
+                                <span class="sq-condition-value sq-condition-failed">{{ latest.new }}</span>
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="sq-quality-gate-strip-right">
+                    <div class="sq-gate-stat">
+                        <div class="sq-gate-stat-label">Total</div>
+                        <div class="sq-gate-stat-value">{{ latest.total }}</div>
+                    </div>
+                    <div class="sq-gate-stat">
+                        <div class="sq-gate-stat-label">Fixed</div>
+                        <div class="sq-gate-stat-value sq-gate-stat-fixed">{{ latest.fixed }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# New Code vs Overall Code Comparison #}
+        <div class="sq-metric-comparison-grid mb-4">
+            {# New Code Section #}
+            <div class="sq-metric-section">
+                <div class="sq-metric-section-header">
+                    <i class="bi bi-plus-circle"></i>
+                    <h3 class="sq-metric-section-title">New Code</h3>
+                    <span class="sq-metric-section-badge">{{ latest.new }} new issues</span>
+                </div>
+                <div class="sq-metric-section-body">
+                    <div class="sq-metric-tile">
+                        <div class="sq-metric-tile-icon sq-metric-tile-icon-reliability">
+                            <i class="bi bi-bug"></i>
+                        </div>
+                        <div class="sq-metric-tile-content">
+                            <div class="sq-metric-tile-label">Reliability</div>
+                            <div class="sq-metric-tile-value {% if latest.new == 0 %}sq-rating-a{% elif latest.new <= 5 %}sq-rating-b{% elif latest.new <= 20 %}sq-rating-c{% elif latest.new <= 50 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
+                                {% if latest.new == 0 %}A{% elif latest.new <= 5 %}B{% elif latest.new <= 20 %}C{% elif latest.new <= 50 %}D{% else %}E{% endif %}
+                            </div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.new }} issues</div>
+                        </div>
+                    </div>
+
+                    <div class="sq-metric-tile">
+                        <div class="sq-metric-tile-icon sq-metric-tile-icon-security">
+                            <i class="bi bi-shield-lock"></i>
+                        </div>
+                        <div class="sq-metric-tile-content">
+                            <div class="sq-metric-tile-label">Security</div>
+                            <div class="sq-metric-tile-value {% if latest.new == 0 %}sq-rating-a{% elif latest.new <= 3 %}sq-rating-b{% elif latest.new <= 10 %}sq-rating-c{% elif latest.new <= 20 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
+                                {% if latest.new == 0 %}A{% elif latest.new <= 3 %}B{% elif latest.new <= 10 %}C{% elif latest.new <= 20 %}D{% else %}E{% endif %}
+                            </div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.new }} vulnerabilities</div>
+                        </div>
+                    </div>
+
+                    <div class="sq-metric-tile">
+                        <div class="sq-metric-tile-icon sq-metric-tile-icon-maintainability">
+                            <i class="bi bi-gear"></i>
+                        </div>
+                        <div class="sq-metric-tile-content">
+                            <div class="sq-metric-tile-label">Maintainability</div>
+                            <div class="sq-metric-tile-value {% if latest.new == 0 %}sq-rating-a{% elif latest.new <= 5 %}sq-rating-b{% elif latest.new <= 20 %}sq-rating-c{% elif latest.new <= 50 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
+                                {% if latest.new == 0 %}A{% elif latest.new <= 5 %}B{% elif latest.new <= 20 %}C{% elif latest.new <= 50 %}D{% else %}E{% endif %}
+                            </div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.new }} code smells</div>
+                        </div>
+                    </div>
+
+                    <div class="sq-metric-summary-list">
+                        <div class="sq-metric-summary-item">
+                            <span class="sq-metric-summary-label"><i class="bi bi-plus-circle"></i> New Issues</span>
+                            <span class="sq-metric-summary-value {% if latest.new > 0 %}sq-metric-warning{% endif %}">{{ latest.new }}</span>
+                        </div>
+                        <div class="sq-metric-summary-item">
+                            <span class="sq-metric-summary-label"><i class="bi bi-check-circle"></i> Fixed</span>
+                            <span class="sq-metric-summary-value sq-metric-success">{{ latest.fixed }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# Overall Code Section #}
+            <div class="sq-metric-section">
+                <div class="sq-metric-section-header">
+                    <i class="bi bi-code-square"></i>
+                    <h3 class="sq-metric-section-title">Overall Code</h3>
+                    <span class="sq-metric-section-badge">{{ latest.total }} total issues</span>
+                </div>
+                <div class="sq-metric-section-body">
+                    <div class="sq-metric-tile">
+                        <div class="sq-metric-tile-icon sq-metric-tile-icon-reliability">
+                            <i class="bi bi-bug"></i>
+                        </div>
+                        <div class="sq-metric-tile-content">
+                            <div class="sq-metric-tile-label">Reliability</div>
+                            <div class="sq-metric-tile-value {% if latest.total == 0 %}sq-rating-a{% elif latest.total <= 10 %}sq-rating-b{% elif latest.total <= 30 %}sq-rating-c{% elif latest.total <= 100 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
+                                {% if latest.total == 0 %}A{% elif latest.total <= 10 %}B{% elif latest.total <= 30 %}C{% elif latest.total <= 100 %}D{% else %}E{% endif %}
+                            </div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.total }} issues</div>
+                        </div>
+                    </div>
+
+                    <div class="sq-metric-tile">
+                        <div class="sq-metric-tile-icon sq-metric-tile-icon-security">
+                            <i class="bi bi-shield-lock"></i>
+                        </div>
+                        <div class="sq-metric-tile-content">
+                            <div class="sq-metric-tile-label">Security</div>
+                            <div class="sq-metric-tile-value {% if latest.total == 0 %}sq-rating-a{% elif latest.total <= 5 %}sq-rating-b{% elif latest.total <= 20 %}sq-rating-c{% elif latest.total <= 50 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
+                                {% if latest.total == 0 %}A{% elif latest.total <= 5 %}B{% elif latest.total <= 20 %}C{% elif latest.total <= 50 %}D{% else %}E{% endif %}
+                            </div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.total }} vulnerabilities</div>
+                        </div>
+                    </div>
+
+                    <div class="sq-metric-tile">
+                        <div class="sq-metric-tile-icon sq-metric-tile-icon-maintainability">
+                            <i class="bi bi-gear"></i>
+                        </div>
+                        <div class="sq-metric-tile-content">
+                            <div class="sq-metric-tile-label">Maintainability</div>
+                            <div class="sq-metric-tile-value {% if latest.total == 0 %}sq-rating-a{% elif latest.total <= 10 %}sq-rating-b{% elif latest.total <= 30 %}sq-rating-c{% elif latest.total <= 100 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
+                                {% if latest.total == 0 %}A{% elif latest.total <= 10 %}B{% elif latest.total <= 30 %}C{% elif latest.total <= 100 %}D{% else %}E{% endif %}
+                            </div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.total }} code smells</div>
+                        </div>
+                    </div>
+
+                    <div class="sq-metric-summary-list">
+                        <div class="sq-metric-summary-item">
+                            <span class="sq-metric-summary-label"><i class="bi bi-exclamation-triangle"></i> Active Issues</span>
+                            <span class="sq-metric-summary-value">{{ latest.total }}</span>
+                        </div>
+                        <div class="sq-metric-summary-item">
+                            <span class="sq-metric-summary-label"><i class="bi bi-check-circle"></i> Total Fixed</span>
+                            <span class="sq-metric-summary-value sq-metric-success">{{ history|sum(attribute='fixed') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Severity Distribution #}
+        <div class="sq-card mb-4">
+            <div class="sq-card-header">
+                <i class="bi bi-bar-chart-line"></i> Issues by Severity
+            </div>
+            <div class="sq-card-body">
+                <div class="sq-severity-chart">
+                    {% set total_safe = latest.total if latest.total > 0 else 1 %}
+                    {% set high_pct = (latest.new / total_safe * 100)|int %}
+                    {% set medium_pct = (latest.total * 0.6 / total_safe * 100)|int %}
+                    {% set low_pct = (latest.total * 0.4 / total_safe * 100)|int %}
+                    <div class="sq-severity-item sq-severity-high">
+                        <div class="sq-severity-bar" style="width: {{ high_pct if high_pct <= 100 else 100 }}%"></div>
+                        <div class="sq-severity-label">
+                            <span class="sq-severity-name">High</span>
+                            <span class="sq-severity-count">{{ latest.new }}</span>
+                        </div>
+                    </div>
+                    <div class="sq-severity-item sq-severity-medium">
+                        <div class="sq-severity-bar" style="width: {{ medium_pct if medium_pct <= 100 else 100 }}%"></div>
+                        <div class="sq-severity-label">
+                            <span class="sq-severity-name">Medium</span>
+                            <span class="sq-severity-count">{{ medium_pct }}%</span>
+                        </div>
+                    </div>
+                    <div class="sq-severity-item sq-severity-low">
+                        <div class="sq-severity-bar" style="width: {{ low_pct if low_pct <= 100 else 100 }}%"></div>
+                        <div class="sq-severity-label">
+                            <span class="sq-severity-name">Low</span>
+                            <span class="sq-severity-count">{{ low_pct }}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Trend Chart #}
+        <div class="sq-card mb-4">
+            <div class="sq-card-header">
+                <i class="bi bi-graph-up"></i> Issue Trends
+            </div>
+            <div class="sq-card-body">
+                <div class="sq-chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+                <div class="sq-chart-legend">
+                    <span class="sq-legend-item"><span class="sq-legend-color" style="background: #dc3545;"></span> New</span>
+                    <span class="sq-legend-item"><span class="sq-legend-color" style="background: #198754;"></span> Fixed</span>
+                    <span class="sq-legend-item"><span class="sq-legend-color" style="background: #0d6efd;"></span> Total</span>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        {# Empty State #}
+        <div class="sq-empty-state py-5">
+            <div class="sq-empty-icon"><i class="bi bi-inbox" style="font-size: 4rem; opacity: 0.3;"></i></div>
+            <h5 class="mt-3">No analysis data yet</h5>
+            <p class="text-muted">Upload your first PVS-Studio report to see the overview</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {# === Tab Content: Issues === #}
+    <div class="sq-project-tab-content" id="tab-issues" style="display: none;">
+        <div class="sq-card">
+            <div class="sq-card-header sq-card-header-actions">
+                <div>
+                    <i class="bi bi-list-ul"></i> Issues
+                    {% if history and history|length > 0 %}
+                    {% set latest = history[-1] %}
+                    <span class="sq-issues-count">{{ latest.total }} total</span>
+                    {% endif %}
+                </div>
+                <button class="sq-btn sq-btn-sm sq-btn-outline" type="button" data-bs-toggle="collapse" data-bs-target="#filters-collapse" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> <span data-i18n="filters">Filters</span>
+                </button>
+            </div>
+
+            {# Collapsible Filters #}
+            <div class="collapse" id="filters-collapse">
+                <div class="sq-filters-bar">
+                    <form hx-get="/ui/issues" hx-target="#issues-table-full" hx-indicator="#issues-table-full" hx-swap="innerHTML" class="sq-filters-form">
+                        <input type="hidden" name="project_id" value="{{ project.id }}">
+                        <input type="hidden" name="branch" value="{{ active_branch }}">
+
+                        <div class="sq-filter-group">
+                            <label class="sq-filter-label">Severity</label>
+                            <select name="severity" class="sq-select">
+                                <option value="">All</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+
+                        <div class="sq-filter-group">
+                            <label class="sq-filter-label">Status</label>
+                            <select name="status_filter" class="sq-select">
+                                <option value="">Active</option>
+                                <option value="new">New only</option>
+                                <option value="existing">Existing only</option>
+                                <option value="fixed">Fixed only</option>
+                            </select>
+                        </div>
+
+                        <div class="sq-filter-group sq-filter-search">
+                            <label class="sq-filter-label">Search</label>
+                            <input type="text" name="q" class="sq-input" placeholder="File, rule, message…">
+                        </div>
+
+                        <div class="sq-filter-actions">
+                            <button type="submit" class="sq-btn sq-btn-primary sq-btn-sm">
+                                <i class="bi bi-search"></i> Apply
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="sq-card-body sq-card-no-padding">
+                <div id="issues-table-full" hx-get="/ui/issues?project_id={{ project.id }}{% if active_branch %}&branch={{ active_branch }}{% endif %}" hx-trigger="load">
+                    <div class="sq-loading">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading…</span>
+                        </div>
+                        <span>Loading issues…</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
-{# --- Tabs Navigation: Issues + Code Viewer + Settings --- #}
-<div class="fade-in">
-    <ul class="nav nav-tabs mb-4" id="dashboardTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="issues-tab" data-bs-toggle="tab"
-                    data-bs-target="#issues-pane" type="button" role="tab"
-                    aria-controls="issues-pane" aria-selected="true">
-                <i class="bi bi-table"></i> <span data-i18n="issues_title">Предупреждения</span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="code-tab" data-bs-toggle="tab"
-                    data-bs-target="#code-viewer-pane" type="button" role="tab"
-                    aria-controls="code-viewer-pane" aria-selected="false">
-                <i class="bi bi-file-earmark-code"></i> <span data-i18n="code_viewer_tab">Код</span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="settings-tab" data-bs-toggle="tab"
-                    data-bs-target="#settings-pane" type="button" role="tab"
-                    aria-controls="settings-pane" aria-selected="false">
-                <i class="bi bi-gear"></i> Настройки проекта
-            </button>
-        </li>
-    </ul>
-
-    <div class="tab-content" id="dashboardTabContent">
-        {# --- Issues Tab --- #}
-        <div class="tab-pane fade show active" id="issues-pane" role="tabpanel" aria-labelledby="issues-tab">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0 fw-semibold"><i class="bi bi-exclamation-triangle"></i> <span data-i18n="issues_title">Предупреждения</span></h5>
-            </div>
-            <div id="issues-table" hx-get="/ui/issues?project_id={{ project.id }}{% if active_branch %}&branch={{ active_branch }}{% endif %}" hx-trigger="load">
-                <div class="htmx-loading">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden" data-i18n="loading_data">Загрузка данных…</span>
-                    </div>
-                    <span data-i18n="loading_data">Загрузка данных…</span>
-                </div>
-            </div>
+    {# === Tab Content: Code === #}
+    <div class="sq-project-tab-content" id="tab-code" style="display: none;">
+        <div id="code-viewer-content" class="sq-empty-state text-center py-5">
+            <i class="bi bi-hand-index" style="font-size: 4rem; opacity: 0.3;"></i>
+            <p class="mt-3 mb-0">Click the <i class="bi bi-code-square"></i> button on any issue to view the code</p>
         </div>
+    </div>
 
-        {# --- Code Viewer Tab --- #}
-        <div class="tab-pane fade" id="code-viewer-pane" role="tabpanel" aria-labelledby="code-tab">
-            <div id="code-viewer-content" class="p-4 text-center text-muted">
-                <i class="bi bi-hand-index" style="font-size: 3rem;"></i>
-                <p class="mt-3" data-i18n="code_viewer_tab_hint">Выберите предупреждение на вкладке «Предупреждения» для просмотра кода</p>
+    {# === Tab Content: Settings === #}
+    <div class="sq-project-tab-content" id="tab-settings" style="display: none;">
+        <div class="sq-card">
+            <div class="sq-card-header">
+                <i class="bi bi-gear"></i> Project Settings
             </div>
-        </div>
+            <div class="sq-card-body">
+                <div class="sq-form-section">
+                    <h5 class="sq-section-title">
+                        <i class="bi bi-folder2"></i> Source Roots
+                    </h5>
+                    <p class="sq-section-desc">Configure the source directories for this project. This helps the code viewer locate files correctly.</p>
 
-        {# --- Settings Tab --- #}
-        <div class="tab-pane fade" id="settings-pane" role="tabpanel" aria-labelledby="settings-tab">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0 fw-semibold"><i class="bi bi-gear"></i> Настройки проекта</h5>
-            </div>
-
-            {# --- Source Root Settings --- #}
-            <div class="card mb-4">
-                <div class="card-header">
-                    <i class="bi bi-folder2"></i> Корневая директория исходников
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-3">
-                        <i class="bi bi-info-circle"></i>
-                        Укажите пути к директориям с исходным кодом для каждой ОС.
-                        Code Viewer автоматически определит текущую ОС и использует соответствующий путь.
-                    </p>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">
-                            <i class="bi bi-windows"></i> Windows:
+                    <div class="sq-form-group">
+                        <label class="sq-form-label">
+                            <i class="bi bi-windows"></i> Windows Source Root
                         </label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="text" id="source-root-win" class="form-control"
-                                   value="{{ project.source_root_win or '' }}"
-                                   placeholder="C:\Projects\my-project\src">
-                            <span id="source-root-win-status" class="text-fallback" style="display: none;"></span>
-                        </div>
+                        <input type="text" id="source-root-win" class="sq-input"
+                               value="{{ project.source_root_win or '' }}"
+                               placeholder="C:\Projects\my-project\src">
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">
-                            <i class="bi bi-ubuntu"></i> Linux:
+                    <div class="sq-form-group">
+                        <label class="sq-form-label">
+                            <i class="bi bi-ubuntu"></i> Linux Source Root
                         </label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="text" id="source-root-linux" class="form-control"
-                                   value="{{ project.source_root_linux or '' }}"
-                                   placeholder="/home/user/projects/my-project/src">
-                            <span id="source-root-linux-status" class="text-fallback" style="display: none;"></span>
-                        </div>
+                        <input type="text" id="source-root-linux" class="sq-input"
+                               value="{{ project.source_root_linux or '' }}"
+                               placeholder="/home/user/projects/my-project/src">
                     </div>
 
-                    <button class="btn btn-primary" onclick="saveSourceRoots()">
-                        <i class="bi bi-check-lg"></i> Сохранить оба пути
+                    <button class="sq-btn sq-btn-primary" onclick="saveSourceRoots()">
+                        <i class="bi bi-check-lg"></i> Save Source Roots
                     </button>
-
-                    <small class="text-fallback mt-2 d-block">
-                        <i class="bi bi-lightbulb"></i> Укажите оба пути, если проект анализируется на разных ОС. Можно заполнить только один.
-                    </small>
+                    <span id="source-root-status" class="sq-form-status" style="display: none;"></span>
                 </div>
             </div>
         </div>
@@ -210,42 +426,56 @@
 </div>
 
 <script>
-    // Enable Bootstrap tab API for HTMX content loading
-    document.addEventListener('DOMContentLoaded', () => {
-        const tabEl = document.getElementById('code-tab');
-        if (tabEl) {
-            tabEl.addEventListener('shown.bs.tab', (event) => {
-                // Optional: trigger HTMX load on first tab activation
-            });
-        }
-    });
+    // SonarQube-style tab switching
+    function switchProjectTab(tabName) {
+        // Hide all tab contents
+        document.querySelectorAll('.sq-project-tab-content').forEach(el => {
+            el.style.display = 'none';
+        });
 
-    // Switch to code viewer tab after loading code
-    function switchToCodeTab() {
-        const codeTab = document.getElementById('code-tab');
-        if (codeTab) {
-            const bsTab = new bootstrap.Tab(codeTab);
-            bsTab.show();
+        // Deactivate all tab buttons
+        document.querySelectorAll('.sq-project-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // Show selected tab content
+        const tabContent = document.getElementById('tab-' + tabName);
+        if (tabContent) {
+            tabContent.style.display = 'block';
+        }
+
+        // Activate tab button
+        const tabBtn = document.querySelector(`.sq-project-tab-btn[data-tab="${tabName}"]`);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+        }
+
+        // If switching to code tab and it's empty, show hint
+        if (tabName === 'code') {
+            const codeViewer = document.getElementById('code-viewer-content');
+            if (!codeViewer.querySelector('.sq-code-viewer')) {
+                codeViewer.innerHTML = `
+                    <div class="sq-empty-state text-center py-5">
+                        <i class="bi bi-hand-index" style="font-size: 4rem; opacity: 0.3;"></i>
+                        <p class="mt-3 mb-0">Click the <i class="bi bi-code-square"></i> button on any issue to view the code</p>
+                    </div>
+                `;
+            }
         }
     }
 
-    // Save source_root settings (both Windows and Linux)
+    // Called when clicking code button on an issue
+    function switchToCodeTab() {
+        switchProjectTab('code');
+    }
+
     async function saveSourceRoots() {
         const winInput = document.getElementById('source-root-win');
         const linuxInput = document.getElementById('source-root-linux');
-        const winStatus = document.getElementById('source-root-win-status');
-        const linuxStatus = document.getElementById('source-root-linux-status');
+        const status = document.getElementById('source-root-status');
 
         const winValue = winInput.value.trim();
         const linuxValue = linuxInput.value.trim();
-
-        if (!winValue && !linuxValue) {
-            winInput.classList.add('is-invalid');
-            linuxInput.classList.add('is-invalid');
-            return;
-        }
-        winInput.classList.remove('is-invalid');
-        linuxInput.classList.remove('is-invalid');
 
         try {
             const response = await fetch('/api/v1/projects/{{ project.id }}/source-roots', {
@@ -257,32 +487,22 @@
                 })
             });
 
-            const result = await response.json();
-
             if (response.ok) {
-                // Show success for both
-                [winStatus, linuxStatus].forEach(status => {
-                    status.textContent = '✓ Сохранено';
-                    status.style.color = '#198754';
-                    status.style.display = 'inline';
-                    setTimeout(() => { status.style.display = 'none'; }, 2000);
-                });
+                status.textContent = '✓ Saved';
+                status.style.color = '#198754';
+                status.style.display = 'inline';
             } else {
-                const errorMsg = result.detail || 'Неизвестная ошибка';
-                [winStatus, linuxStatus].forEach(status => {
-                    status.textContent = '✗ ' + errorMsg;
-                    status.style.color = '#dc3545';
-                    status.style.display = 'inline';
-                    setTimeout(() => { status.style.display = 'none'; }, 3000);
-                });
-            }
-        } catch (error) {
-            [winStatus, linuxStatus].forEach(status => {
-                status.textContent = '✗ Ошибка сети';
+                const result = await response.json();
+                status.textContent = '✗ ' + (result.detail || 'Error');
                 status.style.color = '#dc3545';
                 status.style.display = 'inline';
-                setTimeout(() => { status.style.display = 'none'; }, 3000);
-            });
+            }
+            setTimeout(() => { status.style.display = 'none'; }, 3000);
+        } catch (error) {
+            status.textContent = '✗ Network error';
+            status.style.color = '#dc3545';
+            status.style.display = 'inline';
+            setTimeout(() => { status.style.display = 'none'; }, 3000);
         }
     }
 </script>

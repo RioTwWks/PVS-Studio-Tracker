@@ -2,101 +2,99 @@
 {% block title %}PVS-Tracker — <span data-i18n="app_title">Home</span>{% endblock %}
 {% block content %}
 
-<div class="fade-in">
-    <div class="text-center mb-5">
-        <h1 class="display-5 fw-bold mb-2">
-            <i class="bi bi-shield-check text-primary"></i> <span data-i18n="app_title">PVS-Studio Tracker</span>
-        </h1>
-        <p class="text-muted lead" data-i18n="app_subtitle">Инкрементальный трекер предупреждений статического анализа</p>
-    </div>
+<div class="sq-page-header text-center mb-5">
+    <h1 class="sq-page-title">
+        <i class="bi bi-shield-check text-primary"></i> <span data-i18n="app_title">PVS-Studio Tracker</span>
+    </h1>
+    <p class="sq-page-subtitle" data-i18n="app_subtitle">Incremental static analysis warning tracker</p>
+</div>
 
-    {% if error %}
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> <strong data-i18n="error_label">Ошибка:</strong> {{ error }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    {% endif %}
+{% if error %}
+<div class="sq-alert sq-alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle"></i> <strong data-i18n="error_label">Error:</strong> {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
 
-    <div class="row g-4">
-        {# --- Projects Column --- #}
-        <div class="col-md-6">
-            <div class="upload-section h-100">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="section-header mb-0">
-                        <i class="bi bi-folder2-open"></i> <span data-i18n="projects">Проекты</span>
-                    </h4>
-                </div>
-
+<div class="row g-4">
+    {# --- Projects Column --- #}
+    <div class="col-md-6">
+        <div class="sq-card h-100">
+            <div class="sq-card-header">
+                <i class="bi bi-folder2-open"></i> <span data-i18n="projects">Projects</span>
+            </div>
+            <div class="sq-card-body">
                 {% if projects %}
-                <div class="list-group list-group-flush">
+                <div class="sq-project-list">
                     {% for project in projects %}
-                    <a href="/ui/projects/{{ project.id }}/dashboard" class="project-link-card mb-2">
-                        <div>
-                            <div class="project-name">{{ project.name }}</div>
-                            <small class="text-muted" data-i18n="click_for_dashboard">Нажмите для просмотра дашборда</small>
+                    <a href="/ui/projects/{{ project.id }}/dashboard" class="sq-project-card">
+                        <div class="sq-project-card-content">
+                            <div class="sq-project-name">{{ project.name }}</div>
+                            <small class="sq-project-meta" data-i18n="click_for_dashboard">Click to view dashboard</small>
                         </div>
-                        <span class="badge bg-secondary">{{ project.language }}</span>
+                        <span class="sq-badge">{{ project.language }}</span>
                     </a>
                     {% endfor %}
                 </div>
                 {% else %}
-                <div class="empty-state">
-                    <div class="empty-icon">📂</div>
-                    <p class="mb-0"><span data-i18n="no_projects">Проектов пока нет.</span><br><span data-i18n="no_projects_hint">Загрузите первый отчёт PVS-Studio, чтобы начать.</span></p>
+                <div class="sq-empty-state">
+                    <div class="sq-empty-icon"><i class="bi bi-folder2" style="font-size: 3rem; opacity: 0.3;"></i></div>
+                    <p class="mb-0"><span data-i18n="no_projects">No projects yet.</span><br><span data-i18n="no_projects_hint">Upload your first PVS-Studio report to get started.</span></p>
                 </div>
                 {% endif %}
             </div>
         </div>
+    </div>
 
-        {# --- Upload Column --- #}
-        <div class="col-md-6">
-            <div class="upload-section h-100">
-                <h4 class="section-header mb-3">
-                    <i class="bi bi-cloud-arrow-up"></i> <span data-i18n="upload_report">Загрузить отчёт</span>
-                </h4>
-
+    {# --- Upload Column --- #}
+    <div class="col-md-6">
+        <div class="sq-card h-100">
+            <div class="sq-card-header">
+                <i class="bi bi-cloud-arrow-up"></i> <span data-i18n="upload_report">Upload Report</span>
+            </div>
+            <div class="sq-card-body">
                 {% if current_user %}
                 <form action="/ui/upload" method="post" enctype="multipart/form-data" id="upload-form">
-                    <div class="mb-3">
-                        <label class="form-label" data-i18n="project_name_label">Имя проекта</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-tag"></i></span>
-                            <input type="text" name="project_name" class="form-control" data-i18n-placeholder="project_name_placeholder" placeholder="MyProject" required>
+                    <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="project_name_label">Project Name</label>
+                        <div class="sq-input-group">
+                            <span class="sq-input-group-icon"><i class="bi bi-tag"></i></span>
+                            <input type="text" name="project_name" class="sq-input" data-i18n-placeholder="project_name_placeholder" placeholder="MyProject" required>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label" data-i18n="report_file_label">Файл отчёта (JSON)</label>
-                        <input type="file" name="file" class="form-control" accept=".json" id="report-file" required>
+                    <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="report_file_label">Report File (JSON)</label>
+                        <input type="file" name="file" class="sq-input sq-file-input" accept=".json" id="report-file" required>
                     </div>
 
                     <div class="row g-2 mb-3">
                         <div class="col-sm-6">
-                            <label class="form-label" data-i18n="commit_label">Коммит</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-git"></i></span>
-                                <input type="text" name="commit" class="form-control" data-i18n-placeholder="commit_placeholder" placeholder="abc1234">
+                            <label class="sq-form-label" data-i18n="commit_label">Commit</label>
+                            <div class="sq-input-group">
+                                <span class="sq-input-group-icon"><i class="bi bi-git"></i></span>
+                                <input type="text" name="commit" class="sq-input" data-i18n-placeholder="commit_placeholder" placeholder="abc1234">
                             </div>
                         </div>
                         <div class="col-sm-6">
-                            <label class="form-label" data-i18n="branch_label">Ветка</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-diagram-3"></i></span>
-                                <input type="text" name="branch" class="form-control" data-i18n-placeholder="branch_placeholder" placeholder="main">
+                            <label class="sq-form-label" data-i18n="branch_label">Branch</label>
+                            <div class="sq-input-group">
+                                <span class="sq-input-group-icon"><i class="bi bi-diagram-3"></i></span>
+                                <input type="text" name="branch" class="sq-input" data-i18n-placeholder="branch_placeholder" placeholder="main">
                             </div>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100" id="upload-btn">
-                        <i class="bi bi-upload"></i> <span data-i18n="upload_button">Загрузить отчёт</span>
+                    <button type="submit" class="sq-btn sq-btn-primary w-100" id="upload-btn">
+                        <i class="bi bi-upload"></i> <span data-i18n="upload_button">Upload Report</span>
                     </button>
                 </form>
                 {% else %}
-                <div class="empty-state">
-                    <div class="empty-icon">🔐</div>
-                    <p class="mb-2" data-i18n="login_to_upload">Войдите, чтобы загружать отчёты.</p>
-                    <a href="/login" class="btn btn-primary btn-sm">
-                        <i class="bi bi-box-arrow-in-right"></i> <span data-i18n="login">Войти</span>
+                <div class="sq-empty-state">
+                    <div class="sq-empty-icon"><i class="bi bi-lock" style="font-size: 3rem; opacity: 0.3;"></i></div>
+                    <p class="mb-2" data-i18n="login_to_upload">Login to upload reports.</p>
+                    <a href="/login" class="sq-btn sq-btn-primary">
+                        <i class="bi bi-box-arrow-in-right"></i> <span data-i18n="login">Login</span>
                     </a>
                 </div>
                 {% endif %}
