@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(.venv\\scripts\\activate)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(findstr *)"
     ]
   },
   "$version": 3

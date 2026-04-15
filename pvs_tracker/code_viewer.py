@@ -1,4 +1,10 @@
-"""Code viewer route for inline source display with warning annotations."""
+"""Code viewer route for inline source display with warning annotations.
+
+Supports multiple source retrieval strategies:
+1. Git repository (SonarQube-style, no server-side code storage)
+2. Source archive (uploaded zip/tar)
+3. Local filesystem (legacy, backward compatibility)
+"""
 
 import asyncio
 import functools
@@ -11,7 +17,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select, func
 
 from pvs_tracker.db import get_session
-from pvs_tracker.file_resolver import resolve_source_path
+from pvs_tracker.git_integration import fetch_source_file
 from pvs_tracker.models import ErrorClassifier, Issue, Project, Run
 
 router = APIRouter()
@@ -58,49 +64,46 @@ async def view_code(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Resolve file path securely (pass both Windows and Linux roots)
+    # Get commit from run if available
+    commit = None
+    if run_id:
+        run = session.get(Run, run_id)
+        if run:
+            commit = run.commit
+    else:
+        # Use latest run
+        run = session.exec(
+            select(Run)
+            .where(Run.project_id == project_id, Run.status == "done")
+            .order_by(Run.timestamp.desc())
+            .limit(1)
+        ).first()
+        if run:
+            commit = run.commit
+
+    # Fetch source file using fallback strategy (Git → Archive → Local)
+    lines = []
+    abs_path_str = ""
+    error = None
+    source_type = "unavailable"
+    
     try:
-        abs_path = await asyncio.to_thread(
-            resolve_source_path,
-            project.source_root_win,
-            project.source_root_linux,
-            file_path,
+        source_file = await fetch_source_file(
+            project_id=project_id,
+            file_path=file_path,
+            git_url=project.git_url,
+            git_branch=project.git_branch,
+            commit=commit,
+            source_archive_path=project.source_archive_path,
+            source_root_win=project.source_root_win,
+            source_root_linux=project.source_root_linux,
         )
-        lines = await asyncio.to_thread(_read_file_with_cache, abs_path)
+        lines = source_file.lines
+        source_type = source_file.source
     except HTTPException as exc:
-        return templates.TemplateResponse(
-            request,
-            "code_view.html",
-            {
-                "project": project,
-                "file_path": file_path,
-                "file_name": _extract_file_name(file_path),
-                "abs_path": "",
-                "lines": [],
-                "warnings_by_line": {},
-                "target_line": line,
-                "run_id": run_id,
-                "error": str(exc.detail),
-                "classifier_map": {},
-            },
-        )
+        error = str(exc.detail)
     except Exception as exc:
-        return templates.TemplateResponse(
-            request,
-            "code_view.html",
-            {
-                "project": project,
-                "file_path": file_path,
-                "file_name": _extract_file_name(file_path),
-                "abs_path": "",
-                "lines": [],
-                "warnings_by_line": {},
-                "target_line": line,
-                "run_id": run_id,
-                "error": f"Error reading file: {exc}",
-                "classifier_map": {},
-            },
-        )
+        error = f"Error reading file: {exc}"
 
     # Determine which run to use
     if run_id:
@@ -145,13 +148,14 @@ async def view_code(
             "project": project,
             "file_path": file_path,
             "file_name": _extract_file_name(file_path),
-            "abs_path": str(abs_path),
+            "abs_path": abs_path_str,
             "lines": lines,
             "warnings_by_line": warnings_by_line,
             "target_line": line,
             "run_id": run.id if run else None,
-            "error": None,
+            "error": error,
             "classifier_map": classifier_map,
+            "source_type": source_type,
         },
     )
 

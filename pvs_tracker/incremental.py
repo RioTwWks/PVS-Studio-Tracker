@@ -1,6 +1,7 @@
 from sqlmodel import Session, select
 
 from pvs_tracker.models import ErrorClassifier, Issue, Run
+from pvs_tracker.security import calculate_technical_debt
 
 
 def classify_and_store(
@@ -22,20 +23,27 @@ def classify_and_store(
     prev_fps: set[str] = set()
     if prev_run:
         prev_issues = session.exec(select(Issue).where(Issue.run_id == prev_run.id)).all()
-        prev_fps = {i.fingerprint for i in prev_issues if i.status != "ignored"}
+        prev_fps = {i.fingerprint for i in prev_issues if i.status not in ("ignored", "fixed")}
 
-    # Build a map of rule_code -> classifier_id
+    # Build a map of rule_code -> classifier
     classifiers = session.exec(select(ErrorClassifier)).all()
-    code_to_classifier_id = {c.rule_code: c.id for c in classifiers}
+    code_to_classifier = {c.rule_code: c for c in classifiers}
 
     current_fps: set[str] = set()
     for iss in new_issues:
         current_fps.add(iss["fingerprint"])
         iss["status"] = "new" if iss["fingerprint"] not in prev_fps else "existing"
 
-        # Link to classifier if exists
+        # Link to classifier and calculate technical debt
         rule_code = iss.get("rule_code", "")
-        classifier_id = code_to_classifier_id.get(rule_code)
+        classifier = code_to_classifier.get(rule_code)
+        classifier_id = classifier.id if classifier else None
+
+        # Calculate technical debt
+        severity = iss.get("severity", "Medium")
+        priority = classifier.priority if classifier else "MAJOR"
+        remediation = classifier.remediation_effort if classifier else 5
+        tech_debt = calculate_technical_debt(severity, priority, remediation)
 
         issue = Issue(
             run_id=run_id,
@@ -47,6 +55,11 @@ def classify_and_store(
             message=iss["message"],
             status=iss["status"],
             classifier_id=classifier_id,
+            column=iss.get("column"),
+            end_line=iss.get("end_line"),
+            end_column=iss.get("end_column"),
+            cwe_id=iss.get("cwe_id") or (classifier.cwe_id if classifier else None),
+            technical_debt_minutes=tech_debt,
         )
         session.add(issue)
 
@@ -68,6 +81,11 @@ def classify_and_store(
                     message=prev_issue.message,
                     status="fixed",
                     classifier_id=prev_issue.classifier_id,
+                    column=prev_issue.column,
+                    end_line=prev_issue.end_line,
+                    end_column=prev_issue.end_column,
+                    cwe_id=prev_issue.cwe_id,
+                    technical_debt_minutes=0,  # Fixed issues have no debt
                 )
                 session.add(fixed_issue)
 

@@ -8,13 +8,16 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import Session, select
 
-from pvs_tracker.models import Issue, Project, Run, SQLModel, ErrorClassifier
+from pvs_tracker.models import Issue, Project, Run, SQLModel, ErrorClassifier, User, UserRole
 from pvs_tracker.parser import parse_pvs_report
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
 from pvs_tracker.db import engine
 import pvs_tracker.code_viewer as code_viewer_module
 from pvs_tracker.code_viewer import router as code_viewer_router
+from pvs_tracker.api import router as api_v2_router
+from pvs_tracker.quality_gate import create_default_quality_gate
+from pvs_tracker.security import hash_password
 
 # ---------------------------------------------------------------------------
 # App & DB
@@ -37,7 +40,7 @@ def _migrate_database() -> None:
             projects = session.exec(select(Project).limit(1)).all()
             if projects and hasattr(projects[0], "source_root_win"):
                 # Already migrated
-                return
+                pass
         except Exception:
             pass
 
@@ -67,11 +70,54 @@ def _migrate_database() -> None:
                     conn.commit()
                 except Exception:
                     pass  # Column may already exist
+
+                # Add quality_gate_id
+                try:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE project ADD COLUMN quality_gate_id INTEGER"
+                        )
+                    )
+                    conn.commit()
+                except Exception:
+                    pass  # Column may already exist
+
+                # Add description
+                try:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE project ADD COLUMN description VARCHAR"
+                        )
+                    )
+                    conn.commit()
+                except Exception:
+                    pass  # Column may already exist
         except Exception:
             pass  # Migration failed, continue anyway
 
 
+def _initialize_default_data() -> None:
+    """Initialize default quality gates and admin user if they don't exist."""
+    with Session(engine) as session:
+        # Create default quality gate
+        create_default_quality_gate(session)
+
+        # Create default admin user if no users exist
+        existing_user = session.exec(select(User).limit(1)).first()
+        if not existing_user:
+            admin_user = User(
+                username="admin",
+                email="admin@localhost",
+                password_hash=hash_password("admin"),
+                role=UserRole.ADMIN,
+                is_active=True,
+            )
+            session.add(admin_user)
+            session.commit()
+
+
 _migrate_database()
+_initialize_default_data()
 
 
 def _load_error_classifiers(session: Session) -> None:
@@ -102,6 +148,9 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 # Register code_viewer router and pass templates reference
 code_viewer_module.templates = templates
 app.include_router(code_viewer_router)
+
+# Register API v2 router (SonarQube-like features)
+app.include_router(api_v2_router)
 
 # Static files
 STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
@@ -361,12 +410,17 @@ async def upload_report_ui(
     request: Request,
     project_name: str = Form(...),
     file: UploadFile = Form(...),
+    source_archive: UploadFile = Form(None),  # Optional source archive
     commit: str = Form(None),
     branch: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
     """Handle report upload from UI form and redirect to dashboard."""
+    from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
+    from pvs_tracker.api import log_activity
+    from pvs_tracker.webhooks import trigger_quality_gate_webhook
+
     # 1. Save report file
     os.makedirs("reports", exist_ok=True)
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -375,6 +429,15 @@ async def upload_report_ui(
     with open(report_path, "wb") as f:
         f.write(await file.read())
 
+    # 1.5. Save source archive if provided
+    source_archive_path = None
+    if source_archive and source_archive.filename:
+        os.makedirs("source_archives", exist_ok=True)
+        archive_filename = source_archive.filename or "source.zip"
+        source_archive_path = os.path.join("source_archives", f"{project_name}_{timestamp}_{archive_filename}")
+        with open(source_archive_path, "wb") as f:
+            f.write(await source_archive.read())
+
     # 2. Ensure project exists
     project = session.exec(select(Project).where(Project.name == project_name)).first()
     if not project:
@@ -382,6 +445,15 @@ async def upload_report_ui(
         session.add(project)
         session.commit()
         session.refresh(project)
+    
+    # Update source archive path if provided
+    if source_archive_path:
+        project.source_archive_path = source_archive_path
+        session.commit()
+
+    # Get user ID for activity logging
+    user = session.exec(select(User).where(User.username == _user)).first()
+    user_id = user.id if user else None
 
     # 3. Create run record
     run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
@@ -394,7 +466,26 @@ async def upload_report_ui(
         issues = parse_pvs_report(report_path)
         classify_and_store(session, project.id, run.id, issues)
         run.status = "done"
+        
+        # Calculate metrics and update run stats
+        metrics = calculate_run_metrics(session, run.id)
+        run.total_issues = metrics["total_issues"]
+        run.new_issues = metrics["new_issues"]
+        run.fixed_issues = metrics["fixed_issues"]
         session.commit()
+        
+        # Evaluate quality gate
+        qg_result = evaluate_quality_gate(session, project.id, run.id)
+        
+        # Log activity
+        log_activity(session, "upload", "run", run.id, project.id, user_id, 
+                    f"Uploaded report: {safe_filename}")
+        session.commit()
+        
+        # Trigger webhook (async, non-blocking)
+        import asyncio
+        asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
+        
         # Redirect to project dashboard
         return RedirectResponse(
             url=f"/ui/projects/{project.id}/dashboard",
@@ -419,12 +510,17 @@ async def upload_report_ui(
 async def upload_report_api(
     project_name: str = Form(...),
     file: UploadFile = Form(...),
+    source_archive: UploadFile = Form(None),  # Optional source archive
     commit: str = Form(None),
     branch: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
     """API endpoint for report upload (returns JSON)."""
+    from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
+    from pvs_tracker.api import log_activity
+    from pvs_tracker.webhooks import trigger_quality_gate_webhook
+
     # 1. Save report file
     os.makedirs("reports", exist_ok=True)
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -433,6 +529,15 @@ async def upload_report_api(
     with open(report_path, "wb") as f:
         f.write(await file.read())
 
+    # 1.5. Save source archive if provided
+    source_archive_path = None
+    if source_archive and source_archive.filename:
+        os.makedirs("source_archives", exist_ok=True)
+        archive_filename = source_archive.filename or "source.zip"
+        source_archive_path = os.path.join("source_archives", f"{project_name}_{timestamp}_{archive_filename}")
+        with open(source_archive_path, "wb") as f:
+            f.write(await source_archive.read())
+
     # 2. Ensure project exists
     project = session.exec(select(Project).where(Project.name == project_name)).first()
     if not project:
@@ -440,6 +545,15 @@ async def upload_report_api(
         session.add(project)
         session.commit()
         session.refresh(project)
+    
+    # Update source archive path if provided
+    if source_archive_path:
+        project.source_archive_path = source_archive_path
+        session.commit()
+
+    # Get user ID for activity logging
+    user = session.exec(select(User).where(User.username == _user)).first()
+    user_id = user.id if user else None
 
     # 3. Create run record
     run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
@@ -452,8 +566,32 @@ async def upload_report_api(
         issues = parse_pvs_report(report_path)
         classify_and_store(session, project.id, run.id, issues)
         run.status = "done"
+        
+        # Calculate metrics and update run stats
+        metrics = calculate_run_metrics(session, run.id)
+        run.total_issues = metrics["total_issues"]
+        run.new_issues = metrics["new_issues"]
+        run.fixed_issues = metrics["fixed_issues"]
         session.commit()
-        return {"status": "success", "run_id": run.id, "total_issues": len(issues)}
+        
+        # Evaluate quality gate
+        qg_result = evaluate_quality_gate(session, project.id, run.id)
+        
+        # Log activity
+        log_activity(session, "upload", "run", run.id, project.id, user_id,
+                    f"Uploaded report: {safe_filename}")
+        session.commit()
+        
+        # Trigger webhook (async, non-blocking)
+        import asyncio
+        asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
+        
+        return {
+            "status": "success",
+            "run_id": run.id,
+            "total_issues": len(issues),
+            "quality_gate": qg_result,
+        }
     except Exception as e:
         run.status = "failed"
         session.commit()
