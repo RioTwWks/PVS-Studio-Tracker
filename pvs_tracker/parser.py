@@ -60,6 +60,33 @@ def _extract_cwe(warning: dict[str, Any]) -> int | None:
     return None
 
 
+def safe_to_int(value) -> int | None:
+    """
+    Safely convert a value to int.
+    Handles: None, str (with strip), float, invalid strings.
+    Returns None if conversion is not possible.
+    """
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            # Попробуем как float (на случай "15.0")
+            try:
+                return int(float(value))
+            except ValueError:
+                return None
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
 def _extract_column_info(warning: dict[str, Any], pos: dict[str, Any] | None = None) -> dict[str, int | None]:
     """Extract column information from warning or position."""
     column = None
@@ -80,11 +107,11 @@ def _extract_column_info(warning: dict[str, Any], pos: dict[str, Any] | None = N
     if end_column is None:
         end_column = warning.get("endColumn")
 
-    # Convert to int if present
+    # ✅ Используем безопасную конвертацию
     return {
-        "column": int(column) if column is not None else None,
-        "end_line": int(end_line) if end_line is not None else None,
-        "end_column": int(end_column) if end_column is not None else None,
+        "column": safe_to_int(column),
+        "end_line": safe_to_int(end_line),
+        "end_column": safe_to_int(end_column),
     }
 
 
