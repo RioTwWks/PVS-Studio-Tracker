@@ -149,7 +149,7 @@ def parse_pvs_report(report_path: str) -> list[dict[str, Any]]:
             # Modern format: one warning can have multiple positions
             for pos in positions:
                 file_path = pos.get("file", "")
-                line = int(pos.get("line", 0))
+                line = safe_to_int(pos.get("line", 0))
 
                 # Use synthetic path for warnings without file location
                 if not file_path:
@@ -179,7 +179,7 @@ def parse_pvs_report(report_path: str) -> list[dict[str, Any]]:
         else:
             # Legacy format or fallback: direct fileName/lineNumber fields
             file_path = w.get("fileName", w.get("file", ""))
-            line = int(w.get("lineNumber", w.get("line", 0)))
+            line = safe_to_int(w.get("lineNumber", w.get("line", 0)))
 
             # Extract column info from warning level
             col_info = _extract_column_info(w)
