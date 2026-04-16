@@ -149,22 +149,19 @@ def parse_pvs_report(report_path: str) -> list[dict[str, Any]]:
             # Modern format: one warning can have multiple positions
             for pos in positions:
                 file_path = pos.get("file", "")
-                line = safe_to_int(pos.get("line", 0))
+                line = safe_to_int(pos.get("line", 0)) or 0  # 🔒 Гарантируем 0 вместо None
 
                 # Use synthetic path for warnings without file location
-                if not file_path:
+                if not file_path.strip():
                     file_path = f"__analysis__/{code}"
                     line = 0
 
                 # Extract column info from position
                 col_info = _extract_column_info(w, pos)
+                # Приводим колонки к int или None
+                col_info = {k: int(v) if isinstance(v, (int, float)) else None for k, v in col_info.items()}
 
-                fp = compute_fingerprint(
-                    file=file_path,
-                    line=line,
-                    code=code,
-                    message=message,
-                )
+                fp = compute_fingerprint(file=file_path, line=line, code=code, message=message)
                 issue_dict = {
                     "fingerprint": fp,
                     "file_path": file_path,
@@ -179,17 +176,13 @@ def parse_pvs_report(report_path: str) -> list[dict[str, Any]]:
         else:
             # Legacy format or fallback: direct fileName/lineNumber fields
             file_path = w.get("fileName", w.get("file", ""))
-            line = safe_to_int(w.get("lineNumber", w.get("line", 0)))
+            line = safe_to_int(w.get("lineNumber", w.get("line", 0))) or 0
 
             # Extract column info from warning level
             col_info = _extract_column_info(w)
+            col_info = {k: int(v) if isinstance(v, (int, float)) else None for k, v in col_info.items()}
 
-            fp = compute_fingerprint(
-                file=file_path,
-                line=line,
-                code=code,
-                message=message,
-            )
+            fp = compute_fingerprint(file=file_path, line=line, code=code, message=message)
             issue_dict = {
                 "fingerprint": fp,
                 "file_path": file_path,

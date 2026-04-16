@@ -34,31 +34,40 @@ def classify_and_store(
         current_fps.add(iss["fingerprint"])
         iss["status"] = "new" if iss["fingerprint"] not in prev_fps else "existing"
 
-        # Link to classifier and calculate technical debt
         rule_code = iss.get("rule_code", "")
         classifier = code_to_classifier.get(rule_code)
         classifier_id = classifier.id if classifier else None
 
-        # Calculate technical debt
         severity = iss.get("severity", "Medium")
         priority = classifier.priority if classifier else "MAJOR"
         remediation = classifier.remediation_effort if classifier else 5
         tech_debt = calculate_technical_debt(severity, priority, remediation)
 
+        # 🔒 Безопасное приведение числовых полей к int
+        line_val = int(iss["line"]) if isinstance(iss["line"], (int, float)) else 0
+        col_val = int(iss.get("column") or 0)
+        end_line_val = int(iss.get("end_line") or 0)
+        end_col_val = int(iss.get("end_column") or 0)
+        cwe_val = iss.get("cwe_id")
+        if cwe_val is not None:
+            cwe_val = int(cwe_val)
+        elif classifier:
+            cwe_val = classifier.cwe_id
+
         issue = Issue(
             run_id=run_id,
             fingerprint=iss["fingerprint"],
             file_path=iss["file_path"],
-            line=iss["line"],
+            line=line_val,
             rule_code=iss["rule_code"],
             severity=iss["severity"],
             message=iss["message"],
             status=iss["status"],
             classifier_id=classifier_id,
-            column=iss.get("column"),
-            end_line=iss.get("end_line"),
-            end_column=iss.get("end_column"),
-            cwe_id=iss.get("cwe_id") or (classifier.cwe_id if classifier else None),
+            column=col_val,
+            end_line=end_line_val,
+            end_column=end_col_val,
+            cwe_id=cwe_val,
             technical_debt_minutes=tech_debt,
         )
         session.add(issue)

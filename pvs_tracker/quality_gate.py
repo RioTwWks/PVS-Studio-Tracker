@@ -5,6 +5,9 @@ from sqlmodel import Session, select
 
 from pvs_tracker.models import Issue, QualityGate, QualityGateCondition, Run
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("pvs_tracker.qa")
 
 # ---------------------------------------------------------------------------
 # Quality gate evaluation
@@ -70,13 +73,20 @@ def evaluate_quality_gate(session: Session, project_id: int, run_id: int) -> dic
         # Check if condition passes (condition passes when operator(actual, threshold) is False for error conditions)
         # For quality gates, we want: if actual violates threshold, it fails
         # For example: "new_issues gt 0" means fail if new_issues > 0
-        condition_failed = operator_func(actual_value, condition.threshold)
+        # 🔒 Явное приведение типов перед сравнением
+        try:
+            actual_val = int(actual_value) if isinstance(actual_value, (int, float)) else 0
+            threshold_val = int(condition.threshold) if isinstance(condition.threshold, (int, float)) else 0
+            condition_failed = operator_func(actual_val, threshold_val)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Quality gate comparison failed for {condition.metric}: {e}")
+            condition_failed = False
 
         evaluated_conditions.append({
             "metric": condition.metric,
             "operator": condition.operator,
-            "threshold": condition.threshold,
-            "actual": actual_value,
+            "threshold": threshold_val,
+            "actual": actual_val,
             "status": "failed" if condition_failed else "passed",
             "error_policy": condition.error_policy,
         })
