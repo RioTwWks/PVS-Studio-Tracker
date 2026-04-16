@@ -17,12 +17,18 @@ from pvs_tracker.db import engine
 # Configuration
 # ---------------------------------------------------------------------------
 
+from dotenv import load_dotenv
+load_dotenv()
+
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", os.getenv("SECRET_KEY", "dev-change-me"))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 security = HTTPBearer(auto_error=False)
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("pvs_tracker.auth")
 
 # ---------------------------------------------------------------------------
 # Token generation and validation
@@ -31,6 +37,11 @@ security = HTTPBearer(auto_error=False)
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
+    
+    # 🔐 Гарантируем, что 'sub' — строка (требование PyJWT/RFC 7519)
+    if "sub" in to_encode and not isinstance(to_encode["sub"], str):
+        to_encode["sub"] = str(to_encode["sub"])
+    
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -40,11 +51,17 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_token(token: str) -> dict:
     """Decode and validate a JWT token."""
     try:
+        logger.debug(f"🔐 Decoding token with SECRET_KEY preview: {SECRET_KEY[:10]}...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logger.debug(f"✅ Token payload: {payload}")
         return payload
     except jwt.ExpiredSignatureError:
+        logger.error("❌ Token expired")
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.error(f"❌ Invalid token: {e}")
+        logger.error(f"   Token: {token[:50]}...")
+        logger.error(f"   Expected key: {SECRET_KEY}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 

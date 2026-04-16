@@ -129,7 +129,7 @@ def log_activity(
 # ---------------------------------------------------------------------------
 
 @router.post("/auth/login")
-async def api_login(body: LoginRequest, session: Session = Depends(lambda s: None)):
+async def api_login(body: LoginRequest, db: Session = Depends(lambda: None)):
     """Authenticate user and return JWT token."""
     from sqlmodel import Session
     from pvs_tracker.db import engine
@@ -137,8 +137,8 @@ async def api_login(body: LoginRequest, session: Session = Depends(lambda s: Non
         user = authenticate_user(db_session, body.username, body.password)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        token = create_access_token(data={"sub": user.id, "username": user.username})
+
+        token = create_access_token(data={"sub": str(user.id), "username": user.username})
         return {
             "access_token": token,
             "token_type": "bearer",
@@ -229,7 +229,7 @@ async def update_user_api(user_id: int, body: UserUpdate, session: Session = Dep
 @router.get("/projects")
 async def list_projects(
     user: User = Depends(require_auth),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """List all projects accessible to the user."""
     from sqlmodel import Session
@@ -265,7 +265,7 @@ async def list_projects(
 async def create_project_api(
     body: ProjectCreate,
     user: User = Depends(require_auth),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """Create a new project."""
     from sqlmodel import Session
@@ -308,7 +308,7 @@ async def create_project_api(
 async def get_project_api(
     project_id: int,
     user: User = Depends(require_auth),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """Get project details."""
     from sqlmodel import Session
@@ -341,7 +341,7 @@ async def update_project_api(
     project_id: int,
     body: ProjectUpdate,
     user: User = Depends(require_auth),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """Update project settings."""
     from sqlmodel import Session
@@ -381,7 +381,7 @@ async def update_project_api(
 
 
 @router.delete("/projects/{project_id}", dependencies=[Depends(require_admin)])
-async def delete_project_api(project_id: int, session: Session = Depends(lambda s: None)):
+async def delete_project_api(project_id: int, session: Session = Depends(lambda: None)):
     """Delete a project and all associated data (admin only)."""
     from sqlmodel import Session
     from pvs_tracker.db import engine
@@ -417,7 +417,7 @@ async def add_project_member_api(
     project_id: int,
     body: ProjectMemberAdd,
     user: User = Depends(require_auth),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """Add a member to a project (project admin only)."""
     from sqlmodel import Session
@@ -461,7 +461,7 @@ async def add_project_member_api(
 async def list_project_members_api(
     project_id: int,
     user: User = Depends(require_auth),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """List project members."""
     from sqlmodel import Session
@@ -601,7 +601,7 @@ async def list_issues_api(
     q: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """List issues with pagination and filters."""
     from sqlmodel import Session
@@ -780,7 +780,7 @@ async def export_issues_csv_api(
     project_id: int,
     user: User = Depends(require_auth),
     run_id: Optional[int] = Query(None),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """Export issues as CSV."""
     from sqlmodel import Session
@@ -848,7 +848,7 @@ async def get_project_activity_api(
     project_id: int,
     user: User = Depends(require_auth),
     limit: int = Query(50, ge=1, le=200),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(lambda: None),
 ):
     """Get project activity log."""
     from sqlmodel import Session
