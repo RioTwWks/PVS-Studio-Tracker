@@ -18,6 +18,10 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException
 
+import gzip
+import json
+import time
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 # Directory for Git worktrees (temporary clones)
 GIT_CACHE_DIR = os.getenv("GIT_CACHE_DIR", os.path.join(os.path.dirname(__file__), "..", ".git_cache"))
+SNAPSHOTS_DIR = os.getenv("SNAPSHOTS_DIR", os.path.join(os.path.dirname(__file__), "..", "data", "snapshots"))
+Path(SNAPSHOTS_DIR).mkdir(parents=True, exist_ok=True)
 # Cache TTL in minutes (avoid re-cloning too frequently)
 CACHE_TTL_MINUTES = int(os.getenv("GIT_CACHE_TTL_MINUTES", "60"))
 # Timeout for Git operations (seconds)
@@ -108,6 +114,34 @@ class GitCache:
 
 # Global cache instance
 git_cache = GitCache()
+
+
+async def fetch_from_run_snapshot(run_id: int, file_path: str) -> Optional[SourceFile]:
+    """Fetch file from the run-specific code snapshot."""
+    snapshot_path = SNAPSHOTS_DIR / f"{run_id}.json.gz"
+    if not snapshot_path.exists():
+        return None
+    
+    normalized = file_path.replace("\\", "/")
+    
+    try:
+        with gzip.open(snapshot_path, "rt", encoding="utf-8") as f:
+            snapshot = json.load(f)
+            
+        content = snapshot.get(normalized)
+        if content is None:
+            return None
+            
+        lines = content.splitlines(keepends=True)
+        return SourceFile(
+            file_path=normalized,
+            content=content,
+            lines=lines,
+            source="snapshot",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load snapshot for run {run_id}: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -350,9 +384,37 @@ async def _extract_from_tar(archive_path: Path, file_path: str) -> Optional[Sour
 # High-level API
 # ---------------------------------------------------------------------------
 
+async def fetch_from_run_snapshot(run_id: int, file_path: str) -> Optional[SourceFile]:
+    """Fetch file from the run-specific code snapshot."""
+    snapshot_path = Path(SNAPSHOTS_DIR) / f"{run_id}.json.gz"
+    if not snapshot_path.exists():
+        return None
+    
+    normalized = file_path.replace("\\", "/")
+    
+    try:
+        with gzip.open(snapshot_path, "rt", encoding="utf-8") as f:
+            snapshot = json.load(f)
+            
+        content = snapshot.get(normalized)
+        if content is None:
+            return None
+            
+        lines = content.splitlines(keepends=True)
+        return SourceFile(
+            file_path=normalized,
+            content=content,
+            lines=lines,
+            source="snapshot",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load snapshot for run {run_id}: {e}")
+        return None
+
 async def fetch_source_file(
     project_id: int,
     file_path: str,
+    run_id: Optional[int] = None,
     git_url: Optional[str] = None,
     git_branch: Optional[str] = None,
     commit: Optional[str] = None,
@@ -362,11 +424,17 @@ async def fetch_source_file(
 ) -> SourceFile:
     """
     Fetch source file using fallback strategy:
-    1. Git repository (if configured)
-    2. Source archive (if uploaded)
-    3. Local file system (legacy source_root, backward compatibility)
-    4. Fail with helpful message
+    0. CI Snapshot (uploaded with report)
+    1. Git repository
+    2. Source archive
+    3. Local file system
     """
+    # 🔑 Strategy 0: CI Snapshot (fastest & most accurate)
+    if run_id:
+        result = await fetch_from_run_snapshot(run_id, file_path)
+        if result:
+            return result
+
     from pvs_tracker.file_resolver import resolve_source_path
     
     # Strategy 1: Git repository

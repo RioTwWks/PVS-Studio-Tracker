@@ -19,6 +19,14 @@ from pvs_tracker.api import router as api_v2_router
 from pvs_tracker.quality_gate import create_default_quality_gate
 from pvs_tracker.security import hash_password
 
+import gzip
+import json
+from pathlib import Path
+
+# Add this near the top with other paths
+SNAPSHOTS_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "snapshots")
+os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
+
 # ---------------------------------------------------------------------------
 # App & DB
 # ---------------------------------------------------------------------------
@@ -411,6 +419,7 @@ async def upload_report_ui(
     project_name: str = Form(...),
     file: UploadFile = Form(...),
     source_archive: UploadFile = Form(None),  # Optional source archive
+    code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
     branch: str = Form(None),
     session: Session = Depends(get_session),
@@ -455,11 +464,21 @@ async def upload_report_ui(
     user = session.exec(select(User).where(User.username == _user)).first()
     user_id = user.id if user else None
 
-    # 3. Create run record
+    # 3. Create run record (получаем run.id до сохранения снапшота)
     run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
     session.add(run)
     session.commit()
     session.refresh(run)
+
+    # 🔑 Сохраняем code snapshot, если приложен
+    if code_snapshot and code_snapshot.filename:
+        from pathlib import Path
+        snapshot_dir = Path(os.path.join(BASE_DIR, "..", "data", "snapshots"))
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        snapshot_path = snapshot_dir / f"{run.id}.json.gz"
+        with open(snapshot_path, "wb") as f:
+            f.write(await code_snapshot.read())
+        # log optional: print(f"✅ Saved snapshot for run {run.id} -> {snapshot_path}")
 
     # 4. Parse & classify
     try:
@@ -511,6 +530,7 @@ async def upload_report_api(
     project_name: str = Form(...),
     file: UploadFile = Form(...),
     source_archive: UploadFile = Form(None),  # Optional source archive
+    code_snapshot: UploadFile = Form(None),  # 🔑 Новое поле
     commit: str = Form(None),
     branch: str = Form(None),
     session: Session = Depends(get_session),
@@ -560,6 +580,17 @@ async def upload_report_api(
     session.add(run)
     session.commit()
     session.refresh(run)
+
+    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+
+    # 🔑 Сохраняем snapshot если приложен
+    if code_snapshot and code_snapshot.filename:
+        snapshot_path = Path(SNAPSHOTS_DIR) / f"{run.id}.json.gz"
+        with open(snapshot_path, "wb") as f:
+            f.write(await code_snapshot.read())
 
     # 4. Parse & classify
     try:

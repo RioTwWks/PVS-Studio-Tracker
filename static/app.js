@@ -421,6 +421,81 @@ document.addEventListener('htmx:afterRequest', (evt) => {
 });
 
 /* ============================================================
+Code Viewer Manager (Scroll Sync + Prism + Target Highlight)
+============================================================ */
+const CodeViewer = (() => {
+  let isInitialized = false;
+
+  function syncScroll() {
+    const master = document.getElementById('sq-code-scroll');
+    const gutter = document.getElementById('sq-line-numbers');
+    const annotations = document.getElementById('sq-annotations-panel');
+    if (!master || !gutter || !annotations) return;
+
+    // Удаляем старые слушатели (чтобы не дублировать при HTMX)
+    master.replaceWith(master.cloneNode(true));
+    const newMaster = document.getElementById('sq-code-scroll');
+    
+    newMaster.addEventListener('scroll', () => {
+      gutter.scrollTop = newMaster.scrollTop;
+      annotations.scrollTop = newMaster.scrollTop;
+    });
+  }
+
+  function highlightCode() {
+    const codeBlock = document.querySelector('.sq-code-block code');
+    if (!codeBlock || typeof Prism === 'undefined') return;
+
+    // Сбрасываем, если Prism уже подсветил
+    if (codeBlock.classList.contains('language-') || codeBlock.getAttribute('data-highlighted')) {
+      codeBlock.removeAttribute('data-highlighted');
+    }
+    
+    Prism.highlightElement(codeBlock);
+  }
+
+  function scrollToTarget() {
+    const target = document.querySelector('.sq-code-block').dataset.target;
+    if (!target) return;
+    
+    const targetEl = document.querySelector(`.sq-line-num[data-line="${target}"]`);
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Синхронизируем скролл сразу после плавной прокрутки
+      const master = document.getElementById('sq-code-scroll');
+      if (master) master.scrollTop = targetEl.offsetTop - (master.clientHeight / 2);
+    }
+  }
+
+  function init() {
+    if (isInitialized) return;
+    const viewer = document.querySelector('.sq-code-viewer');
+    if (!viewer) return;
+
+    highlightCode();
+    syncScroll();
+    
+    // Даем браузеру отрендерить линии, потом скроллим к цели
+    requestAnimationFrame(() => requestAnimationFrame(scrollToTarget));
+    isInitialized = true;
+  }
+
+  function reset() { isInitialized = false; }
+
+  // Hook into HTMX swaps
+  document.addEventListener('htmx:afterSwap', (e) => {
+    if (e.detail.target.closest('.sq-code-viewer') || e.detail.target.querySelector('.sq-code-viewer')) {
+      reset();
+      setTimeout(init, 50); // Небольшая задержка для гарантированного рендера
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  return { init, reset };
+})();
+
+/* ============================================================
    Init on DOM Ready
    ============================================================ */
 

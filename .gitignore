@@ -209,3 +209,5 @@ __marimo__/
 # Project
 *.db
 reports/
+.git_cache/
+data/

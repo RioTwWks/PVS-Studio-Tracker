@@ -9,7 +9,7 @@ Supports multiple source retrieval strategies:
 import asyncio
 import functools
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -91,6 +91,7 @@ async def view_code(
         source_file = await fetch_source_file(
             project_id=project_id,
             file_path=file_path,
+            run_id=run.id if run else None,  # 🔑 Передаём run_id
             git_url=project.git_url,
             git_branch=project.git_branch,
             commit=commit,
@@ -105,15 +106,29 @@ async def view_code(
     except Exception as exc:
         error = f"Error reading file: {exc}"
 
-    # Determine which run to use
+    # 🔑 Detect language for Prism.js
+    lang = "markup"  # default
+    if file_path:
+        ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+        lang_map = {
+            "cpp": "cpp", "cc": "cpp", "cxx": "cpp", "h": "cpp", "hpp": "cpp",
+            "c": "c", "h": "c",
+            "cs": "csharp", "csx": "csharp",
+            "java": "java", "kt": "kotlin",
+            "py": "python", "pyi": "python",
+            "js": "javascript", "jsx": "javascript", "ts": "typescript", "tsx": "typescript",
+            "json": "json", "xml": "xml", "html": "html", "css": "css",
+            "sh": "bash", "bat": "batch", "ps1": "powershell",
+        }
+        lang = lang_map.get(ext, "markup")
+
+    # Determine run & warnings
     if run_id:
         run = session.get(Run, run_id)
     else:
         run = session.exec(
-            select(Run)
-            .where(Run.project_id == project_id, Run.status == "done")
-            .order_by(Run.timestamp.desc())
-            .limit(1)
+            select(Run).where(Run.project_id == project_id, Run.status == "done")
+            .order_by(Run.timestamp.desc()).limit(1)
         ).first()
 
     # Build warnings by line mapping
@@ -131,15 +146,11 @@ async def view_code(
         # Fetch classifiers for lookup
         classifier_ids = {i.classifier_id for i in issues if i.classifier_id}
         if classifier_ids:
-            classifiers = session.exec(
-                select(ErrorClassifier).where(ErrorClassifier.id.in_(classifier_ids))
-            ).all()
+            classifiers = session.exec(select(ErrorClassifier).where(ErrorClassifier.id.in_(classifier_ids))).all()
             classifier_map = {c.id: c for c in classifiers}
 
         for issue in issues:
-            if issue.line not in warnings_by_line:
-                warnings_by_line[issue.line] = []
-            warnings_by_line[issue.line].append(issue)
+            warnings_by_line.setdefault(issue.line, []).append(issue)
 
     return templates.TemplateResponse(
         request,
@@ -148,14 +159,15 @@ async def view_code(
             "project": project,
             "file_path": file_path,
             "file_name": _extract_file_name(file_path),
-            "abs_path": abs_path_str,
-            "lines": lines,
+            "content": "".join(lines),          # 🔑 Единый блок для Prism
+            "language": lang,                   # 🔑 Подсказка для подсветки
             "warnings_by_line": warnings_by_line,
             "target_line": line,
             "run_id": run.id if run else None,
             "error": error,
             "classifier_map": classifier_map,
             "source_type": source_type,
+            "total_lines": len(lines),
         },
     )
 
@@ -164,6 +176,8 @@ async def view_code(
 async def code_viewer_page(
     request: Request,
     project_id: int,
+    file_path: str = Query(None),
+    line: int = Query(None),
     run_id: int = Query(None, ge=1),
     session: Session = Depends(get_session),
 ):
@@ -215,3 +229,110 @@ async def code_viewer_page(
         },
     )
 
+@router.get("/api/projects/{project_id}/files")
+async def get_project_files(
+    project_id: int,
+    run_id: Optional[int] = Query(None),
+    session: Session = Depends(get_session),
+):
+    """Get file tree structure for a project with warnings count."""
+    # Determine which run to use
+    if run_id:
+        run = session.get(Run, run_id)
+    else:
+        run = session.exec(
+            select(Run)
+            .where(Run.project_id == project_id, Run.status == "done")
+            .order_by(Run.timestamp.desc())
+            .limit(1)
+        ).first()
+    
+    if not run:
+        return {"files": [], "total_files": 0}
+    
+    # Get all files with warnings
+    issues = session.exec(
+        select(Issue).where(
+            Issue.run_id == run.id,
+            Issue.status.in_(["new", "existing"]),
+        )
+    ).all()
+    
+    # Build file tree
+    file_tree: Dict[str, Any] = {}
+    
+    for issue in issues:
+        file_path = issue.file_path.replace("\\", "/")
+        parts = file_path.split("/")
+        
+        # Navigate/create tree structure
+        current = file_tree
+        for i, part in enumerate(parts[:-1]):
+            if part not in current:
+                current[part] = {"_type": "folder", "_children": {}}
+            current = current[part]["_children"]
+        
+        # Add file
+        filename = parts[-1]
+        if filename not in current:
+            current[filename] = {
+                "_type": "file",
+                "_path": file_path,
+                "_warnings": 0,
+                "_severities": set()
+            }
+        current[filename]["_warnings"] += 1
+        current[filename]["_severities"].add(issue.severity)
+    
+    # Convert to list format for JSON
+    def tree_to_list(tree: Dict, path: str = "") -> List[Dict]:
+        result = []
+        for name, data in sorted(tree.items()):
+            if data["_type"] == "folder":
+                item = {
+                    "name": name,
+                    "type": "folder",
+                    "path": f"{path}/{name}" if path else name,
+                    "children": tree_to_list(data["_children"], f"{path}/{name}" if path else name),
+                    "total_warnings": sum(
+                        child.get("total_warnings", 0) 
+                        for child in tree_to_list(data["_children"], "")
+                    )
+                }
+                # Count warnings in this folder
+                item["total_warnings"] = sum(
+                    f["_warnings"] for f in data["_children"].values() 
+                    if f["_type"] == "file"
+                ) + sum(c["total_warnings"] for c in item["children"])
+                result.append(item)
+            else:
+                severities = list(data["_severities"])
+                item = {
+                    "name": name,
+                    "type": "file",
+                    "path": data["_path"],
+                    "warnings": data["_warnings"],
+                    "severities": severities,
+                    "high_count": data["_warnings"] if "High" in severities else 0,
+                    "medium_count": data["_warnings"] if "Medium" in severities else 0,
+                    "low_count": data["_warnings"] if "Low" in severities else 0,
+                }
+                result.append(item)
+        return result
+    
+    files_list = tree_to_list(file_tree)
+    total_files = sum(1 for _ in flatten_files(files_list))
+    
+    return {
+        "files": files_list,
+        "total_files": total_files,
+        "run_id": run.id,
+    }
+
+def flatten_files(files: List[Dict]):
+    """Helper to count all files recursively."""
+    for f in files:
+        if f["type"] == "file":
+            yield f
+        else:
+            yield from flatten_files(f.get("children", []))

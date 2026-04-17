@@ -377,12 +377,239 @@
     </div>
 
     {# === Tab Content: Code === #}
-    <div class="sq-project-tab-content" id="tab-code" style="display: none;">
-        <div id="code-viewer-content" class="sq-empty-state text-center py-5">
-            <i class="bi bi-hand-index" style="font-size: 4rem; opacity: 0.3;"></i>
-            <p class="mt-3 mb-0">Click the <i class="bi bi-code-square"></i> button on any issue to view the code</p>
+    <div id="tab-code" class="sq-tab-pane">
+        <div class="sq-file-browser-container">
+            {# Search bar #}
+            <div class="sq-file-browser-search">
+                <input type="text" id="file-search" class="sq-input" placeholder="Search for files..." 
+                    hx-get="/ui/projects/{{ project.id }}/files/search" 
+                    hx-target="#file-tree" 
+                    hx-trigger="keyup changed delay:300ms">
+            </div>
+            
+            {# File tree #}
+            <div id="file-tree" class="sq-file-tree">
+                <div class="sq-loading">Loading file structure...</div>
+            </div>
+            
+            {# Code viewer area #}
+            <div id="inline-code-viewer" class="sq-inline-code-viewer" style="display: none;">
+                <div class="sq-code-viewer-header">
+                    <span id="code-viewer-file-path" class="sq-file-name"></span>
+                    <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="closeCodeViewer()">
+                        <i class="bi bi-x"></i> Close
+                    </button>
+                </div>
+                <div id="code-viewer-content"></div>
+            </div>
         </div>
     </div>
+
+    <script>
+    // Load file tree on tab click
+    document.addEventListener('DOMContentLoaded', function() {
+        const codeTab = document.querySelector('[data-bs-target="#tab-code"]');
+        if (codeTab) {
+            codeTab.addEventListener('click', function() {
+                loadFileTree();
+            });
+        }
+    });
+
+    function loadFileTree() {
+        fetch('/api/projects/{{ project.id }}/files?run_id={{ run_id if run_id else '' }}')
+            .then(response => response.json())
+            .then(data => {
+                const treeContainer = document.getElementById('file-tree');
+                treeContainer.innerHTML = renderFileTree(data.files);
+            })
+            .catch(error => {
+                console.error('Error loading file tree:', error);
+                document.getElementById('file-tree').innerHTML = 
+                    '<div class="sq-alert sq-alert-danger">Failed to load file structure</div>';
+            });
+    }
+
+    function renderFileTree(files, level = 0) {
+        if (!files || files.length === 0) {
+            return '<div class="sq-empty-state">No files with warnings</div>';
+        }
+        
+        let html = '<ul class="sq-file-tree-list">';
+        for (const item of files) {
+            if (item.type === 'folder') {
+                html += `
+                    <li class="sq-folder-item" data-path="${item.path}">
+                        <div class="sq-tree-item sq-folder" onclick="toggleFolder(this)">
+                            <i class="bi bi-folder sq-folder-icon"></i>
+                            <span class="sq-tree-item-name">${item.name}</span>
+                            <span class="sq-badge sq-badge-warning">${item.total_warnings}</span>
+                        </div>
+                        <div class="sq-folder-children" style="display: none; margin-left: ${20 + level}px;">
+                            ${renderFileTree(item.children, level + 1)}
+                        </div>
+                    </li>
+                `;
+            } else {
+                const severityClass = item.high_count > 0 ? 'sq-sev-high' : 
+                                    item.medium_count > 0 ? 'sq-sev-medium' : 'sq-sev-low';
+                html += `
+                    <li class="sq-file-item" data-path="${item.path}">
+                        <div class="sq-tree-item sq-file" onclick="loadFileCode('${item.path}')">
+                            <i class="bi bi-file-code sq-file-icon"></i>
+                            <span class="sq-tree-item-name">${item.name}</span>
+                            <span class="sq-badge ${severityClass}">${item.warnings}</span>
+                        </div>
+                    </li>
+                `;
+            }
+        }
+        html += '</ul>';
+        return html;
+    }
+
+    function toggleFolder(element) {
+        const children = element.nextElementSibling;
+        const icon = element.querySelector('.sq-folder-icon');
+        
+        if (children.style.display === 'none') {
+            children.style.display = 'block';
+            icon.classList.remove('bi-folder');
+            icon.classList.add('bi-folder-open');
+        } else {
+            children.style.display = 'none';
+            icon.classList.remove('bi-folder-open');
+            icon.classList.add('bi-folder');
+        }
+    }
+
+    async function loadFileCode(filePath) {
+        const viewer = document.getElementById('inline-code-viewer');
+        const content = document.getElementById('code-viewer-content');
+        const pathLabel = document.getElementById('code-viewer-file-path');
+        
+        // Show loading
+        viewer.style.display = 'block';
+        content.innerHTML = '<div class="sq-loading">Loading code...</div>';
+        pathLabel.textContent = filePath;
+        
+        try {
+            const response = await fetch(`/ui/file?project_id={{ project.id }}&file_path=${encodeURIComponent(filePath)}&run_id={{ run_id if run_id else ''}}`);
+            const html = await response.text();
+            
+            // Extract just the code viewer part
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const codeViewer = doc.querySelector('.sq-code-viewer');
+            
+            if (codeViewer) {
+                content.innerHTML = '';
+                content.appendChild(codeViewer);
+                
+                // Scroll to viewer
+                viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code</div>';
+            }
+        } catch (error) {
+            console.error('Error loading code:', error);
+            content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code: ' + error.message + '</div>';
+        }
+    }
+
+    function closeCodeViewer() {
+        document.getElementById('inline-code-viewer').style.display = 'none';
+    }
+    </script>
+
+    <style>
+    .sq-file-browser-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .sq-file-browser-search {
+        max-width: 400px;
+    }
+
+    .sq-file-tree {
+        background: var(--sq-bg-secondary);
+        border: 1px solid var(--sq-border);
+        border-radius: var(--sq-radius-md);
+        padding: 16px;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .sq-file-tree-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .sq-tree-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        border-radius: var(--sq-radius-sm);
+        transition: background-color var(--sq-transition);
+    }
+
+    .sq-tree-item:hover {
+        background: var(--sq-bg-hover);
+    }
+
+    .sq-folder-icon, .sq-file-icon {
+        font-size: 16px;
+    }
+
+    .sq-folder-icon {
+        color: var(--sq-severity-medium);
+    }
+
+    .sq-file-icon {
+        color: var(--sq-text-muted);
+    }
+
+    .sq-tree-item-name {
+        flex: 1;
+        font-size: 13px;
+    }
+
+    .sq-inline-code-viewer {
+        border: 1px solid var(--sq-border);
+        border-radius: var(--sq-radius-md);
+        overflow: hidden;
+        background: var(--sq-bg-secondary);
+    }
+
+    .sq-code-viewer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: var(--sq-bg-tertiary);
+        border-bottom: 1px solid var(--sq-border);
+    }
+
+    .sq-sev-high {
+        background: var(--sq-severity-high-bg);
+        color: var(--sq-severity-high);
+    }
+
+    .sq-sev-medium {
+        background: var(--sq-severity-medium-bg);
+        color: var(--sq-severity-medium);
+    }
+
+    .sq-sev-low {
+        background: var(--sq-severity-low-bg);
+        color: var(--sq-severity-low);
+    }
+    </style>
 
     {# === Tab Content: Settings === #}
     <div class="sq-project-tab-content" id="tab-settings" style="display: none;">

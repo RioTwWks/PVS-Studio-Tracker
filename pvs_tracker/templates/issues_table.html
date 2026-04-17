@@ -10,7 +10,17 @@
                 <th class="sq-col-file"><i class="bi bi-file-earmark-code"></i> File</th>
                 <th class="sq-col-line"><i class="bi bi-text-paragraph"></i> Line</th>
                 <th class="sq-col-message">Message</th>
-                <th class="sq-col-actions"><i class="bi bi-gear"></i> Actions</th>
+                <td class="sq-col-actions">
+                    {% if issue.status != 'ignored' %}
+                        <button class="sq-btn sq-btn-sm sq-btn-outline" 
+                                onclick="toggleInlineCode({{ issue.id }}, '{{ issue.file_path }}', {{ issue.line }})"
+                                title="View code">
+                            <i class="bi bi-eye"></i> Code
+                        </button>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
             </tr>
         </thead>
         <tbody>
@@ -112,6 +122,66 @@
             {% endfor %}
         </tbody>
     </table>
+    {# Add inline code container after the table #}
+    <div id="inline-code-container" style="display: none; margin-top: 16px;">
+        <div class="sq-card">
+            <div class="sq-card-header">
+                <span id="inline-code-file-path"></span>
+                <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="closeInlineCode()">
+                    <i class="bi bi-x"></i> Close
+                </button>
+            </div>
+            <div id="inline-code-content"></div>
+        </div>
+    </div>
+
+    <script>
+    async function toggleInlineCode(issueId, filePath, lineNumber) {
+        const container = document.getElementById('inline-code-container');
+        const content = document.getElementById('inline-code-content');
+        const pathLabel = document.getElementById('inline-code-file-path');
+        
+        // If already showing this file, toggle visibility
+        if (container.style.display !== 'none' && pathLabel.textContent === filePath) {
+            closeInlineCode();
+            return;
+        }
+        
+        // Show loading
+        container.style.display = 'block';
+        content.innerHTML = '<div class="sq-loading">Loading code...</div>';
+        pathLabel.textContent = filePath;
+        
+        try {
+            const response = await fetch(`/ui/file?project_id={{ project_id }}&file_path=${encodeURIComponent(filePath)}&line=${lineNumber}&run_id={{ run_id if run_id else ''}}`);
+            const html = await response.text();
+            
+            // Extract just the code viewer part
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const codeViewer = doc.querySelector('.sq-code-viewer');
+            
+            if (codeViewer) {
+                content.innerHTML = '';
+                content.appendChild(codeViewer);
+                
+                // Scroll to code
+                setTimeout(() => {
+                    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            } else {
+                content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code</div>';
+            }
+        } catch (error) {
+            console.error('Error loading code:', error);
+            content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code: ' + error.message + '</div>';
+        }
+    }
+
+    function closeInlineCode() {
+        document.getElementById('inline-code-container').style.display = 'none';
+    }
+    </script>
 </div>
 
 {# --- Pagination --- #}

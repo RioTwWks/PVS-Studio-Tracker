@@ -1,133 +1,64 @@
 {# SonarQube-style code viewer — split panel with gutter annotations #}
-<div class="sq-code-viewer fade-in">
-    {% if error %}
-    <div class="sq-alert sq-alert-danger fade-in" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> {{ error }}
-    </div>
-    {% elif lines %}
-    {# --- Header with file path --- #}
+{% if error %}
+  <div class="sq-alert sq-alert-danger">
+    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+  </div>
+{% elif content %}
+  <div class="sq-code-viewer" id="sq-code-viewer">
+    {# Header #}
     <div class="sq-code-viewer-header">
-        <div class="sq-file-breadcrumb">
-            <i class="bi bi-file-earmark-code"></i>
-            <span class="sq-file-name">{{ file_name }}</span>
-            {% if file_path != file_name %}
-            <span class="sq-file-path-breadcrumb">{{ file_path }}</span>
-            {% endif %}
-        </div>
-        <div class="sq-viewer-actions">
-            {% if abs_path %}
-            <span class="sq-path-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="Full path: {{ abs_path }}">
-                <i class="bi bi-folder2"></i>
-            </span>
-            {% endif %}
-        </div>
+      <div class="sq-file-breadcrumb">
+        <span class="sq-file-name">{{ file_name }}</span>
+        {% if file_path != file_name %}
+          <span class="sq-file-path-breadcrumb">{{ file_path }}</span>
+        {% endif %}
+      </div>
+      <div class="sq-viewer-actions">
+        <span class="sq-badge" title="Source: {{ source_type }}">📦 {{ source_type }}</span>
+        <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="navigator.clipboard.writeText(document.querySelector('.sq-code-block code').innerText)" title="Copy code">
+          <i class="bi bi-clipboard"></i>
+        </button>
+      </div>
     </div>
 
-    {# --- Main code viewer --- #}
+    {# Main 3-pane body #}
     <div class="sq-code-viewer-body">
-        {# Line numbers gutter #}
-        <div class="sq-line-numbers-gutter">
-            {% for line_num in range(1, lines|length + 1) %}
-            <div class="sq-line-number {% if line_num in warnings_by_line %}sq-has-warning{% endif %} {% if target_line and line_num == target_line %}sq-target-line{% endif %}"
-                 data-line="{{ line_num }}"
-                 id="L{{ line_num }}">
-                <span class="sq-line-number-text">{{ line_num }}</span>
+      {# Left: Line Numbers + Code (Scroll synced via JS) #}
+      <div class="sq-scroll-master-wrapper">
+        <div class="sq-line-numbers" id="sq-line-numbers">
+          {% for ln in range(1, total_lines + 1) %}
+            <div class="sq-line-num {% if ln == target_line %}sq-target{% endif %} {% if ln in warnings_by_line %}sq-has-issue{% endif %}" data-line="{{ ln }}">
+              <span>{{ ln }}</span>
             </div>
-            {% endfor %}
+          {% endfor %}
         </div>
 
-        {# Code content with annotations #}
-        <div class="sq-code-content">
-            {% for line_num in range(1, lines|length + 1) %}
-            {% set code = lines[line_num - 1] %}
-            {% set has_warnings = line_num in warnings_by_line %}
-            <div class="sq-code-line {% if has_warnings %}sq-line-with-issues severity-{{ warnings_by_line[line_num][0].severity }}{% endif %} {% if target_line and line_num == target_line %}sq-target-highlight{% endif %}"
-                 data-line="{{ line_num }}">
-                <pre><code>{{ code.rstrip() }}</code></pre>
-                {% if has_warnings %}
-                <div class="sq-line-annotations">
-                    {% for issue in warnings_by_line[line_num] %}
-                    {% set classifier = classifier_map.get(issue.classifier_id) %}
-                    <div class="sq-annotation-badge"
-                         data-bs-toggle="tooltip"
-                         data-bs-placement="bottom"
-                         data-bs-html="true"
-                         title="<div class='sq-annotation-tooltip'>
-                                    <div class='sq-tooltip-header'>
-                                        <span class='sq-severity-tag severity-{{ issue.severity }}'>{{ issue.severity }}</span>
-                                        <code>{{ issue.rule_code }}</code>
-                                    </div>
-                                    <div class='sq-tooltip-message'>{{ issue.message }}</div>
-                                    {% if classifier %}
-                                    <div class='sq-tooltip-classifier'>
-                                        <span class='sq-classifier-type'>{{ classifier.type }}</span>
-                                        <span class='sq-classifier-priority priority-{{ classifier.priority|lower }}'>{{ classifier.priority }}</span>
-                                    </div>
-                                    {% endif %}
-                                </div>">
-                        <span class="sq-annotation-severity severity-{{ issue.severity }}">
-                            {% if issue.severity == 'High' %}
-                            <i class="bi bi-exclamation-octagon-fill"></i>
-                            {% elif issue.severity == 'Medium' %}
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                            {% else %}
-                            <i class="bi bi-info-circle-fill"></i>
-                            {% endif %}
-                        </span>
-                        <span class="sq-annotation-rule">{{ issue.rule_code }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
+        <div class="sq-code-scroll-area" id="sq-code-scroll">
+          <pre class="sq-code-block" id="sq-code-block" data-target="{{ target_line or '' }}"><code class="language-{{ language }}">{{ content }}</code></pre>
         </div>
+      </div>
+
+      {# Right: Annotations #}
+      <div class="sq-annotations-panel" id="sq-annotations-panel">
+        {% for ln, issues in warnings_by_line.items() %}
+          <div class="sq-annotation-row" data-line="{{ ln }}">
+            {% for issue in issues %}
+              <span class="sq-annotation-badge sq-sev-{{ issue.severity|lower }}" title="{{ issue.message }}">
+                {{ issue.rule_code }}
+              </span>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
     </div>
 
-    {# --- Footer stats --- #}
+    {# Footer #}
     <div class="sq-viewer-footer">
-        <div class="sq-viewer-stats">
-            <div class="sq-stat sq-stat-issues">
-                <div class="sq-stat-value">{{ warnings_by_line|length }}</div>
-                <div class="sq-stat-label">
-                    <i class="bi bi-exclamation-diamond"></i>
-                    <span data-i18n="lines_with_issues">Lines with issues</span>
-                </div>
-            </div>
-            <div class="sq-stat sq-stat-lines">
-                <div class="sq-stat-value">{{ lines|length }}</div>
-                <div class="sq-stat-label">
-                    <i class="bi bi-text-paragraph"></i>
-                    <span data-i18n="total_lines">Total lines</span>
-                </div>
-            </div>
-            <div class="sq-stat sq-stat-clean">
-                <div class="sq-stat-value">{{ lines|length - warnings_by_line|length }}</div>
-                <div class="sq-stat-label">
-                    <i class="bi bi-check-circle"></i>
-                    <span data-i18n="clean_lines">Clean lines</span>
-                </div>
-            </div>
-        </div>
+      <div class="sq-viewer-stats">
+        <div class="sq-stat"><span class="sq-stat-value">{{ warnings_by_line|length }}</span><span class="sq-stat-label">Lines with issues</span></div>
+        <div class="sq-stat"><span class="sq-stat-value">{{ total_lines }}</span><span class="sq-stat-label">Total lines</span></div>
+        <div class="sq-stat"><span class="sq-stat-value">{{ total_lines - warnings_by_line|length }}</span><span class="sq-stat-label">Clean lines</span></div>
+      </div>
     </div>
-    {% endif %}
-</div>
-
-<script>
-    // Scroll to target line if specified
-    {% if target_line %}
-    document.addEventListener("DOMContentLoaded", () => {
-        const el = document.getElementById("L{{ target_line }}");
-        if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-            setTimeout(() => el.classList.add("sq-active-target"), 300);
-        }
-    });
-    {% endif %}
-
-    // Initialize Bootstrap tooltips
-    document.addEventListener("DOMContentLoaded", () => {
-        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-        [...tooltipTriggerList].map(el => new bootstrap.Tooltip(el));
-    });
-</script>
+  </div>
+{% endif %}

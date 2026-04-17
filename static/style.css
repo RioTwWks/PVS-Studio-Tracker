@@ -1779,6 +1779,7 @@ a:hover {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  line-clamp: 2; /* Для совместимости */
   overflow: hidden;
 }
 
@@ -1884,243 +1885,154 @@ a:hover {
 }
 
 /* ============================================================
-   Code Viewer
-   ============================================================ */
-
+Code Viewer (SonarQube-style) - FIXED
+============================================================ */
 .sq-code-viewer {
+  display: flex;
+  flex-direction: column;
   background: var(--sq-bg-secondary);
   border: 1px solid var(--sq-border);
   border-radius: var(--sq-radius-md);
   overflow: hidden;
+  font-family: var(--sq-font-mono);
+  font-size: 13px;
+  line-height: 1.5; /* 🔑 Единая высота строки для выравнивания */
 }
 
 .sq-code-viewer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--sq-spacing-md) var(--sq-spacing-lg);
+  padding: 8px 12px;
   background: var(--sq-bg-tertiary);
   border-bottom: 1px solid var(--sq-border);
+  font-size: 13px;
 }
 
-.sq-file-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: var(--sq-spacing-sm);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.sq-file-name {
-  font-family: var(--sq-font-mono);
-  font-weight: 600;
-}
-
-.sq-file-path-breadcrumb {
-  color: var(--sq-text-muted);
-  font-size: 12px;
-}
-
-.sq-viewer-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sq-spacing-sm);
-}
-
-.sq-path-tooltip {
-  color: var(--sq-text-muted);
-  cursor: help;
-}
+.sq-file-breadcrumb { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.sq-file-name { font-weight: 600; }
+.sq-file-path-breadcrumb { color: var(--sq-text-muted); font-size: 12px; }
+.sq-viewer-actions { display: flex; align-items: center; gap: 8px; }
 
 .sq-code-viewer-body {
   display: flex;
-  overflow: auto;
-  max-height: 70vh;
+  overflow: hidden;
+  position: relative;
+  max-height: 75vh;
 }
 
-/* Line Numbers Gutter */
-.sq-line-numbers-gutter {
+/* Scroll Master Wrapper (Gutter + Code) */
+.sq-scroll-master-wrapper {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Gutter */
+.sq-line-numbers {
+  flex: 0 0 56px;
   background: var(--sq-bg-tertiary);
   border-right: 1px solid var(--sq-border);
-  padding: var(--sq-spacing-sm) 0;
   user-select: none;
-  min-width: 60px;
-  text-align: right;
+  overflow-y: auto; /* Скроллится через JS, но overflow нужен для плавности */
+  padding: 8px 0;
+  scrollbar-width: none; /* Скрываем скроллбар у номеров */
 }
+.sq-line-numbers::-webkit-scrollbar { display: none; }
 
-.sq-line-number {
-  padding: 0 var(--sq-spacing-md);
-  font-family: var(--sq-font-mono);
-  font-size: 12px;
-  line-height: 1.6;
+.sq-line-num {
+  padding: 0 12px;
+  text-align: right;
   color: var(--sq-text-muted);
   position: relative;
+  height: 19.5px; /* 🔑 13px * 1.5 line-height */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.sq-line-num span { display: inline-block; min-width: 24px; }
+.sq-line-num.sq-target { background: var(--sq-brand); color: white; }
+.sq-line-num.sq-has-issue { color: var(--sq-severity-medium); font-weight: 600; }
+.sq-line-num.sq-has-issue::after {
+  content: "●";
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--sq-status-new);
+  font-size: 10px;
 }
 
-.sq-line-number:hover {
-  background: var(--sq-bg-hover);
-}
-
-.sq-line-number-text {
-  display: inline-block;
-  min-width: 40px;
-  padding-right: var(--sq-spacing-md);
-}
-
-.sq-has-warning {
-  background: rgba(212, 50, 79, 0.05);
-  color: var(--sq-severity-high);
-  font-weight: 600;
-}
-
-.sq-target-line {
-  background: var(--sq-brand);
-  color: white;
-  animation: sq-flash-gutter 1s ease-in-out 3;
-}
-
-@keyframes sq-flash-gutter {
-  0%, 100% {
-    background: var(--sq-brand);
-  }
-  50% {
-    background: var(--sq-brand-hover);
-  }
-}
-
-/* Code Content */
-.sq-code-content {
+/* Code Area */
+.sq-code-scroll-area {
   flex: 1;
-  padding: var(--sq-spacing-sm) 0;
-  overflow: auto;
-}
-
-.sq-code-line {
-  padding: 0 var(--sq-spacing-md);
-  font-family: var(--sq-font-mono);
-  font-size: 12px;
-  line-height: 1.6;
+  overflow: auto; /* 🔑 Единственный настоящий скролл */
   position: relative;
+  background: var(--sq-bg-secondary);
+}
+
+.sq-code-block {
+  margin: 0 !important;
+  padding: 8px 16px !important;
+  background: transparent !important;
+  border: none !important;
+  white-space: pre;
+  tab-size: 4;
+  min-width: fit-content;
+}
+
+/* 🔑 FIX: Убираем !important, который убивал Prism */
+.sq-code-block code {
+  background: transparent !important;
+  padding: 0 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  /* color: var(--sq-text-primary) !important;  <-- УДАЛЕНО, чтобы Prism работал */
+}
+
+/* Annotations Panel */
+.sq-annotations-panel {
+  flex: 0 0 140px;
+  border-left: 1px solid var(--sq-border);
+  background: var(--sq-bg-secondary);
+  padding: 8px 6px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.sq-annotations-panel::-webkit-scrollbar { display: none; }
+
+.sq-annotation-row {
+  height: 19.5px; /* 🔑 Строго совпадает с line-height */
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
   align-items: center;
-}
-
-.sq-code-line pre {
-  margin: 0;
-  flex: 1;
-  overflow: visible;
-}
-
-.sq-code-line code {
-  display: block;
-  padding: 2px 0;
-}
-
-.sq-line-with-issues {
-  background: var(--sq-severity-medium-bg);
-  border-left: 3px solid var(--sq-severity-medium);
-}
-
-.sq-target-highlight {
-  background: var(--sq-brand);
-  color: white;
-  animation: sq-flash-code 1s ease-in-out 3;
-}
-
-@keyframes sq-flash-code {
-  0%, 100% {
-    background: var(--sq-brand);
-  }
-  50% {
-    background: var(--sq-brand-hover);
-  }
-}
-
-.sq-active-target {
-  background: var(--sq-brand-hover);
-}
-
-/* Line Annotations */
-.sq-line-annotations {
-  display: flex;
-  align-items: center;
-  gap: var(--sq-spacing-xs);
-  padding: 0 var(--sq-spacing-sm);
-  flex-shrink: 0;
 }
 
 .sq-annotation-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: var(--sq-bg-secondary);
-  border: 1px solid var(--sq-border);
-  border-radius: var(--sq-radius-sm);
   font-size: 11px;
-  cursor: pointer;
-  transition: all var(--sq-transition);
-}
-
-.sq-annotation-badge:hover {
-  background: var(--sq-bg-hover);
-  box-shadow: var(--sq-shadow-sm);
-}
-
-.sq-annotation-severity {
-  font-size: 14px;
-}
-
-.sq-annotation-severity.severity-High {
-  color: var(--sq-severity-high);
-}
-
-.sq-annotation-severity.severity-Medium {
-  color: var(--sq-severity-medium);
-}
-
-.sq-annotation-severity.severity-Low {
-  color: var(--sq-severity-low);
-}
-
-.sq-annotation-rule {
-  font-family: var(--sq-font-mono);
   font-weight: 600;
-  color: var(--sq-text-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: help;
+  white-space: nowrap;
+  border: 1px solid var(--sq-border-light);
 }
+.sq-sev-high { background: var(--sq-severity-high-bg); color: var(--sq-severity-high); border-color: var(--sq-severity-high); }
+.sq-sev-medium { background: var(--sq-severity-medium-bg); color: var(--sq-severity-medium); border-color: var(--sq-severity-medium); }
+.sq-sev-low { background: var(--sq-severity-low-bg); color: var(--sq-severity-low); border-color: var(--sq-severity-low); }
 
-/* Viewer Footer */
 .sq-viewer-footer {
-  padding: var(--sq-spacing-md) var(--sq-spacing-lg);
+  padding: 8px 12px;
   border-top: 1px solid var(--sq-border);
   background: var(--sq-bg-tertiary);
 }
-
-.sq-viewer-stats {
-  display: flex;
-  gap: var(--sq-spacing-lg);
-}
-
-.sq-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sq-spacing-xs);
-}
-
-.sq-stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--sq-text-primary);
-}
-
-.sq-stat-label {
-  font-size: 12px;
-  color: var(--sq-text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
+.sq-viewer-stats { display: flex; gap: 20px; }
+.sq-stat { display: flex; flex-direction: column; align-items: center; }
+.sq-stat-value { font-size: 16px; font-weight: 700; }
+.sq-stat-label { font-size: 11px; color: var(--sq-text-muted); }
 
 /* ============================================================
    File Browser
