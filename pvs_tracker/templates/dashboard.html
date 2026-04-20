@@ -61,17 +61,12 @@
                     {% endif %}
                 </button>
             </li>
-            <li class="sq-project-tab" role="presentation">
+            <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" 
-                        id="code-tab-btn" 
-                        data-bs-toggle="tab" 
-                        data-bs-target="#tab-code" 
-                        type="button" 
-                        role="tab" 
-                        aria-controls="tab-code" 
-                        aria-selected="false">
+                        data-tab="code" 
+                        onclick="switchProjectTab('code'); setTimeout(loadFileTree, 100);">
                     <i class="bi bi-code-slash"></i>
-                    <span>Code</span>
+                    <span data-i18n="tab_code">Code</span>
                     {% if history and history|length > 0 %}
                     {% set latest = history[-1] %}
                     {% if latest.total > 0 %}
@@ -269,21 +264,21 @@
                     {% set medium_pct = (latest.total * 0.6 / total_safe * 100)|int %}
                     {% set low_pct = (latest.total * 0.4 / total_safe * 100)|int %}
                     <div class="sq-severity-item sq-severity-high">
-                        <div class="sq-severity-bar" style="width: '{{ high_pct if high_pct <= 100 else 100 }}'%"></div>
+                        <div class="sq-severity-bar" style="width: {{ high_pct if high_pct <= 100 else 100 }}%"></div>
                         <div class="sq-severity-label">
                             <span class="sq-severity-name">High</span>
                             <span class="sq-severity-count">{{ latest.new }}</span>
                         </div>
                     </div>
                     <div class="sq-severity-item sq-severity-medium">
-                        <div class="sq-severity-bar" style="width: '{{ medium_pct if medium_pct <= 100 else 100 }}'%"></div>
+                        <div class="sq-severity-bar" style="width: {{ medium_pct if medium_pct <= 100 else 100 }}%"></div>
                         <div class="sq-severity-label">
                             <span class="sq-severity-name">Medium</span>
                             <span class="sq-severity-count">{{ medium_pct }}%</span>
                         </div>
                     </div>
                     <div class="sq-severity-item sq-severity-low">
-                        <div class="sq-severity-bar" style="width: '{{ low_pct if low_pct <= 100 else 100 }}'%"></div>
+                        <div class="sq-severity-bar" style="width: {{ low_pct if low_pct <= 100 else 100 }}%"></div>
                         <div class="sq-severity-label">
                             <span class="sq-severity-name">Low</span>
                             <span class="sq-severity-count">{{ low_pct }}%</span>
@@ -390,7 +385,7 @@
     </div>
 
     {# === Tab Content: Code === #}
-    <div id="tab-code" class="sq-tab-pane">
+    <div class="sq-project-tab-content" id="tab-code" style="display: none;">
         <div class="sq-file-browser-container">
             {# Search #}
             <div class="sq-file-browser-search">
@@ -418,11 +413,13 @@
     <script>
     console.log("🔧 Code tab script loaded");
 
-    let fileTreeLoaded = false; // Флаг, чтобы не грузить дважды
+    let fileTreeLoaded = false;
 
-    // Функция загрузки дерева (вызывается один раз)
     function loadFileTree() {
-        if (fileTreeLoaded) return; // Уже загружено
+        if (fileTreeLoaded) {
+            console.log("✅ Tree already loaded, skipping");
+            return;
+        }
         
         console.log("📡 loadFileTree() called");
         const projectId = '{{ project.id }}';
@@ -431,8 +428,15 @@
         
         console.log("🔗 Fetching:", url);
         
+        // Показываем индикатор загрузки
+        const container = document.getElementById('file-tree');
+        if (container && container.innerHTML.includes('Loading')) {
+            // Уже показывает "Loading..." — ок
+        }
+        
         fetch(url)
             .then(response => {
+                console.log("📥 Status:", response.status);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return response.json();
             })
@@ -442,16 +446,16 @@
                 if (container) {
                     container.innerHTML = renderFileTree(data.files || []);
                     fileTreeLoaded = true;
+                    console.log("✅ Tree rendered");
                 }
             })
             .catch(error => {
                 console.error("💥 Error:", error);
                 document.getElementById('file-tree').innerHTML = 
-                    `<div class="sq-alert sq-alert-danger">Error: ${error.message}</div>`;
+                    `<div class="sq-alert sq-alert-danger">Error: ${error.message}<br><small>Check console for details</small></div>`;
             });
     }
 
-    // --- Рендерер дерева файлов ---
     function renderFileTree(items, level = 0) {
         if (!items || items.length === 0) {
             return '<div class="sq-empty-state">No files with warnings</div>';
@@ -539,25 +543,18 @@
         }
     }
 
-    // 🔑 Инициализация — Слушаем событие Bootstrap!
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log("🎯 DOMContentLoaded");
-        
-        // Находим кнопку вкладки по ID
-        const codeTabBtn = document.getElementById('code-tab-btn');
-        if (codeTabBtn) {
-            // Подписываемся на событие завершения переключения вкладки
-            codeTabBtn.addEventListener('shown.bs.tab', (event) => {
-                console.log("🗂️ Code tab shown (Bootstrap Event)");
-                loadFileTree();
-            });
-        }
-        
-        // Если вкладка уже активна при загрузке страницы (редкий случай)
-        if (document.getElementById('tab-code')?.classList.contains('active')) {
-            loadFileTree();
-        }
-    });
+    function closeCodeViewer() {
+        document.getElementById('inline-code-viewer').style.display = 'none';
+    }
+
+    function filterFileTree(query) {
+        const q = query.toLowerCase().trim();
+        document.querySelectorAll('.sq-tree-item').forEach(item => {
+            const name = item.textContent?.toLowerCase() || '';
+            const li = item.closest('li');
+            li.style.display = (name.includes(q) || !q) ? '' : 'none';
+        });
+    }
     </script>
 
     <style>
