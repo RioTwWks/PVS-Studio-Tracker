@@ -269,21 +269,21 @@
                     {% set medium_pct = (latest.total * 0.6 / total_safe * 100)|int %}
                     {% set low_pct = (latest.total * 0.4 / total_safe * 100)|int %}
                     <div class="sq-severity-item sq-severity-high">
-                        <div class="sq-severity-bar" style="width: {{ high_pct if high_pct <= 100 else 100 }}%"></div>
+                        <div class="sq-severity-bar" style="width: '{{ high_pct if high_pct <= 100 else 100 }}'%"></div>
                         <div class="sq-severity-label">
                             <span class="sq-severity-name">High</span>
                             <span class="sq-severity-count">{{ latest.new }}</span>
                         </div>
                     </div>
                     <div class="sq-severity-item sq-severity-medium">
-                        <div class="sq-severity-bar" style="width: {{ medium_pct if medium_pct <= 100 else 100 }}%"></div>
+                        <div class="sq-severity-bar" style="width: '{{ medium_pct if medium_pct <= 100 else 100 }}'%"></div>
                         <div class="sq-severity-label">
                             <span class="sq-severity-name">Medium</span>
                             <span class="sq-severity-count">{{ medium_pct }}%</span>
                         </div>
                     </div>
                     <div class="sq-severity-item sq-severity-low">
-                        <div class="sq-severity-bar" style="width: {{ low_pct if low_pct <= 100 else 100 }}%"></div>
+                        <div class="sq-severity-bar" style="width: '{{ low_pct if low_pct <= 100 else 100 }}'%"></div>
                         <div class="sq-severity-label">
                             <span class="sq-severity-name">Low</span>
                             <span class="sq-severity-count">{{ low_pct }}%</span>
@@ -425,7 +425,7 @@
         if (fileTreeLoaded) return; // Уже загружено
         
         console.log("📡 loadFileTree() called");
-        const projectId = {{ project.id }};
+        const projectId = '{{ project.id }}';
         const runId = '{{ run_id if run_id else "" }}';
         const url = `/api/projects/${projectId}/files${runId ? '?run_id=' + runId : ''}`;
         
@@ -517,7 +517,7 @@
         pathLabel.textContent = filePath;
         
         try {
-            const projectId = {{ project.id }};
+            const projectId = '{{ project.id }}';
             const runId = '{{ run_id if run_id else "" }}';
             const resp = await fetch(`/ui/file?project_id=${projectId}&file_path=${encodeURIComponent(filePath)}&run_id=${runId}`);
             const html = await resp.text();
