@@ -176,15 +176,13 @@ async def view_code(
 async def code_viewer_page(
     request: Request,
     project_id: int,
-    file_path: str = Query(None),
-    line: int = Query(None),
     run_id: int = Query(None, ge=1),
     session: Session = Depends(get_session),
 ):
     """Standalone code viewer page with file browser."""
     if templates is None:
         raise HTTPException(500, "Templates not initialized")
-
+    
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -202,6 +200,8 @@ async def code_viewer_page(
 
     # Get files with warnings
     files_with_warnings = []
+    warnings_by_line_global = {}  # 🔑 Для глобальной статистики
+    
     if run:
         # Get distinct file paths with warning counts
         file_counts = session.exec(
@@ -218,6 +218,18 @@ async def code_viewer_page(
             {"file_path": file_path, "warning_count": count}
             for file_path, count in file_counts
         ]
+        
+        # 🔑 Build global warnings_by_line for stats (all files)
+        issues = session.exec(
+            select(Issue).where(
+                Issue.run_id == run.id,
+                Issue.status.in_(["new", "existing"]),
+            )
+        ).all()
+        for issue in issues:
+            if issue.line not in warnings_by_line_global:
+                warnings_by_line_global[issue.line] = []
+            warnings_by_line_global[issue.line].append(issue)
 
     return templates.TemplateResponse(
         request,
@@ -226,19 +238,27 @@ async def code_viewer_page(
             "project": project,
             "files_with_warnings": files_with_warnings,
             "run_id": run.id if run else None,
+            # 🔑 Передаём глобальные данные для статистики
+            "warnings_by_line": warnings_by_line_global,
+            "total_issues": len(warnings_by_line_global),
         },
     )
 
 @router.get("/api/projects/{project_id}/files")
-async def get_project_files(
+async def get_project_files_api(
     project_id: int,
     run_id: Optional[int] = Query(None),
     session: Session = Depends(get_session),
 ):
-    """Get file tree structure for a project with warnings count."""
+    """Get file tree structure for project with warning counts."""
+    import logging
+    logger = logging.getLogger("pvs_tracker")
+    logger.info(f"🔍 get_project_files_api called: project_id={project_id}, run_id={run_id}")
+    
     # Determine which run to use
     if run_id:
         run = session.get(Run, run_id)
+        logger.info(f"🔍 Using explicit run_id={run_id}, run={run}")
     else:
         run = session.exec(
             select(Run)
@@ -246,88 +266,105 @@ async def get_project_files(
             .order_by(Run.timestamp.desc())
             .limit(1)
         ).first()
+        logger.info(f"🔍 Auto-selected run={run}")
     
     if not run:
-        return {"files": [], "total_files": 0}
+        logger.warning(f"⚠️ No run found for project {project_id}")
+        return {"files": [], "total_files": 0, "run_id": None}
     
-    # Get all files with warnings
-    issues = session.exec(
-        select(Issue).where(
-            Issue.run_id == run.id,
-            Issue.status.in_(["new", "existing"]),
-        )
+    # Get distinct files with warning counts and severities
+    file_stats = session.exec(
+        select(Issue.file_path, func.count(Issue.id), func.max(Issue.severity))
+        .where(Issue.run_id == run.id, Issue.status.in_(["new", "existing"]))
+        .group_by(Issue.file_path)
     ).all()
     
-    # Build file tree
-    file_tree: Dict[str, Any] = {}
+    logger.info(f"🔍 Found {len(file_stats)} files with warnings")
     
-    for issue in issues:
-        file_path = issue.file_path.replace("\\", "/")
-        parts = file_path.split("/")
-        
-        # Navigate/create tree structure
+    # Build tree structure
+    file_tree: dict = {}
+    for file_path, count, max_sev in file_stats:
+        if not file_path:
+            continue
+        parts = file_path.replace("\\", "/").split("/")
         current = file_tree
-        for i, part in enumerate(parts[:-1]):
+        for part in parts[:-1]:
             if part not in current:
                 current[part] = {"_type": "folder", "_children": {}}
             current = current[part]["_children"]
-        
-        # Add file
         filename = parts[-1]
-        if filename not in current:
-            current[filename] = {
-                "_type": "file",
-                "_path": file_path,
-                "_warnings": 0,
-                "_severities": set()
-            }
-        current[filename]["_warnings"] += 1
-        current[filename]["_severities"].add(issue.severity)
-    
-    # Convert to list format for JSON
-    def tree_to_list(tree: Dict, path: str = "") -> List[Dict]:
+        current[filename] = {
+            "_type": "file",
+            "name": filename,
+            "path": file_path,
+            "warnings": count,
+            "severity": max_sev or "Low",
+        }
+
+    # Convert tree to list with children
+    def tree_to_list(tree: dict) -> list:
         result = []
-        for name, data in sorted(tree.items()):
+        for name, data in tree.items():
             if data["_type"] == "folder":
-                item = {
+                children = tree_to_list(data["_children"])
+                folder_warnings = sum(
+                    f["warnings"] for f in data["_children"].values() 
+                    if f["_type"] == "file"
+                )
+                folder_warnings += sum(
+                    c.get("total_warnings", 0) for c in children
+                )
+                result.append({
                     "name": name,
                     "type": "folder",
-                    "path": f"{path}/{name}" if path else name,
-                    "children": tree_to_list(data["_children"], f"{path}/{name}" if path else name),
-                    "total_warnings": sum(
-                        child.get("total_warnings", 0) 
-                        for child in tree_to_list(data["_children"], "")
-                    )
-                }
-                # Count warnings in this folder
-                item["total_warnings"] = sum(
-                    f["_warnings"] for f in data["_children"].values() 
-                    if f["_type"] == "file"
-                ) + sum(c["total_warnings"] for c in item["children"])
-                result.append(item)
+                    "path": name,
+                    "children": children,
+                    "total_warnings": folder_warnings,
+                })
             else:
-                severities = list(data["_severities"])
-                item = {
-                    "name": name,
-                    "type": "file",
-                    "path": data["_path"],
-                    "warnings": data["_warnings"],
-                    "severities": severities,
-                    "high_count": data["_warnings"] if "High" in severities else 0,
-                    "medium_count": data["_warnings"] if "Medium" in severities else 0,
-                    "low_count": data["_warnings"] if "Low" in severities else 0,
-                }
-                result.append(item)
+                result.append(data)
         return result
-    
+
     files_list = tree_to_list(file_tree)
-    total_files = sum(1 for _ in flatten_files(files_list))
     
-    return {
+    result = {
         "files": files_list,
-        "total_files": total_files,
+        "total_files": len(files_list),
         "run_id": run.id,
     }
+    logger.info(f"✅ Returning {len(files_list)} items")
+    return result
+
+
+@router.get("/ui/projects/{project_id}/files/search")
+async def search_project_files(
+    project_id: int,
+    q: str = Query("", max_length=100),
+    run_id: Optional[int] = Query(None),
+    request: Request = None,
+    session: Session = Depends(get_session),
+):
+    """HTMX endpoint: return filtered file tree HTML."""
+    if not q:
+        # Return full tree
+        return await get_project_files_api(project_id, run_id, session)
+    
+    # Simple in-memory filter
+    files_data = await get_project_files_api(project_id, run_id, session)
+    filtered = [
+        f for f in files_data.get("files", [])
+        if q.lower() in f.get("name", "").lower() or q.lower() in f.get("path", "").lower()
+    ]
+    
+    # Return partial HTML for HTMX
+    from fastapi.templating import Jinja2Templates
+    templates = Jinja2Templates(directory="pvs_tracker/templates")
+    return templates.TemplateResponse(
+        request,
+        "partials/file_tree_partial.html",  # Создайте этот шаблон или верните JSON
+        {"files": filtered}
+    )
+
 
 def flatten_files(files: List[Dict]):
     """Helper to count all files recursively."""

@@ -75,4 +75,22 @@
     });
 </script>
 
+{# --- Footer stats --- #}
+<div class="sq-viewer-footer">
+    <div class="sq-viewer-stats">
+        <div class="sq-stat">
+            <span class="sq-stat-value">{{ warnings_by_line|length }}</span>
+            <span class="sq-stat-label">Lines with issues</span>
+        </div>
+        <div class="sq-stat">
+            <span class="sq-stat-value">{{ total_lines|default(0) }}</span>
+            <span class="sq-stat-label">Total lines</span>
+        </div>
+        <div class="sq-stat">
+            <span class="sq-stat-value">{{ (total_lines|default(0)) - (warnings_by_line|length) }}</span>
+            <span class="sq-stat-label">Clean lines</span>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

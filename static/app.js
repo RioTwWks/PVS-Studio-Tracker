@@ -66,39 +66,51 @@ const I18n = (() => {
 
         // Update all elements with data-i18n attribute
         document.querySelectorAll('[data-i18n]').forEach((el) => {
+            // 🔑 ПРОВЕРКА: если элемент удалён из DOM — пропускаем
+            if (!el || !document.contains(el)) return;
+            
             const key = el.getAttribute('data-i18n');
             const value = t(key);
-            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                if (el.getAttribute('data-i18n-attr') === 'placeholder') {
-                    el.placeholder = value;
-                } else {
-                    el.value = value;
-                }
-            } else if (el.tagName === 'LABEL') {
-                el.textContent = value;
-            } else if (el.tagName === 'OPTION') {
-                el.textContent = value;
-            } else if (el.tagName === 'BUTTON') {
-                // Keep icons inside buttons
-                const icons = el.querySelectorAll('i, svg');
-                if (icons.length > 0) {
-                    // Find text node only
-                    el.childNodes.forEach((node) => {
-                        if (node.nodeType === Node.TEXT_NODE) {
-                            node.textContent = value + ' ';
+            
+            try {
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                    if (el.getAttribute('data-i18n-attr') === 'placeholder') {
+                        el.placeholder = value;
+                    } else {
+                        el.value = value;
+                    }
+                } else if (el.tagName === 'LABEL' || el.tagName === 'OPTION' || el.tagName === 'BUTTON') {
+                    // Для кнопок сохраняем иконки
+                    if (el.tagName === 'BUTTON') {
+                        const icons = el.querySelectorAll('i, svg');
+                        if (icons.length > 0) {
+                            el.childNodes.forEach((node) => {
+                                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                                    node.textContent = value + ' ';
+                                }
+                            });
+                        } else {
+                            el.textContent = value;
                         }
-                    });
+                    } else {
+                        el.textContent = value;
+                    }
                 } else {
-                    el.textContent = value;
+                    // 🔑 Безопасная установка: проверяем, что элемент ещё в DOM
+                    if (el.textContent !== undefined) {
+                        el.textContent = value;
+                    }
                 }
-            } else {
-                el.textContent = value;
+            } catch (e) {
+                console.warn(`i18n error for element ${key}:`, e);
             }
         });
 
-        // Update placeholders with data-i18n-placeholder
+        // Update placeholders
         document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-            el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+            if (el && el.placeholder !== undefined) {
+                el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+            }
         });
 
         // Update chart legend if exists
@@ -106,10 +118,13 @@ const I18n = (() => {
             updateChartLegend(window.__pvsChart);
         }
 
-        // Update lang toggle button text
+        // Update lang toggle button text — с проверкой
         const langBtn = document.getElementById('lang-toggle');
         if (langBtn) {
-            langBtn.querySelector('.lang-label').textContent = lang === 'ru' ? 'EN' : 'RU';
+            const label = langBtn.querySelector('.lang-label');
+            if (label) {
+                label.textContent = lang === 'ru' ? 'EN' : 'RU';
+            }
             langBtn.title = t('toggle_lang');
         }
     }
@@ -281,7 +296,11 @@ function createTrendChart(canvasId, historyData) {
                     ticks: {
                         color: colors.tickColor,
                         font: { size: 11 },
-                        stepSize: 1,
+                        // stepSize удалён — Chart.js подберёт автоматически
+                        callback: function(value) {
+                            // Показывать только целые числа
+                            return Number.isInteger(value) ? value : null;
+                        },
                     },
                 },
             },

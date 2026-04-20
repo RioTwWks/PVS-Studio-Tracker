@@ -1,162 +1,196 @@
+{# === Issues Table Template — Fixed Structure === #}
+
+{# 🔑 Гарантия, что issues определён #}
+{% if issues is not defined %}
+    {% set issues = [] %}
+{% endif %}
+
+{# 🔑 Гарантия, что classifier_map определён #}
+{% if classifier_map is not defined %}
+    {% set classifier_map = {} %}
+{% endif %}
+
 <div class="sq-table-responsive">
     <table class="sq-table">
         <thead>
             <tr>
-                <th class="sq-col-status"><i class="bi bi-tag"></i> Status</th>
-                <th class="sq-col-severity"><i class="bi bi-exclamation-diamond"></i> Severity</th>
-                <th class="sq-col-rule"><i class="bi bi-code-slash"></i> Rule</th>
-                <th class="sq-col-type"><i class="bi bi-collection"></i> Type</th>
-                <th class="sq-col-priority"><i class="bi bi-sort-down"></i> Priority</th>
-                <th class="sq-col-file"><i class="bi bi-file-earmark-code"></i> File</th>
-                <th class="sq-col-line"><i class="bi bi-text-paragraph"></i> Line</th>
+                <th class="sq-col-status">Status</th>
+                <th class="sq-col-severity">Severity</th>
+                <th class="sq-col-rule">Rule</th>
+                <th class="sq-col-type">Type</th>
+                <th class="sq-col-priority">Priority</th>
+                <th class="sq-col-file">File</th>
+                <th class="sq-col-line">Line</th>
                 <th class="sq-col-message">Message</th>
-                <td class="sq-col-actions">
-                    {% if issue.status != 'ignored' %}
-                        <button class="sq-btn sq-btn-sm sq-btn-outline" 
-                                onclick="toggleInlineCode({{ issue.id }}, '{{ issue.file_path }}', {{ issue.line }})"
-                                title="View code">
-                            <i class="bi bi-eye"></i> Code
-                        </button>
-                    {% else %}
-                        <span class="text-muted">—</span>
-                    {% endif %}
-                </td>
+                <th class="sq-col-actions">Actions</th>
             </tr>
         </thead>
         <tbody>
-            {% for issue in issues %}
-            {% set classifier = classifier_map.get(issue.classifier_id) %}
-            <tr class="sq-table-row severity-{{ issue.severity }}">
-                <td>
-                    <span class="sq-status-badge status-{{ issue.status }}">
-                        {% if issue.status == 'new' %}
-                        <i class="bi bi-plus-circle"></i> NEW
-                        {% elif issue.status == 'fixed' %}
-                        <i class="bi bi-check-circle"></i> FIXED
-                        {% elif issue.status == 'ignored' %}
-                        <i class="bi bi-x-octagon"></i> IGNORED
-                        {% else %}
-                        <i class="bi bi-circle"></i> {{ issue.status|upper }}
-                        {% endif %}
-                    </span>
-                </td>
-                <td>
-                    <span class="sq-severity-badge severity-{{ issue.severity }}">
-                        {% if issue.severity == 'High' %}
-                        <i class="bi bi-exclamation-circle"></i> High
-                        {% elif issue.severity == 'Medium' %}
-                        <i class="bi bi-exclamation-triangle"></i> Medium
-                        {% else %}
-                        <i class="bi bi-info-circle"></i> Low
-                        {% endif %}
-                    </span>
-                </td>
-                <td><code class="sq-rule-code">{{ issue.rule_code }}</code></td>
-                <td>
-                    {% if classifier %}
-                    <span class="sq-classifier-badge">{{ classifier.type }}</span>
-                    {% else %}
-                    <span class="sq-empty">—</span>
+            {# 🔑 Правильная структура: if + for + else + endif #}
+            {% if issues %}
+                {% for issue in issues %}
+                    {% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
+                    <tr class="sq-table-row severity-{{ issue.severity }}">
+                        {# Status #}
+                        <td>
+                            {% if issue.status == 'new' %}
+                                <span class="sq-status-badge status-new">NEW</span>
+                            {% elif issue.status == 'fixed' %}
+                                <span class="sq-status-badge status-fixed">FIXED</span>
+                            {% elif issue.status == 'ignored' %}
+                                <span class="sq-status-badge status-ignored">IGNORED</span>
+                            {% else %}
+                                <span class="sq-status-badge status-existing">{{ issue.status|upper }}</span>
+                            {% endif %}
+                        </td>
+                        
+                        {# Severity #}
+                        <td>
+                            <span class="sq-severity-badge severity-{{ issue.severity }}">
+                                {{ issue.severity }}
+                            </span>
+                        </td>
+                        
+                        {# Rule #}
+                        <td><span class="sq-rule-code">{{ issue.rule_code }}</span></td>
+                        
+                        {# Type #}
+                        <td>
+                            {% if classifier %}
+                                <span class="sq-classifier-badge">{{ classifier.type }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        {# Priority #}
+                        <td>
+                            {% if classifier %}
+                                <span class="sq-priority-badge sq-priority-{{ classifier.priority|lower }}">
+                                    {{ classifier.priority }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        {# File #}
+                        <td><span class="sq-file-path" title="{{ issue.file_path }}">{{ issue.file_path }}</span></td>
+                        
+                        {# Line #}
+                        <td><span class="sq-line-badge">{{ issue.line }}</span></td>
+                        
+                        {# Message #}
+                        <td class="sq-message-cell">
+                            <div class="sq-message-text">{{ issue.message }}</div>
+                            {% if classifier %}
+                                <div class="sq-classifier-name">
+                                    <i class="bi bi-info-circle"></i> {{ classifier.name }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        
+                        {# Actions #}
+                        <td class="sq-col-actions">
+                            {% if issue.status != 'ignored' %}
+                                <button class="sq-btn sq-btn-sm sq-btn-outline" 
+                                        data-issue-id="{{ issue.id }}"
+                                        data-project-id="{{ project_id }}"
+                                        data-file-path="{{ issue.file_path }}"
+                                        data-line="{{ issue.line }}"
+                                        data-run-id="{{ run_id if run_id else '' }}"
+                                        onclick="toggleInlineCode(this)"
+                                        title="View code">
+                                    <i class="bi bi-eye"></i> Code
+                                </button>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {# === Inline Code Viewer Container === #}
+                    {% if issue.status != 'ignored' %}
+                    <tr id="inline-code-row-{{ issue.id }}" class="sq-inline-code-row" style="display: none;">
+                        <td colspan="9" class="sq-inline-code-cell">
+                            <div class="sq-inline-code-wrapper">
+                                <div class="sq-inline-code-header">
+                                    <span class="sq-file-path">{{ issue.file_path }}:{{ issue.line }}</span>
+                                    <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="closeInlineCode({{ issue.id }})">
+                                        <i class="bi bi-x"></i> Close
+                                    </button>
+                                </div>
+                                <div id="inline-code-content-{{ issue.id }}" class="sq-inline-code-content">
+                                    <div class="sq-loading">Loading code...</div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
                     {% endif %}
-                </td>
-                <td>
-                    {% if classifier %}
-                    <span class="sq-priority-badge
-                        {% if classifier.priority == 'CRITICAL' %}sq-priority-critical
-                        {% elif classifier.priority == 'MAJOR' %}sq-priority-major
-                        {% elif classifier.priority == 'MINOR' %}sq-priority-minor
-                        {% else %}sq-priority-other
-                        {% endif %}">
-                        {{ classifier.priority }}
-                    </span>
-                    {% else %}
-                    <span class="sq-empty">—</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <span class="sq-file-path" title="{{ issue.file_path }}">{{ issue.file_path }}</span>
-                </td>
-                <td class="sq-text-center"><span class="sq-line-badge">{{ issue.line }}</span></td>
-                <td>
-                    <div class="sq-message-cell">
-                        <div class="sq-message-text">{{ issue.message }}</div>
-                        {% if classifier %}
-                        <div class="sq-classifier-name"><i class="bi bi-info-circle"></i> {{ classifier.name }}</div>
-                        {% endif %}
-                    </div>
-                </td>
-                <td>
-                    <div class="sq-actions">
-                        {% if issue.status != 'ignored' %}
-                        <button class="sq-btn sq-btn-icon"
-                                hx-get="/ui/file?project_id={{ project_id }}&file_path={{ issue.file_path }}&line={{ issue.line }}{% if run_id %}&run_id={{ run_id }}{% endif %}"
-                                hx-target="#code-viewer-content"
-                                hx-indicator="#code-viewer-content"
-                                hx-swap="innerHTML"
-                                hx-on::after-request="switchToCodeTab()"
-                                title="View code">
-                            <i class="bi bi-code-square"></i>
-                        </button>
-                        <button class="sq-btn sq-btn-icon sq-btn-ignore"
-                                hx-post="/api/v1/issues/{{ issue.fingerprint }}/ignore"
-                                hx-confirm="Mark as False Positive?"
-                                hx-swap="none"
-                                title="Mark as false positive">
-                            <i class="bi bi-eye-slash"></i>
-                        </button>
-                        {% else %}
-                        <span class="sq-empty"><i class="bi bi-check-lg"></i></span>
-                        {% endif %}
-                    </div>
-                </td>
-            </tr>
+                {% endfor %}
             {% else %}
-            <tr>
-                <td colspan="9" class="sq-empty-row">
-                    <div class="sq-empty-state py-4">
-                        <div class="sq-empty-icon"><i class="bi bi-check-circle" style="font-size: 3rem; opacity: 0.3;"></i></div>
-                        <p class="mb-0">No issues found</p>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
+                <tr>
+                    <td colspan="9" class="sq-empty-row">
+                        <div class="sq-empty-state">
+                            <i class="bi bi-check-circle sq-empty-icon"></i>
+                            <p>Предупреждений не найдено</p>
+                        </div>
+                    </td>
+                </tr>
+            {% endif %}
         </tbody>
     </table>
-    {# Add inline code container after the table #}
-    <div id="inline-code-container" style="display: none; margin-top: 16px;">
-        <div class="sq-card">
-            <div class="sq-card-header">
-                <span id="inline-code-file-path"></span>
-                <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="closeInlineCode()">
-                    <i class="bi bi-x"></i> Close
-                </button>
-            </div>
-            <div id="inline-code-content"></div>
-        </div>
-    </div>
+</div>
 
-    <script>
-    async function toggleInlineCode(issueId, filePath, lineNumber) {
-        const container = document.getElementById('inline-code-container');
-        const content = document.getElementById('inline-code-content');
-        const pathLabel = document.getElementById('inline-code-file-path');
-        
-        // If already showing this file, toggle visibility
-        if (container.style.display !== 'none' && pathLabel.textContent === filePath) {
-            closeInlineCode();
-            return;
-        }
-        
-        // Show loading
-        container.style.display = 'block';
+{# --- Pagination --- #}
+{% if issues and issues|length > 0 %}
+<div class="sq-pagination">
+    <div class="sq-pagination-info">
+        Showing {{ issues|length }} of {{ total }}
+    </div>
+    <div class="sq-pagination-controls">
+        {% if page > 1 %}
+            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page - 1 }}" 
+               class="sq-btn sq-btn-sm sq-btn-outline">Previous</a>
+        {% endif %}
+        {% if page * per_page < total %}
+            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page + 1 }}" 
+               class="sq-btn sq-btn-sm sq-btn-outline">Next</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{# === JavaScript for inline code viewer === #}
+<script>
+async function toggleInlineCode(button) {
+    const issueId = button.dataset.issueId;
+    const projectId = button.dataset.projectId;
+    const filePath = button.dataset.filePath;
+    const lineNumber = button.dataset.line;
+    const runId = button.dataset.runId || '';
+    
+    const codeRow = document.getElementById(`inline-code-row-${issueId}`);
+    const content = document.getElementById(`inline-code-content-${issueId}`);
+    
+    if (codeRow && codeRow.style.display !== 'none') {
+        closeInlineCode(issueId);
+        return;
+    }
+    
+    document.querySelectorAll('.sq-inline-code-row').forEach(row => {
+        row.style.display = 'none';
+    });
+    
+    if (codeRow) {
+        codeRow.style.display = 'table-row';
         content.innerHTML = '<div class="sq-loading">Loading code...</div>';
-        pathLabel.textContent = filePath;
         
         try {
-            const response = await fetch(`/ui/file?project_id={{ project_id }}&file_path=${encodeURIComponent(filePath)}&line=${lineNumber}&run_id={{ run_id if run_id else ''}}`);
+            const response = await fetch(
+                `/ui/file?project_id=${encodeURIComponent(projectId)}&file_path=${encodeURIComponent(filePath)}&line=${encodeURIComponent(lineNumber)}&run_id=${encodeURIComponent(runId)}`
+            );
             const html = await response.text();
             
-            // Extract just the code viewer part
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             const codeViewer = doc.querySelector('.sq-code-viewer');
@@ -165,9 +199,25 @@
                 content.innerHTML = '';
                 content.appendChild(codeViewer);
                 
-                // Scroll to code
+                // 🔑 Инициализация синхронизации скролла для inline-вьюера
                 setTimeout(() => {
-                    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    initInlineCodeScrollSync(codeViewer);
+                    
+                    // Прокрутка к целевой строке
+                    const targetEl = codeViewer.querySelector(`.sq-line-num[data-line="${lineNumber}"]`);
+                    const scrollArea = codeViewer.querySelector('.sq-code-scroll-area');
+                    if (targetEl && scrollArea) {
+                        const offset = targetEl.offsetTop - (scrollArea.clientHeight / 3);
+                        scrollArea.scrollTop = Math.max(0, offset);
+                        // Sync gutter
+                        const gutter = codeViewer.querySelector('#sq-line-numbers');
+                        if (gutter) gutter.scrollTop = scrollArea.scrollTop;
+                    }
+                    // Highlight
+                    if (targetEl) {
+                        targetEl.classList.add('sq-active-target');
+                        setTimeout(() => targetEl.classList.remove('sq-active-target'), 2000);
+                    }
                 }, 100);
             } else {
                 content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code</div>';
@@ -177,36 +227,28 @@
             content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code: ' + error.message + '</div>';
         }
     }
+}
 
-    function closeInlineCode() {
-        document.getElementById('inline-code-container').style.display = 'none';
-    }
-    </script>
-</div>
+// 🔑 Новая функция: синхронизация скролла для inline-вьюера
+function initInlineCodeScrollSync(codeViewer) {
+    const scrollArea = codeViewer.querySelector('.sq-code-scroll-area');
+    const gutter = codeViewer.querySelector('#sq-line-numbers');
+    const annotations = codeViewer.querySelector('#sq-annotations-panel');
+    
+    if (!scrollArea || !gutter) return;
+    
+    // Удаляем старые слушатели (клонированием)
+    const newScroll = scrollArea.cloneNode(true);
+    scrollArea.parentNode.replaceChild(newScroll, scrollArea);
+    
+    newScroll.addEventListener('scroll', () => {
+        if (gutter) gutter.scrollTop = newScroll.scrollTop;
+        if (annotations) annotations.scrollTop = newScroll.scrollTop;
+    });
+}
 
-{# --- Pagination --- #}
-{% if issues|length > 0 or total > 0 %}
-<div class="sq-pagination">
-    <span class="sq-pagination-info">
-        Showing <strong>{{ issues|length }}</strong> of <strong>{{ total }}</strong>
-    </span>
-    <div class="sq-btn-group" role="group">
-        {% if page > 1 %}
-        <button class="sq-btn sq-btn-secondary sq-btn-sm"
-                hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch }}&page={{ page-1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
-                hx-target="#issues-table"
-                hx-indicator="#issues-table">
-            <i class="bi bi-chevron-left"></i> Previous
-        </button>
-        {% endif %}
-        {% if page * per_page < total %}
-        <button class="sq-btn sq-btn-secondary sq-btn-sm"
-                hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch }}&page={{ page+1 }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}"
-                hx-target="#issues-table"
-                hx-indicator="#issues-table">
-            Next <i class="bi bi-chevron-right"></i>
-        </button>
-        {% endif %}
-    </div>
-</div>
-{% endif %}
+function closeInlineCode(issueId) {
+    const row = document.getElementById(`inline-code-row-${issueId}`);
+    if (row) row.style.display = 'none';
+}
+</script>

@@ -61,10 +61,23 @@
                     {% endif %}
                 </button>
             </li>
-            <li class="sq-project-tab">
-                <button class="sq-project-tab-btn" data-tab="code" onclick="switchProjectTab('code')">
-                    <i class="bi bi-file-earmark-code"></i>
-                    <span data-i18n="tab_code">Code</span>
+            <li class="sq-project-tab" role="presentation">
+                <button class="sq-project-tab-btn" 
+                        id="code-tab-btn" 
+                        data-bs-toggle="tab" 
+                        data-bs-target="#tab-code" 
+                        type="button" 
+                        role="tab" 
+                        aria-controls="tab-code" 
+                        aria-selected="false">
+                    <i class="bi bi-code-slash"></i>
+                    <span>Code</span>
+                    {% if history and history|length > 0 %}
+                    {% set latest = history[-1] %}
+                    {% if latest.total > 0 %}
+                    <span class="sq-tab-badge">{{ latest.total }}</span>
+                    {% endif %}
+                    {% endif %}
                 </button>
             </li>
             <li class="sq-project-tab">
@@ -379,20 +392,17 @@
     {# === Tab Content: Code === #}
     <div id="tab-code" class="sq-tab-pane">
         <div class="sq-file-browser-container">
-            {# Search bar #}
+            {# Search #}
             <div class="sq-file-browser-search">
-                <input type="text" id="file-search" class="sq-input" placeholder="Search for files..." 
-                    hx-get="/ui/projects/{{ project.id }}/files/search" 
-                    hx-target="#file-tree" 
-                    hx-trigger="keyup changed delay:300ms">
+                <input type="text" id="file-search" class="sq-input" placeholder="Search files..." onkeyup="filterFileTree(this.value)">
             </div>
             
-            {# File tree #}
+            {# File Tree #}
             <div id="file-tree" class="sq-file-tree">
                 <div class="sq-loading">Loading file structure...</div>
             </div>
             
-            {# Code viewer area #}
+            {# Inline Code Viewer #}
             <div id="inline-code-viewer" class="sq-inline-code-viewer" style="display: none;">
                 <div class="sq-code-viewer-header">
                     <span id="code-viewer-file-path" class="sq-file-name"></span>
@@ -406,59 +416,75 @@
     </div>
 
     <script>
-    // Load file tree on tab click
-    document.addEventListener('DOMContentLoaded', function() {
-        const codeTab = document.querySelector('[data-bs-target="#tab-code"]');
-        if (codeTab) {
-            codeTab.addEventListener('click', function() {
-                loadFileTree();
-            });
-        }
-    });
+    console.log("🔧 Code tab script loaded");
 
+    let fileTreeLoaded = false; // Флаг, чтобы не грузить дважды
+
+    // Функция загрузки дерева (вызывается один раз)
     function loadFileTree() {
-        fetch('/api/projects/{{ project.id }}/files?run_id={{ run_id if run_id else '' }}')
-            .then(response => response.json())
+        if (fileTreeLoaded) return; // Уже загружено
+        
+        console.log("📡 loadFileTree() called");
+        const projectId = {{ project.id }};
+        const runId = '{{ run_id if run_id else "" }}';
+        const url = `/api/projects/${projectId}/files${runId ? '?run_id=' + runId : ''}`;
+        
+        console.log("🔗 Fetching:", url);
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
             .then(data => {
-                const treeContainer = document.getElementById('file-tree');
-                treeContainer.innerHTML = renderFileTree(data.files);
+                console.log("✅ Data received, files:", data.files?.length);
+                const container = document.getElementById('file-tree');
+                if (container) {
+                    container.innerHTML = renderFileTree(data.files || []);
+                    fileTreeLoaded = true;
+                }
             })
             .catch(error => {
-                console.error('Error loading file tree:', error);
+                console.error("💥 Error:", error);
                 document.getElementById('file-tree').innerHTML = 
-                    '<div class="sq-alert sq-alert-danger">Failed to load file structure</div>';
+                    `<div class="sq-alert sq-alert-danger">Error: ${error.message}</div>`;
             });
     }
 
-    function renderFileTree(files, level = 0) {
-        if (!files || files.length === 0) {
+    // --- Рендерер дерева файлов ---
+    function renderFileTree(items, level = 0) {
+        if (!items || items.length === 0) {
             return '<div class="sq-empty-state">No files with warnings</div>';
         }
         
-        let html = '<ul class="sq-file-tree-list">';
-        for (const item of files) {
+        let html = '<ul class="sq-file-tree-list" style="list-style:none;padding:0;margin:0;">';
+        
+        for (const item of items) {
+            const indent = level * 20;
+            const severityClass = item.severity === 'High' ? 'sq-sev-high' : 
+                                item.severity === 'Medium' ? 'sq-sev-medium' : 'sq-sev-low';
+            
             if (item.type === 'folder') {
                 html += `
-                    <li class="sq-folder-item" data-path="${item.path}">
-                        <div class="sq-tree-item sq-folder" onclick="toggleFolder(this)">
-                            <i class="bi bi-folder sq-folder-icon"></i>
-                            <span class="sq-tree-item-name">${item.name}</span>
-                            <span class="sq-badge sq-badge-warning">${item.total_warnings}</span>
+                    <li style="margin-left:${indent}px;">
+                        <div class="sq-tree-item sq-folder" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="toggleFolder(this)">
+                            <i class="bi bi-folder" style="color:#e6872a;"></i>
+                            <span>${item.name}</span>
+                            <span class="sq-badge" style="margin-left:auto;background:#f0f0f0;color:#666;font-size:11px;">${item.total_warnings || 0}</span>
                         </div>
-                        <div class="sq-folder-children" style="display: none; margin-left: ${20 + level}px;">
-                            ${renderFileTree(item.children, level + 1)}
+                        <div class="sq-folder-children" style="display:none;">
+                            ${renderFileTree(item.children || [], level + 1)}
                         </div>
                     </li>
                 `;
             } else {
-                const severityClass = item.high_count > 0 ? 'sq-sev-high' : 
-                                    item.medium_count > 0 ? 'sq-sev-medium' : 'sq-sev-low';
+                const path = (item.path || "").replace(/'/g, "\\'");
                 html += `
-                    <li class="sq-file-item" data-path="${item.path}">
-                        <div class="sq-tree-item sq-file" onclick="loadFileCode('${item.path}')">
-                            <i class="bi bi-file-code sq-file-icon"></i>
-                            <span class="sq-tree-item-name">${item.name}</span>
-                            <span class="sq-badge ${severityClass}">${item.warnings}</span>
+                    <li style="margin-left:${indent}px;">
+                        <div class="sq-tree-item sq-file" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="loadFileCode('${path}')">
+                            <i class="bi bi-file-code" style="color:#6c757d;"></i>
+                            <span title="${item.path || ''}">${item.name}</span>
+                            <span class="sq-badge ${severityClass}" style="margin-left:auto;font-size:11px;">${item.warnings || 0}</span>
                         </div>
                     </li>
                 `;
@@ -468,36 +494,34 @@
         return html;
     }
 
-    function toggleFolder(element) {
-        const children = element.nextElementSibling;
-        const icon = element.querySelector('.sq-folder-icon');
-        
+    function toggleFolder(el) {
+        const children = el.nextElementSibling;
+        const icon = el.querySelector('i');
         if (children.style.display === 'none') {
             children.style.display = 'block';
-            icon.classList.remove('bi-folder');
-            icon.classList.add('bi-folder-open');
+            icon.className = 'bi bi-folder-open';
         } else {
             children.style.display = 'none';
-            icon.classList.remove('bi-folder-open');
-            icon.classList.add('bi-folder');
+            icon.className = 'bi bi-folder';
         }
     }
 
     async function loadFileCode(filePath) {
+        console.log("📄 Loading:", filePath);
         const viewer = document.getElementById('inline-code-viewer');
         const content = document.getElementById('code-viewer-content');
         const pathLabel = document.getElementById('code-viewer-file-path');
         
-        // Show loading
         viewer.style.display = 'block';
-        content.innerHTML = '<div class="sq-loading">Loading code...</div>';
+        content.innerHTML = '<div class="sq-loading">Loading...</div>';
         pathLabel.textContent = filePath;
         
         try {
-            const response = await fetch(`/ui/file?project_id={{ project.id }}&file_path=${encodeURIComponent(filePath)}&run_id={{ run_id if run_id else ''}}`);
-            const html = await response.text();
+            const projectId = {{ project.id }};
+            const runId = '{{ run_id if run_id else "" }}';
+            const resp = await fetch(`/ui/file?project_id=${projectId}&file_path=${encodeURIComponent(filePath)}&run_id=${runId}`);
+            const html = await resp.text();
             
-            // Extract just the code viewer part
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             const codeViewer = doc.querySelector('.sq-code-viewer');
@@ -505,110 +529,45 @@
             if (codeViewer) {
                 content.innerHTML = '';
                 content.appendChild(codeViewer);
-                
-                // Scroll to viewer
-                viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                viewer.scrollIntoView({behavior: 'smooth', block: 'start'});
             } else {
                 content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code</div>';
             }
-        } catch (error) {
-            console.error('Error loading code:', error);
-            content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code: ' + error.message + '</div>';
+        } catch (e) {
+            console.error(e);
+            content.innerHTML = `<div class="sq-alert sq-alert-danger">Error: ${e.message}</div>`;
         }
     }
 
-    function closeCodeViewer() {
-        document.getElementById('inline-code-viewer').style.display = 'none';
-    }
+    // 🔑 Инициализация — Слушаем событие Bootstrap!
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("🎯 DOMContentLoaded");
+        
+        // Находим кнопку вкладки по ID
+        const codeTabBtn = document.getElementById('code-tab-btn');
+        if (codeTabBtn) {
+            // Подписываемся на событие завершения переключения вкладки
+            codeTabBtn.addEventListener('shown.bs.tab', (event) => {
+                console.log("🗂️ Code tab shown (Bootstrap Event)");
+                loadFileTree();
+            });
+        }
+        
+        // Если вкладка уже активна при загрузке страницы (редкий случай)
+        if (document.getElementById('tab-code')?.classList.contains('active')) {
+            loadFileTree();
+        }
+    });
     </script>
 
     <style>
-    .sq-file-browser-container {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-
-    .sq-file-browser-search {
-        max-width: 400px;
-    }
-
-    .sq-file-tree {
-        background: var(--sq-bg-secondary);
-        border: 1px solid var(--sq-border);
-        border-radius: var(--sq-radius-md);
-        padding: 16px;
-        max-height: 600px;
-        overflow-y: auto;
-    }
-
-    .sq-file-tree-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
-    .sq-tree-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        cursor: pointer;
-        border-radius: var(--sq-radius-sm);
-        transition: background-color var(--sq-transition);
-    }
-
-    .sq-tree-item:hover {
-        background: var(--sq-bg-hover);
-    }
-
-    .sq-folder-icon, .sq-file-icon {
-        font-size: 16px;
-    }
-
-    .sq-folder-icon {
-        color: var(--sq-severity-medium);
-    }
-
-    .sq-file-icon {
-        color: var(--sq-text-muted);
-    }
-
-    .sq-tree-item-name {
-        flex: 1;
-        font-size: 13px;
-    }
-
-    .sq-inline-code-viewer {
-        border: 1px solid var(--sq-border);
-        border-radius: var(--sq-radius-md);
-        overflow: hidden;
-        background: var(--sq-bg-secondary);
-    }
-
-    .sq-code-viewer-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        background: var(--sq-bg-tertiary);
-        border-bottom: 1px solid var(--sq-border);
-    }
-
-    .sq-sev-high {
-        background: var(--sq-severity-high-bg);
-        color: var(--sq-severity-high);
-    }
-
-    .sq-sev-medium {
-        background: var(--sq-severity-medium-bg);
-        color: var(--sq-severity-medium);
-    }
-
-    .sq-sev-low {
-        background: var(--sq-severity-low-bg);
-        color: var(--sq-severity-low);
-    }
+    .sq-file-tree { background:var(--sq-bg-secondary); border:1px solid var(--sq-border); border-radius:6px; padding:12px; max-height:500px; overflow-y:auto; }
+    .sq-tree-item:hover { background:var(--sq-bg-hover); border-radius:4px; }
+    .sq-sev-high { background:#fde8ec; color:#d4324f; }
+    .sq-sev-medium { background:#fff3e0; color:#e6872a; }
+    .sq-sev-low { background:#e8f5e9; color:#3fa950; }
+    .sq-inline-code-viewer { border:1px solid var(--sq-border); border-radius:6px; margin-top:16px; background:var(--sq-bg-secondary); }
+    .sq-code-viewer-header { display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--sq-border); background:var(--sq-bg-tertiary); }
     </style>
 
     {# === Tab Content: Settings === #}
@@ -736,7 +695,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const historyData = {{ history | tojson }};
+        const historyData = JSON.parse('{{ history | tojson | safe }}');
         if (historyData && historyData.length > 0) {
             createTrendChart('trendChart', historyData);
         }

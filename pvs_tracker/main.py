@@ -1,12 +1,13 @@
 import os
 from datetime import datetime
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, Query
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from typing import Optional
 from starlette.middleware.sessions import SessionMiddleware
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 from pvs_tracker.models import Issue, Project, Run, SQLModel, ErrorClassifier, User, UserRole
 from pvs_tracker.parser import parse_pvs_report
@@ -362,6 +363,7 @@ async def ui_issues(
                 "status_filter": status_filter,
                 "q": q,
                 "run_id": None,
+                "classifier_map": {},  # 🔑 Пустой маппер, чтобы шаблон не упал
             },
         )
 
@@ -382,18 +384,26 @@ async def ui_issues(
         )
 
     total_count = session.exec(select(Issue).where(Issue.run_id == latest_run.id)).all()
-    issues = session.exec(query.offset((page - 1) * per_page).limit(per_page)).all()
+    # 🔑 Гарантируем, что issues — всегда список, даже если None
+    issues_raw = session.exec(query.offset((page - 1) * per_page).limit(per_page)).all()
+    issues = issues_raw if issues_raw is not None else []
 
     # Fetch all classifiers for lookup
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"ui_issues: issues[0] type={type(issues[0]) if issues else 'empty'}")
+    if issues:
+        logger.debug(f"ui_issues: first issue attrs={dir(issues[0])}")
 
     return templates.TemplateResponse(
         request,
         "issues_table.html",
         {
             "current_user": get_current_user(request),
-            "issues": issues,
+            "issues": issues,          # 🔑 Всегда список
             "total": len(total_count),
             "page": page,
             "per_page": per_page,
@@ -403,7 +413,7 @@ async def ui_issues(
             "status_filter": status_filter,
             "q": q,
             "classifier_map": classifier_map,
-            "run_id": latest_run.id,
+            "run_id": latest_run.id if latest_run else None,  # 🔑 Защита от None
         },
     )
 

@@ -51,14 +51,5 @@
         {% endfor %}
       </div>
     </div>
-
-    {# Footer #}
-    <div class="sq-viewer-footer">
-      <div class="sq-viewer-stats">
-        <div class="sq-stat"><span class="sq-stat-value">{{ warnings_by_line|length }}</span><span class="sq-stat-label">Lines with issues</span></div>
-        <div class="sq-stat"><span class="sq-stat-value">{{ total_lines }}</span><span class="sq-stat-label">Total lines</span></div>
-        <div class="sq-stat"><span class="sq-stat-value">{{ total_lines - warnings_by_line|length }}</span><span class="sq-stat-label">Clean lines</span></div>
-      </div>
-    </div>
   </div>
 {% endif %}

@@ -2034,6 +2034,63 @@ Code Viewer (SonarQube-style) - FIXED
 .sq-stat-value { font-size: 16px; font-weight: 700; }
 .sq-stat-label { font-size: 11px; color: var(--sq-text-muted); }
 
+/* Inline Code Row in Issues Table */
+.sq-inline-code-row {
+    background: var(--sq-bg-secondary) !important;
+}
+
+.sq-inline-code-cell {
+    padding: 0 !important;
+    border: none !important;
+}
+
+.sq-inline-code-wrapper {
+    margin: 8px 16px;
+    border: 1px solid var(--sq-border);
+    border-radius: var(--sq-radius-md);
+    overflow: hidden;
+}
+
+.sq-inline-code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--sq-bg-tertiary);
+    border-bottom: 1px solid var(--sq-border);
+    font-size: 12px;
+}
+
+.sq-inline-code-content {
+    max-height: 500px;
+    overflow: hidden;
+}
+
+/* Sync scroll for gutter */
+.sq-code-viewer .sq-line-numbers {
+    overflow-y: hidden; /* Let JS handle sync */
+}
+
+/* Inline code viewer scroll sync */
+.sq-inline-code-content .sq-line-numbers,
+.sq-inline-code-content .sq-code-scroll-area,
+.sq-inline-code-content .sq-annotations-panel {
+    /* Единая высота строки для выравнивания */
+    line-height: 1.5 !important;
+}
+
+.sq-inline-code-content .sq-line-num {
+    height: 19.5px !important; /* 13px font * 1.5 line-height */
+    display: flex !important;
+    align-items: center !important;
+}
+
+.sq-inline-code-content .sq-annotation-row {
+    height: 19.5px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
 /* ============================================================
    File Browser
    ============================================================ */
