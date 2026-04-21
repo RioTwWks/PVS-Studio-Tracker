@@ -9,7 +9,7 @@ Supports multiple source retrieval strategies:
 import asyncio
 import functools
 from pathlib import Path, PurePosixPath
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -18,12 +18,33 @@ from sqlmodel import Session, select, func
 
 from pvs_tracker.db import get_session
 from pvs_tracker.git_integration import fetch_source_file
-from pvs_tracker.models import ErrorClassifier, Issue, Project, Run
+from pvs_tracker.models import ErrorClassifier, Issue, Project, Run, GlobalSettings
+from pvs_tracker.file_resolver import (  # 🔑 Для нормализации путей
+    get_effective_source_root,
+    normalize_file_path_for_display,
+)
 
 router = APIRouter()
 
 # Module-level templates reference (set in main.py after app init)
 templates: Optional[Jinja2Templates] = None
+
+# Правила, которые не привязаны к файлам (аналитические/системные)
+# Источник: https://files.pvs-studio.com/rules/RulesMap.xml
+ANALYSIS_ONLY_RULES = frozenset([
+    "V010",  # Analysis for project type/platform toolsets not supported
+    "V011",  # Compiler monitoring mode issues
+    "V012",  # Task scheduler / parallel analysis issues
+    "V013",  # License issues
+    "V014",  # Update check issues
+    "V015",  # Preprocessor errors (global)
+    "V016",  # Configuration file errors
+    "V017",  # Internal analyzer errors
+    "V018",  # Resource exhaustion warnings
+    "V019",  # Timeout warnings
+    "V020",  # Unsupported compiler/version warnings
+    "V021",  # Platform mismatch warnings
+])
 
 
 def _extract_file_name(file_path: str) -> str:
@@ -120,7 +141,7 @@ async def view_code(
             "json": "json", "xml": "xml", "html": "html", "css": "css",
             "sh": "bash", "bat": "batch", "ps1": "powershell",
         }
-        lang = lang_map.get(ext, "markup")
+        lang = lang_map.get(ext, "cpp")
 
     # Determine run & warnings
     if run_id:
@@ -255,6 +276,14 @@ async def get_project_files_api(
     logger = logging.getLogger("pvs_tracker")
     logger.info(f"🔍 get_project_files_api called: project_id={project_id}, run_id={run_id}")
     
+    # 🔑 Получаем проект для доступа к настройкам source_root
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    
+    # Получаем глобальные настройки
+    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+
     # Determine which run to use
     if run_id:
         run = session.get(Run, run_id)
@@ -281,12 +310,31 @@ async def get_project_files_api(
     
     logger.info(f"🔍 Found {len(file_stats)} files with warnings")
     
-    # Build tree structure
-    file_tree: dict = {}
+    # 🔑 Фильтруем "аналитические" правила, не привязанные к файлам
+    filtered_stats = []
     for file_path, count, max_sev in file_stats:
-        if not file_path:
+        # Пропускаем синтетические пути (__analysis__/VXXX)
+        if file_path.startswith("__analysis__/"):
             continue
-        parts = file_path.replace("\\", "/").split("/")
+        # Пропускаем правила из списка ANALYSIS_ONLY_RULES
+        rule_code = file_path.split("/")[-1] if "/" in file_path else file_path
+        if rule_code in ANALYSIS_ONLY_RULES:
+            continue
+        filtered_stats.append((file_path, count, max_sev))
+
+    # 🔑 Нормализуем пути для отображения
+    effective_root = get_effective_source_root(
+        project.source_root_win,
+        project.source_root_linux,
+        global_settings,
+    )
+
+    file_tree: dict = {}
+    for file_path, count, max_sev in filtered_stats:
+        # 🔑 Нормализуем путь для дерева
+        display_path = normalize_file_path_for_display(file_path, effective_root)
+        
+        parts = display_path.replace("\\", "/").split("/")
         current = file_tree
         for part in parts[:-1]:
             if part not in current:
@@ -296,7 +344,8 @@ async def get_project_files_api(
         current[filename] = {
             "_type": "file",
             "name": filename,
-            "path": file_path,
+            "path": file_path,          # Оригинал для fetch
+            "display_path": display_path,  # Для отображения в дереве
             "warnings": count,
             "severity": max_sev or "Low",
         }

@@ -223,3 +223,17 @@ class MetricSnapshot(SQLModel, table=True):
     metric_name: str = Field(description="Lines of code, complexity, coverage, etc.")
     metric_value: float = Field()
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GlobalSettings(SQLModel, table=True):
+    """Глобальные настройки приложения (одна запись)."""
+    id: Optional[int] = Field(default=1, primary_key=True)  # Всегда 1
+    default_source_root_win: Optional[str] = Field(
+        default=None,
+        description="Глобальный корень исходников для Windows (используется, если не задан в проекте)"
+    )
+    default_source_root_linux: Optional[str] = Field(
+        default=None,
+        description="Глобальный корень исходников для Linux (используется, если не задан в проекте)"
+    )
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

@@ -428,15 +428,8 @@
         
         console.log("🔗 Fetching:", url);
         
-        // Показываем индикатор загрузки
-        const container = document.getElementById('file-tree');
-        if (container && container.innerHTML.includes('Loading')) {
-            // Уже показывает "Loading..." — ок
-        }
-        
         fetch(url)
             .then(response => {
-                console.log("📥 Status:", response.status);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return response.json();
             })
@@ -473,7 +466,7 @@
                     <li style="margin-left:${indent}px;">
                         <div class="sq-tree-item sq-folder" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="toggleFolder(this)">
                             <i class="bi bi-folder" style="color:#e6872a;"></i>
-                            <span>${item.name}</span>
+                            <span>${item.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
                             <span class="sq-badge" style="margin-left:auto;background:#f0f0f0;color:#666;font-size:11px;">${item.total_warnings || 0}</span>
                         </div>
                         <div class="sq-folder-children" style="display:none;">
@@ -482,12 +475,17 @@
                     </li>
                 `;
             } else {
-                const path = (item.path || "").replace(/'/g, "\\'");
+                // 🔑 БЕЗОПАСНОЕ ЭКРАНИРОВАНИЕ: encodeURIComponent исключает любые конфликты кавычек/слешей
+                const encodedPath = encodeURIComponent(item.path || "");
+                const displayPath = item.display_path || item.path || "";
+                const fileName = displayPath.split(/[\\/]/).pop() || displayPath;
+                const fileNameSafe = fileName.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                
                 html += `
                     <li style="margin-left:${indent}px;">
-                        <div class="sq-tree-item sq-file" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="loadFileCode('${path}')">
+                        <div class="sq-tree-item sq-file" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="loadFileCode('${encodedPath}')">
                             <i class="bi bi-file-code" style="color:#6c757d;"></i>
-                            <span title="${item.path || ''}">${item.name}</span>
+                            <span title="${displayPath.replace(/</g, '&lt;').replace(/>/g, '&gt;')}">${fileNameSafe}</span>
                             <span class="sq-badge ${severityClass}" style="margin-left:auto;font-size:11px;">${item.warnings || 0}</span>
                         </div>
                     </li>
@@ -510,8 +508,11 @@
         }
     }
 
-    async function loadFileCode(filePath) {
+    async function loadFileCode(encodedPath) {
+        // 🔑 Декодируем путь обратно в нормальный вид
+        const filePath = decodeURIComponent(encodedPath);
         console.log("📄 Loading:", filePath);
+        
         const viewer = document.getElementById('inline-code-viewer');
         const content = document.getElementById('code-viewer-content');
         const pathLabel = document.getElementById('code-viewer-file-path');
@@ -523,9 +524,21 @@
         try {
             const projectId = '{{ project.id }}';
             const runId = '{{ run_id if run_id else "" }}';
-            const resp = await fetch(`/ui/file?project_id=${projectId}&file_path=${encodeURIComponent(filePath)}&run_id=${runId}`);
-            const html = await resp.text();
             
+            // Формируем URL безопасно через URLSearchParams
+            const params = new URLSearchParams({
+                project_id: projectId,
+                file_path: filePath,
+            });
+            if (runId) params.append('run_id', runId);
+            
+            const url = `/ui/file?${params.toString()}`;
+            console.log("🔗 Fetching:", url);
+            
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            
+            const html = await resp.text();
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             const codeViewer = doc.querySelector('.sq-code-viewer');
@@ -534,11 +547,23 @@
                 content.innerHTML = '';
                 content.appendChild(codeViewer);
                 viewer.scrollIntoView({behavior: 'smooth', block: 'start'});
+                
+                // 🔑 ИНИЦИАЛИЗАЦИЯ PRISM.JS ДЛЯ ДИНАМИЧЕСКОГО КОНТЕНТА
+                if (typeof Prism !== 'undefined') {
+                    // Небольшая задержка чтобы DOM точно отрендерился
+                    setTimeout(() => {
+                        const codeEl = content.querySelector('code[class*="language-"]');
+                        if (codeEl) {
+                            Prism.highlightElement(codeEl);
+                            console.log("🎨 Prism highlighted code");
+                        }
+                    }, 50);
+                }
             } else {
                 content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code</div>';
             }
         } catch (e) {
-            console.error(e);
+            console.error("💥 Error:", e);
             content.innerHTML = `<div class="sq-alert sq-alert-danger">Error: ${e.message}</div>`;
         }
     }
@@ -555,6 +580,15 @@
             li.style.display = (name.includes(q) || !q) ? '' : 'none';
         });
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("🎯 DOMContentLoaded");
+        const codeTabPane = document.getElementById('tab-code');
+        if (codeTabPane && codeTabPane.classList.contains('active')) {
+            console.log("🔄 Code tab already active");
+            setTimeout(loadFileTree, 100);
+        }
+    });
     </script>
 
     <style>

@@ -93,4 +93,16 @@
     </div>
 </div>
 
+<script>
+// 🔑 Инициализация Prism.js для подсветки синтаксиса
+if (typeof Prism !== 'undefined') {
+    // Небольшая задержка чтобы DOM точно отрендерился
+    setTimeout(function() {
+        const codeElement = document.querySelector('.sq-code-block code');
+        if (codeElement) {
+            Prism.highlightElement(codeElement);
+        }
+    }, 100);
+}
+</script>
 {% endblock %}

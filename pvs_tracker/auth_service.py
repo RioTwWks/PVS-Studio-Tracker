@@ -115,20 +115,26 @@ def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Optional[User]:
     """Get current user from session or JWT token."""
-    # Check session-based auth first (for web UI)
-    user_id = request.session.get("user_id")
-    if user_id:
+    # 🔑 Check session-based auth (from main.py login)
+    username = request.session.get("user")  # ← ИСПРАВЛЕНО: было "user_id"
+    if username:
         with Session(engine) as session:
-            return session.get(User, user_id)
-
-    # Check JWT token (for API)
+            # Find user by username (string from session)
+            user = session.exec(select(User).where(User.username == username)).first()
+            if user and user.is_active:
+                return user
+    
+    # Check JWT token (for API clients)
     if credentials:
-        payload = decode_token(credentials.credentials)
-        user_id = payload.get("sub")
-        if user_id:
-            with Session(engine) as session:
-                return session.get(User, user_id)
-
+        try:
+            payload = decode_token(credentials.credentials)
+            user_id = payload.get("sub")
+            if user_id:
+                with Session(engine) as session:
+                    return session.get(User, int(user_id))
+        except Exception:
+            pass
+    
     return None
 
 

@@ -9,7 +9,7 @@ from typing import Optional
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import Session, select, func
 
-from pvs_tracker.models import Issue, Project, Run, SQLModel, ErrorClassifier, User, UserRole
+from pvs_tracker.models import Issue, Project, Run, SQLModel, ErrorClassifier, User, UserRole, GlobalSettings
 from pvs_tracker.parser import parse_pvs_report
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
@@ -533,6 +533,40 @@ async def upload_report_ui(
                 "error": f"Failed to parse report: {str(e)}",
             },
         )
+
+
+@app.get("/ui/settings/global", response_class=HTMLResponse)
+async def global_settings_page(
+    request: Request,
+    session: Session = Depends(get_session),
+    _user: str = Depends(require_auth),
+):
+    """Global settings page."""
+    # Get or create global settings
+    settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+    if not settings:
+        # 🔑 Создаём с явным указанием полей (без default_git_branch)
+        settings = GlobalSettings(
+            id=1,
+            default_source_root_win=None,
+            default_source_root_linux=None,
+        )
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    
+    # Get current theme from cookie or default
+    theme = request.cookies.get("theme", "light")
+    
+    return templates.TemplateResponse(
+        request,
+        "global_settings.html",
+        {
+            "current_user": get_current_user(request),
+            "settings": settings,
+            "theme": theme,
+        },
+    )
 
 
 @app.post("/api/v1/upload")

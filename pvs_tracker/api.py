@@ -11,7 +11,7 @@ import io
 
 from pvs_tracker.models import (
     Project, Run, Issue, ErrorClassifier, User, UserRole,
-    ProjectMember, QualityGate, QualityGateCondition,
+    ProjectMember, QualityGate, QualityGateCondition, GlobalSettings,
     IssueComment, ActivityLog, MetricSnapshot, IssueResolution
 )
 from pvs_tracker.auth_service import (
@@ -23,7 +23,7 @@ from pvs_tracker.quality_gate import (
     evaluate_quality_gate, calculate_run_metrics,
     create_default_quality_gate
 )
-from pvs_tracker.db import engine
+from pvs_tracker.db import get_session
 from pvs_tracker.security import hash_password
 
 router = APIRouter(prefix="/api/v2")
@@ -837,6 +837,58 @@ async def export_issues_csv_api(
             media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename=issues_{project_id}_{run.id}.csv"},
         )
+
+
+# ============================================================================
+# Global Settings API — FIXED
+# ============================================================================
+
+@router.get("/settings/global")
+async def get_global_settings_api(
+    user: User = Depends(require_admin),
+    session: Session = Depends(get_session),  # 🔑 ИСПРАВЛЕНО
+):
+    """Get global application settings (admin only)."""
+    settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+    if not settings:
+        settings = GlobalSettings()
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    
+    return {
+        "id": settings.id,
+        "default_source_root_win": settings.default_source_root_win,
+        "default_source_root_linux": settings.default_source_root_linux,
+        "updated_at": settings.updated_at,
+    }
+
+@router.patch("/settings/global")
+async def update_global_settings_api(
+    body: dict,
+    user: User = Depends(require_admin),
+    session: Session = Depends(get_session),  # 🔑 ИСПРАВЛЕНО
+):
+    """Update global application settings (admin only)."""
+    settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+    if not settings:
+        settings = GlobalSettings()
+        session.add(settings)
+    
+    if "default_source_root_win" in body:
+        settings.default_source_root_win = body["default_source_root_win"] or None
+    if "default_source_root_linux" in body:
+        settings.default_source_root_linux = body["default_source_root_linux"] or None
+    
+    settings.updated_at = datetime.utcnow()
+    session.commit()
+    
+    return {
+        "id": settings.id,
+        "default_source_root_win": settings.default_source_root_win,
+        "default_source_root_linux": settings.default_source_root_linux,
+        "updated_at": settings.updated_at,
+    }
 
 
 # ---------------------------------------------------------------------------

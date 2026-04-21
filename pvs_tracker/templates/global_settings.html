@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Global Settings — PVS-Tracker{% endblock %}
+{% block content %}
+
+<div class="sq-container">
+    <div class="sq-page-header">
+        <h1 class="sq-page-title"><i class="bi bi-globe"></i> Global Settings</h1>
+        <p class="sq-page-subtitle">Application-wide defaults for source roots and analysis</p>
+    </div>
+
+    <div class="sq-card">
+        <div class="sq-card-header">
+            <i class="bi bi-folder2"></i> Default Source Roots
+        </div>
+        <div class="sq-card-body">
+            <p class="text-muted mb-4">
+                These paths are used as fallback when a project has no custom source root configured.
+            </p>
+
+            <form id="global-settings-form">
+                <div class="sq-form-group">
+                    <label class="sq-form-label">
+                        <i class="bi bi-windows"></i> Default Source Root (Windows)
+                    </label>
+                    <input type="text" id="global-root-win" class="sq-input" 
+                           value="{{ settings.default_source_root_win or '' }}"
+                           placeholder="C:\Projects\src">
+                    <small class="text-muted">Used when project has no custom Windows source root</small>
+                </div>
+
+                <div class="sq-form-group">
+                    <label class="sq-form-label">
+                        <i class="bi bi-ubuntu"></i> Default Source Root (Linux)
+                    </label>
+                    <input type="text" id="global-root-linux" class="sq-input" 
+                           value="{{ settings.default_source_root_linux or '' }}"
+                           placeholder="/home/user/projects/src">
+                    <small class="text-muted">Used when project has no custom Linux source root</small>
+                </div>
+
+                <div class="sq-form-actions mt-4">
+                    <button type="button" class="sq-btn sq-btn-primary" onclick="saveGlobalSettings()">
+                        <i class="bi bi-check-lg"></i> Save Settings
+                    </button>
+                    <span id="global-settings-status" class="sq-form-status ms-3"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# Theme Preview #}
+    <div class="sq-card mt-4">
+        <div class="sq-card-header">
+            <i class="bi bi-palette"></i> Theme Preview
+        </div>
+        <div class="sq-card-body">
+            <p class="text-muted">Current theme: <strong id="current-theme-display">{{ theme }}</strong></p>
+            <button class="sq-btn sq-btn-outline" onclick="ThemeManager.toggle()">
+                <i class="bi bi-moon-stars"></i> Toggle Theme
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load settings on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Update theme display
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    document.getElementById('current-theme-display').textContent = theme;
+});
+
+async function saveGlobalSettings() {
+    const status = document.getElementById('global-settings-status');
+    status.textContent = 'Saving...';
+    status.style.color = '#6c757d';
+    
+    try {
+        const resp = await fetch('/api/v2/settings/global', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                default_source_root_win: document.getElementById('global-root-win').value || null,
+                default_source_root_linux: document.getElementById('global-root-linux').value || null,
+            })
+        });
+        
+        if (resp.ok) {
+            status.textContent = '✓ Saved successfully';
+            status.style.color = '#198754';
+        } else {
+            const err = await resp.json();
+            status.textContent = '✗ ' + (err.detail || 'Error saving settings');
+            status.style.color = '#dc3545';
+        }
+    } catch (e) {
+        status.textContent = '✗ Network error: ' + e.message;
+        status.style.color = '#dc3545';
+    }
+}
+</script>
+
+<style>
+.sq-form-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sq-spacing-md);
+}
+.sq-form-status {
+    font-size: 13px;
+    font-weight: 500;
+}
+[data-theme="dark"] .sq-card {
+    background: var(--sq-bg-secondary);
+    border-color: var(--sq-border);
+}
+[data-theme="dark"] .sq-card-header {
+    background: var(--sq-bg-tertiary);
+    border-color: var(--sq-border);
+}
+[data-theme="dark"] .sq-input {
+    background: var(--sq-bg-secondary);
+    border-color: var(--sq-border);
+    color: var(--sq-text-primary);
+}
+[data-theme="dark"] .sq-input:focus {
+    border-color: var(--sq-border-focus);
+    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+</style>
+
+{% endblock %}

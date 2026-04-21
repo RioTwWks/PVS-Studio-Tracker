@@ -459,11 +459,13 @@ async def fetch_source_file(
     if source_root_win or source_root_linux:
         try:
             logger.info("Fetching from local filesystem: %s", file_path)
+            # 🔑 Безопасное разрешение пути
             abs_path = resolve_source_path(
                 source_root_win,
                 source_root_linux,
-                file_path,
+                file_path,  # Передаём сырой путь
             )
+            logger.debug("Resolved path: %s", abs_path)  # 🔑 Отладочный лог
             content = abs_path.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines(keepends=True)
             return SourceFile(
@@ -472,8 +474,14 @@ async def fetch_source_file(
                 lines=lines,
                 source="local",
             )
+        except HTTPException:
+            # Переподнимаем ошибки 404/403 как есть
+            raise
         except Exception as e:
             logger.warning("Local file access failed: %s", e)
+            logger.debug("  source_root_win: %s", source_root_win)
+            logger.debug("  source_root_linux: %s", source_root_linux)
+            logger.debug("  file_path: %s", repr(file_path))
     
     # All strategies failed
     raise HTTPException(

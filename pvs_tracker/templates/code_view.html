@@ -34,7 +34,7 @@
         </div>
 
         <div class="sq-code-scroll-area" id="sq-code-scroll">
-          <pre class="sq-code-block" id="sq-code-block" data-target="{{ target_line or '' }}"><code class="language-{{ language }}">{{ content }}</code></pre>
+          <pre class="sq-code-block"><code class="language-{{ language|default('cpp') }}">{{ content }}</code></pre>
         </div>
       </div>
 
