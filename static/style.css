@@ -2131,13 +2131,12 @@ Code Viewer (SonarQube-style)
 
 /* Убираем все flex для строк кода */
 .sq-snippet-line {
-  display: block !important;  /* Убираем flex */
-  padding: 0 16px;
-  transition: background 0.1s;
+  display: block !important;
+  height: auto !important;
   min-height: 19.5px;
-  height: 19.5px;
-  line-height: 19.5px !important;
-  white-space: pre !important;  /* Сохраняем пробелы */
+  line-height: 1.5 !important;
+  padding: 0 16px !important;
+  margin: 0 !important;
 }
 
 .sq-snippet-target {
@@ -2181,12 +2180,19 @@ Code Viewer (SonarQube-style)
   display: block;
 }
 
-/* Prism.js токены — inline, не block */
 .sq-snippet-block .token,
-.sq-snippet-line .token {
+.sq-snippet-line .token,
+.sq-snippet-line span {
   display: inline !important;
   white-space: pre !important;
-  line-height: inherit !important;
+}
+
+/* Prism.js — отключаем его стили для наших сниппетов */
+.sq-inline-code-content .token {
+  display: inline !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 /* Гарантируем, что код не растягивает таблицу по горизонтали */
@@ -2363,6 +2369,17 @@ Code Viewer (SonarQube-style)
 .sq-inline-code-content {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace !important;
   font-size: 12px !important;
+}
+
+/* Убираем ВСЕ переносы строк в коде */
+.sq-snippet-block,
+.sq-snippet-line,
+.sq-inline-code-content pre,
+.sq-inline-code-content code {
+  white-space: pre !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
 }
 
 /* ============================================================

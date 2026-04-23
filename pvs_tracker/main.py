@@ -327,10 +327,13 @@ async def ui_issues(
     status_filter: str = " ",
     q: str = " ",
     page: int = 1,
-    sort_by: str = "file",  # 🔑 Новые параметры сортировки
+    sort_by: str = "file",
     order: str = "asc",
     session: Session = Depends(get_session),
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Determine which run to show issues from
     if branch:
         latest_run = session.exec(
@@ -377,23 +380,25 @@ async def ui_issues(
     per_page = 50
     query = select(Issue).where(Issue.run_id == latest_run.id)
 
+    # 🔑 Фильтры
     if severity:
-        query = query.where(Issue.severity == severity)  # type: ignore[arg-type]
-    if status_filter:
-        query = query.where(Issue.status == status_filter)  # type: ignore[arg-type]
-    else:
-        # Default: show active issues (new + existing)
-        query = query.where(Issue.status.in_(["new", "existing"]))  # type: ignore[attr-defined]
+        query = query.where(Issue.severity == severity)
     
+    # 🔑 ИСПРАВЛЕНО: проверяем на пустую строку, а не на None
+    if status_filter and status_filter.strip():
+        query = query.where(Issue.status == status_filter)
+    # else: НЕ фильтруем по статусу вообще — показываем ВСЕ
+
     if q:
         like = f"%{q}%"
-        query = query.where(  # type: ignore[call-overload]
-            (Issue.file_path.ilike(like)) | (Issue.rule_code.ilike(like)) | (Issue.message.ilike(like))  # type: ignore[attr-defined]
+        query = query.where(
+            (Issue.file_path.ilike(like)) | 
+            (Issue.rule_code.ilike(like)) | 
+            (Issue.message.ilike(like))
         )
 
-    # 🔑 Логика сортировки
+    # 🔑 Сортировка
     from sqlalchemy import asc, desc
-    
     sort_map = {
         "status": Issue.status,
         "severity": Issue.severity,
@@ -402,40 +407,41 @@ async def ui_issues(
         "line": Issue.line,
         "message": Issue.message,
     }
-    
     sort_column = sort_map.get(sort_by, Issue.file_path)
     order_func = asc if order == "asc" else desc
     query = query.order_by(order_func(sort_column))
 
-    total_count = session.exec(select(Issue).where(Issue.run_id == latest_run.id)).all()
-    # 🔑 Гарантируем, что issues — всегда список, даже если None
-    issues_raw = session.exec(query.offset((page - 1) * per_page).limit(per_page)).all()
-    issues = issues_raw if issues_raw is not None else []
-
-    # 🔑 Нормализация путей для отображения
-    from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
-
-    # Получаем глобальные настройки
-    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
-
-    # Создаём словарь {issue_id: display_path}
-    display_paths = {}
+    # 🔑 Получаем ВСЕ issues для подсчёта total
+    total_count = session.exec(
+        select(Issue).where(Issue.run_id == latest_run.id)
+    ).all()
+    
+    # 🔑 Получаем пагинированные issues
+    issues = session.exec(
+        query.offset((page - 1) * per_page).limit(per_page)
+    ).all()
+    
+    # 🔑 Логируем для отладки
+    logger.info(f"ui_issues: run_id={latest_run.id}, total_in_db={len(total_count)}, filtered_count={len(issues)}")
     if issues:
-        for issue in issues:
-            effective_root = get_effective_source_root(
-                project.source_root_win,
-                project.source_root_linux,
-                global_settings,
-            )
-            display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
+        logger.info(f"First issue: id={issues[0].id}, status={issues[0].status}, file={issues[0].file_path[:50]}")
 
-    # Fetch all classifiers for lookup
+    # 🔑 Нормализация путей
+    from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
+    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+    
+    display_paths = {}
+    for issue in issues:
+        effective_root = get_effective_source_root(
+            project.source_root_win,
+            project.source_root_linux,
+            global_settings,
+        )
+        display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
+
+    # Fetch classifiers
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
-
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"ui_issues: Found {len(issues)} issues, total={len(total_count)}")
 
     return templates.TemplateResponse(
         request,
@@ -452,8 +458,10 @@ async def ui_issues(
             "status_filter": status_filter,
             "q": q,
             "classifier_map": classifier_map,
-            "run_id": latest_run.id if latest_run else None,
-            "display_paths": display_paths,  # 🔑 Обязательно передаём!
+            "run_id": latest_run.id,
+            "display_paths": display_paths,
+            "sort_by": sort_by,
+            "order": order,
         },
     )
 
