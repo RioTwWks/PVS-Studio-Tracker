@@ -102,7 +102,8 @@
                                 hx-get="/ui/file?project_id={{ project_id }}&file_path={{ issue.file_path|urlencode }}&line={{ issue.line }}&run_id={{ run_id }}&context=10"
                                 hx-target="#code-content-{{ issue.id }}"
                                 hx-swap="innerHTML"
-                                hx-trigger="click">
+                                hx-trigger="click"
+                                hx-on::after-request="let row=document.getElementById('code-row-{{ issue.id }}'); if(row) row.style.display='table-row'">
                             <i class="bi bi-code-slash"></i> Code
                         </button>
                     {% else %}
@@ -118,7 +119,8 @@
                     <div class="sq-inline-code-wrapper">
                         <div class="sq-inline-code-header">
                             <span>{{ display_path }}:{{ issue.line }}</span>
-                            <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="document.getElementById('code-row-{{ issue.id }}').style.display='none'">
+                            <button class="sq-btn sq-btn-sm sq-btn-outline" 
+                                    onclick="let row=document.getElementById('code-row-{{ issue.id }}'); if(row) row.style.display='none'">
                                 <i class="bi bi-x"></i> Close
                             </button>
                         </div>
