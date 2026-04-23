@@ -322,10 +322,10 @@ async def ui_dashboard(
 async def ui_issues(
     request: Request,
     project_id: int,
-    branch: str = " ",
-    severity: str = " ",
-    status_filter: str = " ",
-    q: str = " ",
+    branch: str = "",
+    severity: str = "",
+    status_filter: str = "",
+    q: str = "",
     page: int = 1,
     sort_by: str = "file",
     order: str = "asc",
@@ -384,10 +384,12 @@ async def ui_issues(
     if severity:
         query = query.where(Issue.severity == severity)
     
-    # 🔑 ИСПРАВЛЕНО: проверяем на пустую строку, а не на None
+    # Фильтр сработает только если передано значение, отличное от пустой строки
     if status_filter and status_filter.strip():
         query = query.where(Issue.status == status_filter)
-    # else: НЕ фильтруем по статусу вообще — показываем ВСЕ
+    else:
+        # Если фильтр не выбран — показываем активные (new + existing)
+        query = query.where(Issue.status.in_(["new", "existing"]))
 
     if q:
         like = f"%{q}%"
