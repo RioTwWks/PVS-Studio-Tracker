@@ -501,14 +501,6 @@ const CodeViewer = (() => {
 
   function reset() { isInitialized = false; }
 
-  // Hook into HTMX swaps
-  document.addEventListener('htmx:afterSwap', (e) => {
-    if (e.detail.target.closest('.sq-code-viewer') || e.detail.target.querySelector('.sq-code-viewer')) {
-      reset();
-      setTimeout(init, 50); // Небольшая задержка для гарантированного рендера
-    }
-  });
-
   document.addEventListener('DOMContentLoaded', init);
 
   return { init, reset };
@@ -523,14 +515,28 @@ document.addEventListener('DOMContentLoaded', () => {
     initAnimatedCounters();
 });
 
-// 🔑 Авто-переключение на вкладку "Код" при загрузке сниппета
+/* ============================================================
+HTMX Event Enhancements — Unified Handler
+============================================================ */
 document.addEventListener('htmx:afterSwap', (e) => {
-    // Проверяем, что контент загрузился именно в панель кода
-    if (e.detail.target && e.detail.target.id === 'code-viewer-pane') {
-        // Находим кнопку вкладки "Код" по data-атрибуту
+    const target = e.detail.target;
+    
+    // 1. Re-init animations and counters (global)
+    initFadeIn();
+    initAnimatedCounters();
+    
+    // 2. Re-init CodeViewer if code was loaded
+    if (target.closest?.('.sq-code-viewer') || target.querySelector?.('.sq-code-viewer')) {
+        if (typeof CodeViewer !== 'undefined') {
+            CodeViewer.reset?.();
+            setTimeout(() => CodeViewer.init?.(), 50);
+        }
+    }
+    
+    // 3. Auto-switch to Code tab when inline snippet is loaded
+    if (target.id === 'code-viewer-pane' && target.innerHTML.trim() && !target.innerHTML.includes('Loading')) {
         const codeTabBtn = document.querySelector('[data-tab-target="tab-code"]');
         if (codeTabBtn) {
-            // Имитируем клик — это переключит вкладку и покажет код
             codeTabBtn.click();
         }
     }
