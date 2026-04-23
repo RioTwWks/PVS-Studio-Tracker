@@ -2130,12 +2130,14 @@ Code Viewer (SonarQube-style)
 }
 
 .sq-snippet-line {
-  display: block !important;
+  display: block !important;  /* Было display: flex */
   padding: 0 16px;
   transition: background 0.1s;
   min-height: 19.5px;
   height: 19.5px;
   line-height: 19.5px !important;
+  white-space: pre;  /* 🔑 Важно: сохраняем пробелы */
+  overflow: visible;
 }
 
 .sq-snippet-target {
@@ -2144,6 +2146,7 @@ Code Viewer (SonarQube-style)
   font-weight: 600;
 }
 
+/* Номер строки */
 .sq-snippet-num {
   display: inline-block;
   width: 36px;
@@ -2151,9 +2154,21 @@ Code Viewer (SonarQube-style)
   margin-right: 12px;
   color: var(--sq-text-muted);
   user-select: none;
-  flex-shrink: 0;
   font-size: 11px;
   opacity: 0.7;
+}
+
+/* Код внутри строки */
+.sq-snippet-line code,
+.sq-snippet-line span {
+    display: inline !important;
+    white-space: pre;
+}
+
+/* Prism.js токены */
+.sq-snippet-line .token {
+    display: inline !important;
+    white-space: pre;
 }
 
 .sq-snippet-target .sq-snippet-num {
@@ -2317,6 +2332,25 @@ Code Viewer (SonarQube-style)
   background: var(--sq-bg-secondary);
   border: 1px solid var(--sq-border);
   border-radius: var(--sq-radius-md);
+}
+
+.sq-inline-code-content .sq-snippet-block {
+    display: block;
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
+    overflow-x: auto;
+}
+
+.sq-inline-code-content .sq-snippet-line {
+    display: block !important;
+    white-space: pre;
+}
+
+/* Убираем все flex для строк кода */
+.sq-snippet-block > div,
+.sq-snippet-block > .sq-snippet-line {
+    display: block !important;
 }
 
 /* ============================================================
