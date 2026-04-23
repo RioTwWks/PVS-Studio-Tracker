@@ -414,11 +414,15 @@ async def ui_issues(
 
     # 🔑 Нормализация путей для отображения
     from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
+    import logging  # 🔑 Импортируем ДО использования
+
+    # Создаём логгер один раз в начале функции (или здесь)
+    logger = logging.getLogger(__name__)
 
     # Получаем глобальные настройки
     global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
 
-    # Создаём словарь {issue_id: display_path} ТОЛЬКО если issues не пуст
+    # Создаём словарь {issue_id: display_path}
     display_paths = {}
     if issues:
         for issue in issues:
@@ -428,13 +432,11 @@ async def ui_issues(
                 global_settings,
             )
             display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
-
-        # Отладочный лог
-        import logging
-        logger = logging.getLogger(__name__)
+        
         logger.info(f"ui_issues: Found {len(issues)} issues, display_paths keys: {list(display_paths.keys())[:5]}")
     else:
-        logger.warning(f"ui_issues: No issues found for run_id={latest_run.id}")
+        # 🔑 Теперь logger доступен и здесь
+        logger.warning(f"ui_issues: No issues found for run_id={latest_run.id if latest_run else 'None'}, project_id={project_id}")
 
     # Fetch all classifiers for lookup
     classifiers = session.exec(select(ErrorClassifier)).all()
