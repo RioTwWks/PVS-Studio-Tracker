@@ -418,25 +418,27 @@ async def ui_issues(
     # Получаем глобальные настройки
     global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
 
-    # Создаём словарь {issue_id: display_path}
+    # Создаём словарь {issue_id: display_path} ТОЛЬКО если issues не пуст
     display_paths = {}
-    for issue in issues:
-        effective_root = get_effective_source_root(
-            project.source_root_win,
-            project.source_root_linux,
-            global_settings,
-        )
-        display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
+    if issues:
+        for issue in issues:
+            effective_root = get_effective_source_root(
+                project.source_root_win,
+                project.source_root_linux,
+                global_settings,
+            )
+            display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
+
+        # Отладочный лог
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"ui_issues: Found {len(issues)} issues, display_paths keys: {list(display_paths.keys())[:5]}")
+    else:
+        logger.warning(f"ui_issues: No issues found for run_id={latest_run.id}")
 
     # Fetch all classifiers for lookup
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
-
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"ui_issues: Found {len(issues)} issues, display_paths keys: {list(display_paths.keys())[:5]}")
-    if issues:
-        logger.debug(f"ui_issues: first issue attrs={dir(issues[0])}")
 
     return templates.TemplateResponse(
         request,
