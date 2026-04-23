@@ -6,13 +6,33 @@
     <table class="sq-table" id="issues-table">
         <thead>
             <tr>
-                <th class="sq-col-status" data-sort="status">Status <i class="bi bi-arrow-down-up sort-icon"></i></th>
-                <th class="sq-col-severity" data-sort="severity">Severity <i class="bi bi-arrow-down-up sort-icon"></i></th>
-                <th class="sq-col-rule" data-sort="rule_code">Rule <i class="bi bi-arrow-down-up sort-icon"></i></th>
-                <th class="sq-col-type" data-sort="type">Type <i class="bi bi-arrow-down-up sort-icon"></i></th>
-                <th class="sq-col-priority" data-sort="priority">Priority <i class="bi bi-arrow-down-up sort-icon"></i></th>
-                <th class="sq-col-file" data-sort="file_path">File <i class="bi bi-arrow-down-up sort-icon"></i></th>
-                <th class="sq-col-line" data-sort="line">Line <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                <th class="sq-col-status">Status</th>
+                <th class="sq-col-severity">
+                    <a href="?{{ request.query_params }}&sort_by=severity&order={% if sort_by == 'severity' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                        Severity 
+                        {% if sort_by == 'severity' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                    </a>
+                </th>
+                <th class="sq-col-rule">
+                    <a href="?{{ request.query_params }}&sort_by=rule&order={% if sort_by == 'rule' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                        Rule 
+                        {% if sort_by == 'rule' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                    </a>
+                </th>
+                <th class="sq-col-type">Type</th>
+                <th class="sq-col-priority">Priority</th>
+                <th class="sq-col-file">
+                    <a href="?{{ request.query_params }}&sort_by=file&order={% if sort_by == 'file' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                        File 
+                        {% if sort_by == 'file' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                    </a>
+                </th>
+                <th class="sq-col-line">
+                    <a href="?{{ request.query_params }}&sort_by=line&order={% if sort_by == 'line' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                        Line 
+                        {% if sort_by == 'line' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                    </a>
+                </th>
                 <th class="sq-col-message">Message</th>
                 <th class="sq-col-actions">Actions</th>
             </tr>
