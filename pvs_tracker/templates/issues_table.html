@@ -3,243 +3,155 @@
 {% if classifier_map is not defined %}{% set classifier_map = {} %}{% endif %}
 {% if display_paths is not defined %}{% set display_paths = {} %}{% endif %}
 
-{# 🔍 Отладка #}
-{% if issues|length == 0 %}
+{# 🔍 Debug info #}
+{% if issues|length == 0 and total > 0 %}
 <div class="alert alert-info">
-    Debug: total={{ total }}, project_id={{ project_id }}, run_id={{ run_id }}
+    <strong>Debug:</strong> total={{ total }}, project_id={{ project_id }}, run_id={{ run_id }}, page={{ page }}, issues_count={{ issues|length }}
 </div>
 {% endif %}
 
-<div class="sq-table-responsive">
-    <table class="sq-table" id="issues-table">
-        <thead>
-            <tr>
-                <th class="sq-col-status">Status</th>
-                <th class="sq-col-severity">
-                    <a href="?{{ request.query_params }}&sort_by=severity&order={% if sort_by == 'severity' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-                        Severity 
-                        {% if sort_by == 'severity' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-                    </a>
-                </th>
-                <th class="sq-col-rule">
-                    <a href="?{{ request.query_params }}&sort_by=rule&order={% if sort_by == 'rule' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-                        Rule 
-                        {% if sort_by == 'rule' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-                    </a>
-                </th>
-                <th class="sq-col-type">Type</th>
-                <th class="sq-col-priority">Priority</th>
-                <th class="sq-col-file">
-                    <a href="?{{ request.query_params }}&sort_by=file&order={% if sort_by == 'file' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-                        File 
-                        {% if sort_by == 'file' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-                    </a>
-                </th>
-                <th class="sq-col-line">
-                    <a href="?{{ request.query_params }}&sort_by=line&order={% if sort_by == 'line' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-                        Line 
-                        {% if sort_by == 'line' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-                    </a>
-                </th>
-                <th class="sq-col-message">Message</th>
-                <th class="sq-col-actions">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% if issues %}
-                {% for issue in issues %}
-                    {% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
-                    <tr class="sq-table-row severity-{{ issue.severity }}" id="issue-row-{{ issue.id }}">
-                        <td>
-                            {% if issue.status == 'new' %}<span class="sq-status-badge status-new">NEW</span>
-                            {% elif issue.status == 'fixed' %}<span class="sq-status-badge status-fixed">FIXED</span>
-                            {% elif issue.status == 'ignored' %}<span class="sq-status-badge status-ignored">IGNORED</span>
-                            {% else %}<span class="sq-status-badge status-existing">{{ issue.status|upper }}</span>{% endif %}
-                        </td>
-                        <td><span class="sq-severity-badge severity-{{ issue.severity }}">{{ issue.severity }}</span></td>
-                        <td><span class="sq-rule-code">{{ issue.rule_code }}</span></td>
-                        <td>{% if classifier %}{{ classifier.type }}{% else %}—{% endif %}</td>
-                        <td>{% if classifier %}<span class="sq-priority-badge sq-priority-{{ classifier.priority|lower }}">{{ classifier.priority }}</span>{% else %}—{% endif %}</td>
-                        <td>
-                            {% set display_path = issue.display_path if issue.display_path else issue.file_path %}
-                            {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
-                                <span class="text-muted">—</span>
-                            {% else %}
-                                <span class="sq-file-path" title="{{ issue.file_path }}">{{ display_path }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
-                                <span class="text-muted">—</span>
-                            {% else %}
-                                <span class="sq-line-badge">{{ issue.line }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="sq-message-cell">
-                            <div class="sq-message-text">{{ issue.message }}</div>
-                            {% if classifier %}<div class="sq-classifier-name"><i class="bi bi-info-circle"></i> {{ classifier.name }}</div>{% endif %}
-                        </td>
-                        <td class="sq-col-actions">
-                            {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
-                                <button class="sq-btn sq-btn-sm sq-btn-outline" 
-                                        data-issue-id="{{ issue.id }}"
-                                        data-file-path="{{ issue.file_path }}"
-                                        data-line="{{ issue.line }}"
-                                        onclick="toggleInlineCode(this)"
-                                        title="View code">
-                                    <i class="bi bi-eye"></i> Code
-                                </button>
-                            {% else %}
-                                <span class="text-muted">—</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
-                    <tr id="inline-code-row-{{ issue.id }}" class="sq-inline-code-row" style="display: none;">
-                        <td colspan="9" class="sq-inline-code-cell">
-                            <div class="sq-inline-code-wrapper">
-                                <div class="sq-inline-code-header">
-                                    <span>{{ display_path }}:{{ issue.line }}</span>
-                                    <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="closeInlineCode('{{ issue.id }}')">
-                                        <i class="bi bi-x"></i> Close
-                                    </button>
-                                </div>
-                                <div id="inline-code-content-{{ issue.id }}" class="sq-inline-code-content">
-                                    <div class="sq-loading">Loading code...</div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
+<table class="sq-table">
+<thead>
+<tr>
+    <th class="sq-col-status">Status</th>
+    <th class="sq-col-severity">
+        <a href="?{{ request.query_params }}&sort_by=severity&order={% if sort_by == 'severity' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            Severity 
+            {% if sort_by == 'severity' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+        </a>
+    </th>
+    <th class="sq-col-rule">
+        <a href="?{{ request.query_params }}&sort_by=rule&order={% if sort_by == 'rule' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            Rule 
+            {% if sort_by == 'rule' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+        </a>
+    </th>
+    <th class="sq-col-type">Type</th>
+    <th class="sq-col-priority">Priority</th>
+    <th class="sq-col-file">
+        <a href="?{{ request.query_params }}&sort_by=file&order={% if sort_by == 'file' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            File 
+            {% if sort_by == 'file' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+        </a>
+    </th>
+    <th class="sq-col-line">
+        <a href="?{{ request.query_params }}&sort_by=line&order={% if sort_by == 'line' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            Line 
+            {% if sort_by == 'line' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+        </a>
+    </th>
+    <th class="sq-col-message">Message</th>
+    <th class="sq-col-actions">Actions</th>
+</tr>
+</thead>
+<tbody>
+    {% if issues and issues|length > 0 %}
+        {% for issue in issues %}
+            {% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
+            {# 🔑 Получаем display_path из словаря display_paths #}
+            {% set display_path = display_paths.get(issue.id, issue.file_path) %}
+            
+            <tr class="sq-table-row severity-{{ issue.severity }}">
+                <td>
+                    <span class="sq-status-badge status-{{ issue.status }}">
+                        {% if issue.status == 'new' %}NEW
+                        {% elif issue.status == 'fixed' %}FIXED
+                        {% elif issue.status == 'ignored' %}IGNORED
+                        {% else %}{{ issue.status|upper }}{% endif %}
+                    </span>
+                </td>
+                <td><span class="sq-severity-badge severity-{{ issue.severity }}">{{ issue.severity }}</span></td>
+                <td><span class="sq-rule-code">{{ issue.rule_code }}</span></td>
+                <td>{% if classifier %}{{ classifier.type }}{% else %}—{% endif %}</td>
+                <td>{% if classifier %}<span class="sq-priority-badge sq-priority-{{ classifier.priority|lower }}">{{ classifier.priority }}</span>{% else %}—{% endif %}</td>
+                <td>
+                    {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
+                        <span class="sq-empty">—</span>
+                    {% else %}
+                        <span class="sq-file-path" title="{{ issue.file_path }}">{{ display_path }}</span>
                     {% endif %}
-                {% endfor %}
-            {% else %}
-                <tr><td colspan="9" class="text-center py-4">Предупреждений не найдено</td></tr>
+                </td>
+                <td>
+                    {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
+                        <span class="sq-empty">—</span>
+                    {% else %}
+                        <span class="sq-line-badge">{{ issue.line }}</span>
+                    {% endif %}
+                </td>
+                <td class="sq-message-cell">
+                    <div class="sq-message-text">{{ issue.message }}</div>
+                    {% if classifier %}
+                        <div class="sq-classifier-name">
+                            <i class="bi bi-info-circle"></i> {{ classifier.name }}
+                        </div>
+                    {% endif %}
+                </td>
+                <td class="sq-actions">
+                    {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
+                        <button class="sq-btn sq-btn-sm sq-btn-outline" 
+                                hx-get="/ui/file?project_id={{ project_id }}&file_path={{ issue.file_path|urlencode }}&line={{ issue.line }}&run_id={{ run_id }}&context=10"
+                                hx-target="#code-viewer-pane"
+                                hx-swap="innerHTML">
+                            <i class="bi bi-code-slash"></i> Code
+                        </button>
+                    {% else %}
+                        <span class="sq-empty">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            
+            {# Inline code viewer (hidden by default, shown via HTMX) #}
+            {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
+            <tr class="sq-inline-code-row" id="code-row-{{ issue.id }}" style="display:none;">
+                <td colspan="9" class="sq-inline-code-cell">
+                    <div class="sq-inline-code-wrapper">
+                        <div class="sq-inline-code-header">
+                            <span>{{ display_path }}:{{ issue.line }}</span>
+                            <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="document.getElementById('code-row-{{ issue.id }}').style.display='none'">
+                                <i class="bi bi-x"></i> Close
+                            </button>
+                        </div>
+                        <div class="sq-inline-code-content" id="code-content-{{ issue.id }}">
+                            <div class="sq-loading">Loading code...</div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
             {% endif %}
-        </tbody>
-    </table>
-</div>
+        {% endfor %}
+    {% else %}
+        <tr>
+            <td colspan="9" class="sq-empty-row">
+                {% if total > 0 %}
+                    <div class="alert alert-warning">
+                        <strong>Warning:</strong> total={{ total }}, but issues list is empty. 
+                        Check pagination: page={{ page }}, per_page={{ per_page }}, offset={{ (page - 1) * per_page }}
+                    </div>
+                {% else %}
+                    Предупреждений не найдено
+                {% endif %}
+            </td>
+        </tr>
+    {% endif %}
+</tbody>
+</table>
 
 {% if issues and issues|length > 0 %}
 <div class="sq-pagination">
-    <div class="sq-pagination-info">Showing {{ issues|length }} of {{ total }}</div>
+    <div class="sq-pagination-info">
+        Showing {{ issues|length }} of {{ total }}
+    </div>
     <div class="sq-pagination-controls">
         {% if page > 1 %}
-            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page - 1 }}" class="sq-btn sq-btn-sm sq-btn-outline">Previous</a>
+            <a href="?{{ request.query_params }}&page={{ page - 1 }}" class="sq-btn sq-btn-sm sq-btn-secondary">
+                <i class="bi bi-chevron-left"></i> Previous
+            </a>
         {% endif %}
         {% if page * per_page < total %}
-            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page + 1 }}" class="sq-btn sq-btn-sm sq-btn-outline">Next</a>
+            <a href="?{{ request.query_params }}&page={{ page + 1 }}" class="sq-btn sq-btn-sm sq-btn-secondary">
+                Next <i class="bi bi-chevron-right"></i>
+            </a>
         {% endif %}
     </div>
 </div>
 {% endif %}
-
-<script>
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-async function toggleInlineCode(button) {
-    const issueId = button.dataset.issueId;
-    const filePath = button.dataset.filePath;
-    const lineNumber = parseInt(button.dataset.line);
-    const runId = '{{ run_id if run_id else "" }}';
-    const row = document.getElementById(`inline-code-row-${issueId}`);
-    const content = document.getElementById(`inline-code-content-${issueId}`);
-
-    if (row.style.display !== 'none') {
-        row.style.display = 'none';
-        return;
-    }
-
-    document.querySelectorAll('.sq-inline-code-row').forEach(r => r.style.display = 'none');
-    row.style.display = 'table-row';
-    content.innerHTML = '<div class="sq-loading">Loading...</div>';
-
-    try {
-        const url = `/ui/file?project_id={{ project_id }}&file_path=${encodeURIComponent(filePath)}&run_id=${runId}&line=${lineNumber}&context=10`;
-        const resp = await fetch(url);
-        const html = await resp.text();
-        
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const viewer = doc.querySelector('.sq-code-viewer');
-        
-        if (viewer) {
-            content.innerHTML = '';
-            content.appendChild(viewer);
-            
-            if (typeof Prism !== 'undefined') {
-                setTimeout(() => {
-                    Prism.highlightAllUnder(viewer);
-                }, 50);
-            }
-        }
-    } catch (e) {
-        content.innerHTML = `<div class="sq-alert sq-alert-danger p-3">Error: ${e.message}</div>`;
-    }
-}
-
-function closeInlineCode(id) {
-    document.getElementById(`inline-code-row-${id}`).style.display = 'none';
-}
-
-// СОРТИРОВКА ТАБЛИЦЫ
-function initTableSort() {
-    const headers = document.querySelectorAll('#issues-table th[data-sort]');
-    headers.forEach(header => {
-        const newHeader = header.cloneNode(true);
-        header.parentNode.replaceChild(newHeader, header);
-        
-        newHeader.addEventListener('click', () => {
-            const sortKey = newHeader.dataset.sort;
-            const table = newHeader.closest('table');
-            const tbody = table.querySelector('tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.id && tr.id.startsWith('issue-row-'));
-            
-            const currentDir = newHeader.dataset.dir || 'asc';
-            const nextDir = currentDir === 'asc' ? 'desc' : 'asc';
-            
-            headers.forEach(h => {
-                h.dataset.dir = '';
-                const icon = h.querySelector('.sort-icon');
-                if (icon) icon.className = 'bi bi-arrow-down-up sort-icon';
-            });
-            newHeader.dataset.dir = nextDir;
-            const icon = newHeader.querySelector('.sort-icon');
-            if (icon) icon.className = `bi bi-arrow-${nextDir === 'asc' ? 'up' : 'down'} sort-icon`;
-            
-            rows.sort((a, b) => {
-                const cellsA = a.cells;
-                const cellsB = b.cells;
-                let valA = '', valB = '';
-                
-                if (sortKey === 'status') { valA = cellsA[0].textContent; valB = cellsB[0].textContent; }
-                else if (sortKey === 'severity') { valA = cellsA[1].textContent; valB = cellsB[1].textContent; }
-                else if (sortKey === 'rule_code') { valA = cellsA[2].textContent; valB = cellsB[2].textContent; }
-                else if (sortKey === 'type') { valA = cellsA[3].textContent; valB = cellsB[3].textContent; }
-                else if (sortKey === 'priority') { valA = cellsA[4].textContent; valB = cellsB[4].textContent; }
-                else if (sortKey === 'file_path') { valA = cellsA[5].textContent; valB = cellsB[5].textContent; }
-                else if (sortKey === 'line') { 
-                    valA = parseInt(cellsA[6].textContent) || 0; 
-                    valB = parseInt(cellsB[6].textContent) || 0; 
-                }
-
-                if (valA < valB) return nextDir === 'asc' ? -1 : 1;
-                if (valA > valB) return nextDir === 'asc' ? 1 : -1;
-                return 0;
-            });
-            
-            rows.forEach(row => tbody.appendChild(row));
-        });
-    });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    initTableSort();
-});
-document.addEventListener('htmx:afterSwap', () => {
-    setTimeout(initTableSort, 50);
-});
-</script>

@@ -2130,14 +2130,16 @@ Code Viewer (SonarQube-style)
 }
 
 .sq-snippet-line {
-  display: block !important;  /* Было display: flex */
-  padding: 0 16px;
+  display: block !important;  /* БЫЛО: display: flex */
+  padding: 0 16px !important;
   transition: background 0.1s;
   min-height: 19.5px;
   height: 19.5px;
   line-height: 19.5px !important;
-  white-space: pre;  /* 🔑 Важно: сохраняем пробелы */
-  overflow: visible;
+  white-space: pre !important;
+  overflow: visible !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
 }
 
 .sq-snippet-target {
@@ -2148,7 +2150,7 @@ Code Viewer (SonarQube-style)
 
 /* Номер строки */
 .sq-snippet-num {
-  display: inline-block;
+  display: inline-block !important;
   width: 36px;
   text-align: right;
   margin-right: 12px;
@@ -2156,19 +2158,22 @@ Code Viewer (SonarQube-style)
   user-select: none;
   font-size: 11px;
   opacity: 0.7;
+  flex-shrink: 0;
 }
 
-/* Код внутри строки */
+/* Код внутри строки - ВАЖНО: inline, не block */
 .sq-snippet-line code,
-.sq-snippet-line span {
-    display: inline !important;
-    white-space: pre;
+.sq-snippet-line span,
+.sq-snippet-line .token {
+  display: inline !important;
+  white-space: pre !important;
+  line-height: 19.5px !important;
 }
 
-/* Prism.js токены */
+/* Prism.js токены - запрещаем переносы */
 .sq-snippet-line .token {
-    display: inline !important;
-    white-space: pre;
+  display: inline !important;
+  white-space: pre !important;
 }
 
 .sq-snippet-target .sq-snippet-num {
@@ -2334,23 +2339,37 @@ Code Viewer (SonarQube-style)
   border-radius: var(--sq-radius-md);
 }
 
+/* Инлайн код в таблице issues */
 .sq-inline-code-content .sq-snippet-block {
-    display: block;
-    white-space: pre;
-    word-wrap: normal;
-    overflow-wrap: normal;
-    overflow-x: auto;
+  display: block !important;
+  white-space: pre !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
+  overflow-x: auto !important;
+  margin: 0 !important;
+  padding: 8px 0 !important;
 }
 
 .sq-inline-code-content .sq-snippet-line {
-    display: block !important;
-    white-space: pre;
+  display: block !important;
+  white-space: pre !important;
+  height: 19.5px !important;
+  line-height: 19.5px !important;
 }
 
-/* Убираем все flex для строк кода */
+/* Убираем flex для ВСЕХ вложенных элементов */
 .sq-snippet-block > div,
-.sq-snippet-block > .sq-snippet-line {
-    display: block !important;
+.sq-snippet-block > .sq-snippet-line,
+.sq-inline-code-content > div {
+  display: block !important;
+}
+
+/* Гарантируем моноширинный шрифт везде */
+.sq-snippet-block,
+.sq-snippet-line,
+.sq-inline-code-content {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace !important;
+  font-size: 12px !important;
 }
 
 /* ============================================================
