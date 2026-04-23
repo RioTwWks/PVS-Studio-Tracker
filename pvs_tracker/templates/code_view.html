@@ -27,8 +27,8 @@
       <div class="sq-scroll-master-wrapper">
         <div class="sq-line-numbers" id="sq-line-numbers">
           {% for ln in range(1, total_lines + 1) %}
-            <div class="sq-line-num {% if ln == target_line %}sq-target{% endif %} {% if ln in warnings_by_line %}sq-has-issue{% endif %}" data-line="{{ ln }}">
-              <span>{{ ln }}</span>
+            <div class="sq-line-num {% if ln == target_line %}sq-target{% endif %} {% if ln + line_offset in warnings_by_line %}sq-has-issue{% endif %}" data-line="{{ ln + line_offset }}">
+              <span>{{ ln + line_offset }}</span>
             </div>
           {% endfor %}
         </div>
@@ -53,3 +53,30 @@
     </div>
   </div>
 {% endif %}
+
+<script>
+if (typeof Prism !== 'undefined') {
+    setTimeout(function() {
+        const codeElement = document.querySelector('.sq-code-block code');
+        if (codeElement) {
+            Prism.highlightElement(codeElement);
+        }
+    }, 100);
+}
+
+// Синхронизация скролла
+function initCodeViewerScroll() {
+    const master = document.getElementById('sq-code-scroll');
+    const gutter = document.getElementById('sq-line-numbers');
+    const annotations = document.getElementById('sq-annotations-panel');
+    
+    if (!master || !gutter || !annotations) return;
+    
+    master.addEventListener('scroll', () => {
+        gutter.scrollTop = master.scrollTop;
+        annotations.scrollTop = master.scrollTop;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initCodeViewerScroll);
+</script>

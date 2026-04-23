@@ -331,7 +331,6 @@ async def ui_issues(
 ):
     # Determine which run to show issues from
     if branch:
-        # Get the latest run for the specific branch
         latest_run = session.exec(
             select(Run)
             .where(Run.project_id == project_id, Run.status == "done", Run.branch == branch)
@@ -339,7 +338,6 @@ async def ui_issues(
             .limit(1),
         ).first()
     else:
-        # Get the latest run overall
         latest_run = session.exec(
             select(Run)
             .where(Run.project_id == project_id, Run.status == "done")
@@ -367,6 +365,10 @@ async def ui_issues(
             },
         )
 
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
     per_page = 50
     query = select(Issue).where(Issue.run_id == latest_run.id)
 
@@ -388,6 +390,22 @@ async def ui_issues(
     issues_raw = session.exec(query.offset((page - 1) * per_page).limit(per_page)).all()
     issues = issues_raw if issues_raw is not None else []
 
+    # 🔑 Нормализация путей для отображения
+    from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
+
+    # Получаем глобальные настройки
+    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+
+    # Создаём словарь {issue_id: display_path}
+    display_paths = {}
+    for issue in issues:
+        effective_root = get_effective_source_root(
+            project.source_root_win,
+            project.source_root_linux,
+            global_settings,
+        )
+        display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
+
     # Fetch all classifiers for lookup
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
@@ -403,7 +421,7 @@ async def ui_issues(
         "issues_table.html",
         {
             "current_user": get_current_user(request),
-            "issues": issues,          # 🔑 Всегда список
+            "issues": issues,
             "total": len(total_count),
             "page": page,
             "per_page": per_page,
@@ -413,7 +431,8 @@ async def ui_issues(
             "status_filter": status_filter,
             "q": q,
             "classifier_map": classifier_map,
-            "run_id": latest_run.id if latest_run else None,  # 🔑 Защита от None
+            "run_id": latest_run.id if latest_run else None,
+            "display_paths": display_paths,  # 🔑 Передаём обрезанные пути
         },
     )
 
@@ -801,4 +820,42 @@ async def update_source_roots(
         "status": "success",
         "source_root_win": project.source_root_win,
         "source_root_linux": project.source_root_linux,
+    }
+
+
+@app.get("/api/v1/issues/{issue_id}/snippet")
+async def get_issue_snippet(issue_id: int, session: Session = Depends(get_session)):
+    """Возвращает JSON-сниппет: 10 строк до, целевая, 10 после."""
+    from pvs_tracker.file_resolver import resolve_source_path
+    
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+    if not issue.file_path or issue.file_path.startswith("__analysis__/"):
+        return {"lines": [], "start_line": 0, "target_line": 0, "end_line": 0, "language": "txt"}
+
+    run = session.get(Run, issue.run_id)
+    project = session.get(Project, run.project_id) if run else None
+    
+    try:
+        abs_path = resolve_source_path(
+            project.source_root_win if project else None,
+            project.source_root_linux if project else None,
+            issue.file_path,
+        )
+        content = abs_path.read_text(encoding="utf-8", errors="replace")
+        lines = content.splitlines()
+    except Exception:
+        raise HTTPException(404, "File not found or unreadable")
+
+    target = issue.line
+    start_idx = max(0, target - 11)  # 10 строк до (индексация с 0)
+    end_idx = min(len(lines), target + 10)  # 10 строк после
+
+    return {
+        "start_line": start_idx + 1,
+        "target_line": target,
+        "end_line": end_idx,
+        "lines": lines[start_idx:end_idx],
+        "language": issue.file_path.rsplit(".", 1)[-1] if "." in issue.file_path else "cpp"
     }

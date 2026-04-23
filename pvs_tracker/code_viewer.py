@@ -75,6 +75,7 @@ async def view_code(
     file_path: str = Query(...),
     line: int = Query(None, ge=1),
     run_id: int = Query(None, ge=1),
+    context: int = Query(0, ge=0),  # 🔑 Добавлен параметр context
     session: Session = Depends(get_session),
 ):
     """Display source file with inline warning annotations."""
@@ -92,7 +93,6 @@ async def view_code(
         if run:
             commit = run.commit
     else:
-        # Use latest run
         run = session.exec(
             select(Run)
             .where(Run.project_id == project_id, Run.status == "done")
@@ -102,17 +102,16 @@ async def view_code(
         if run:
             commit = run.commit
 
-    # Fetch source file using fallback strategy (Git → Archive → Local)
+    # Fetch source file using fallback strategy
     lines = []
-    abs_path_str = ""
     error = None
     source_type = "unavailable"
-    
+
     try:
         source_file = await fetch_source_file(
             project_id=project_id,
             file_path=file_path,
-            run_id=run.id if run else None,  # 🔑 Передаём run_id
+            run_id=run.id if run else None,
             git_url=project.git_url,
             git_branch=project.git_branch,
             commit=commit,
@@ -127,19 +126,38 @@ async def view_code(
     except Exception as exc:
         error = f"Error reading file: {exc}"
 
-    # 🔑 Detect language for Prism.js
-    lang = "markup"  # default
+    # Обработка context ПОСЛЕ чтения файла
+    line_offset = 0
+    # Гарантируем, что target_display_line не None
+    target_display_line = None
+    if line and line_offset is not None:
+        target_display_line = line - line_offset
+    
+    if context > 0 and line:
+        total_file_lines = len(lines)
+        # line — это номер строки с предупреждением (1-based)
+        start_idx = max(0, line - context - 1)
+        end_idx = min(total_file_lines, line + context)
+        
+        lines = lines[start_idx:end_idx]
+        line_offset = start_idx
+        target_display_line = line - line_offset  # Корректируем номер для подсветки
+    else:
+        line_offset = 0
+        target_display_line = line
+
+    #  Правильное объединение строк
+    content = "\n".join(lines)
+    total_lines = len(lines)
+
+    #  Detect language for Prism.js
+    lang = "cpp"
     if file_path:
         ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
         lang_map = {
             "cpp": "cpp", "cc": "cpp", "cxx": "cpp", "h": "cpp", "hpp": "cpp",
-            "c": "c", "h": "c",
-            "cs": "csharp", "csx": "csharp",
-            "java": "java", "kt": "kotlin",
-            "py": "python", "pyi": "python",
-            "js": "javascript", "jsx": "javascript", "ts": "typescript", "tsx": "typescript",
-            "json": "json", "xml": "xml", "html": "html", "css": "css",
-            "sh": "bash", "bat": "batch", "ps1": "powershell",
+            "c": "c", "cs": "csharp", "java": "java", "py": "python",
+            "js": "javascript", "ts": "typescript", "json": "json",
         }
         lang = lang_map.get(ext, "cpp")
 
@@ -152,7 +170,7 @@ async def view_code(
             .order_by(Run.timestamp.desc()).limit(1)
         ).first()
 
-    # Build warnings by line mapping
+    # Build warnings by line mapping (filtered by current visible range)
     warnings_by_line = {}
     classifier_map = {}
     if run:
@@ -170,8 +188,14 @@ async def view_code(
             classifiers = session.exec(select(ErrorClassifier).where(ErrorClassifier.id.in_(classifier_ids))).all()
             classifier_map = {c.id: c for c in classifiers}
 
+        # 🔑 Фильтруем предупреждения только для видимого диапазона строк
+        visible_start = line_offset + 1
+        visible_end = line_offset + total_lines
         for issue in issues:
-            warnings_by_line.setdefault(issue.line, []).append(issue)
+            if visible_start <= issue.line <= visible_end:
+                # Сдвигаем номер строки для отображения относительно offset
+                display_line = issue.line - line_offset
+                warnings_by_line.setdefault(display_line, []).append(issue)
 
     return templates.TemplateResponse(
         request,
@@ -180,15 +204,16 @@ async def view_code(
             "project": project,
             "file_path": file_path,
             "file_name": _extract_file_name(file_path),
-            "content": "".join(lines),          # 🔑 Единый блок для Prism
-            "language": lang,                   # 🔑 Подсказка для подсветки
+            "content": content,
+            "language": lang,
             "warnings_by_line": warnings_by_line,
-            "target_line": line,
+            "target_line": target_display_line,  # Может быть None, но шаблон теперь это обрабатывает
             "run_id": run.id if run else None,
             "error": error,
             "classifier_map": classifier_map,
             "source_type": source_type,
-            "total_lines": len(lines),
+            "line_offset": line_offset,
+            "total_lines": total_lines,
         },
     )
 

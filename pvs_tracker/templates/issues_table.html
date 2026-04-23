@@ -1,104 +1,62 @@
-{# === Issues Table Template — Fixed Structure === #}
-
-{# 🔑 Гарантия, что issues определён #}
-{% if issues is not defined %}
-    {% set issues = [] %}
-{% endif %}
-
-{# 🔑 Гарантия, что classifier_map определён #}
-{% if classifier_map is not defined %}
-    {% set classifier_map = {} %}
-{% endif %}
+{# === Issues Table Template — HTML Version === #}
+{% if issues is not defined %}{% set issues = [] %}{% endif %}
+{% if classifier_map is not defined %}{% set classifier_map = {} %}{% endif %}
 
 <div class="sq-table-responsive">
-    <table class="sq-table">
+    <table class="sq-table" id="issues-table">
         <thead>
             <tr>
-                <th class="sq-col-status">Status</th>
-                <th class="sq-col-severity">Severity</th>
-                <th class="sq-col-rule">Rule</th>
-                <th class="sq-col-type">Type</th>
-                <th class="sq-col-priority">Priority</th>
-                <th class="sq-col-file">File</th>
-                <th class="sq-col-line">Line</th>
+                <th class="sq-col-status" data-sort="status">Status <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                <th class="sq-col-severity" data-sort="severity">Severity <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                <th class="sq-col-rule" data-sort="rule_code">Rule <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                <th class="sq-col-type" data-sort="type">Type <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                <th class="sq-col-priority" data-sort="priority">Priority <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                <th class="sq-col-file" data-sort="file_path">File <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                <th class="sq-col-line" data-sort="line">Line <i class="bi bi-arrow-down-up sort-icon"></i></th>
                 <th class="sq-col-message">Message</th>
                 <th class="sq-col-actions">Actions</th>
             </tr>
         </thead>
         <tbody>
-            {# 🔑 Правильная структура: if + for + else + endif #}
             {% if issues %}
                 {% for issue in issues %}
                     {% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
-                    <tr class="sq-table-row severity-{{ issue.severity }}">
-                        {# Status #}
+                    <tr class="sq-table-row severity-{{ issue.severity }}" id="issue-row-{{ issue.id }}">
                         <td>
-                            {% if issue.status == 'new' %}
-                                <span class="sq-status-badge status-new">NEW</span>
-                            {% elif issue.status == 'fixed' %}
-                                <span class="sq-status-badge status-fixed">FIXED</span>
-                            {% elif issue.status == 'ignored' %}
-                                <span class="sq-status-badge status-ignored">IGNORED</span>
-                            {% else %}
-                                <span class="sq-status-badge status-existing">{{ issue.status|upper }}</span>
-                            {% endif %}
+                            {% if issue.status == 'new' %}<span class="sq-status-badge status-new">NEW</span>
+                            {% elif issue.status == 'fixed' %}<span class="sq-status-badge status-fixed">FIXED</span>
+                            {% elif issue.status == 'ignored' %}<span class="sq-status-badge status-ignored">IGNORED</span>
+                            {% else %}<span class="sq-status-badge status-existing">{{ issue.status|upper }}</span>{% endif %}
                         </td>
-                        
-                        {# Severity #}
-                        <td>
-                            <span class="sq-severity-badge severity-{{ issue.severity }}">
-                                {{ issue.severity }}
-                            </span>
-                        </td>
-                        
-                        {# Rule #}
+                        <td><span class="sq-severity-badge severity-{{ issue.severity }}">{{ issue.severity }}</span></td>
                         <td><span class="sq-rule-code">{{ issue.rule_code }}</span></td>
-                        
-                        {# Type #}
+                        <td>{% if classifier %}{{ classifier.type }}{% else %}—{% endif %}</td>
+                        <td>{% if classifier %}<span class="sq-priority-badge sq-priority-{{ classifier.priority|lower }}">{{ classifier.priority }}</span>{% else %}—{% endif %}</td>
                         <td>
-                            {% if classifier %}
-                                <span class="sq-classifier-badge">{{ classifier.type }}</span>
-                            {% else %}
+                            {% set display_path = issue.display_path if issue.display_path else issue.file_path %}
+                            {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
                                 <span class="text-muted">—</span>
+                            {% else %}
+                                <span class="sq-file-path" title="{{ issue.file_path }}">{{ display_path }}</span>
                             {% endif %}
                         </td>
-                        
-                        {# Priority #}
                         <td>
-                            {% if classifier %}
-                                <span class="sq-priority-badge sq-priority-{{ classifier.priority|lower }}">
-                                    {{ classifier.priority }}
-                                </span>
-                            {% else %}
+                            {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
                                 <span class="text-muted">—</span>
+                            {% else %}
+                                <span class="sq-line-badge">{{ issue.line }}</span>
                             {% endif %}
                         </td>
-                        
-                        {# File #}
-                        <td><span class="sq-file-path" title="{{ issue.file_path }}">{{ issue.file_path }}</span></td>
-                        
-                        {# Line #}
-                        <td><span class="sq-line-badge">{{ issue.line }}</span></td>
-                        
-                        {# Message #}
                         <td class="sq-message-cell">
                             <div class="sq-message-text">{{ issue.message }}</div>
-                            {% if classifier %}
-                                <div class="sq-classifier-name">
-                                    <i class="bi bi-info-circle"></i> {{ classifier.name }}
-                                </div>
-                            {% endif %}
+                            {% if classifier %}<div class="sq-classifier-name"><i class="bi bi-info-circle"></i> {{ classifier.name }}</div>{% endif %}
                         </td>
-                        
-                        {# Actions #}
                         <td class="sq-col-actions">
-                            {% if issue.status != 'ignored' %}
+                            {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
                                 <button class="sq-btn sq-btn-sm sq-btn-outline" 
                                         data-issue-id="{{ issue.id }}"
-                                        data-project-id="{{ project_id }}"
                                         data-file-path="{{ issue.file_path }}"
                                         data-line="{{ issue.line }}"
-                                        data-run-id="{{ run_id if run_id else '' }}"
                                         onclick="toggleInlineCode(this)"
                                         title="View code">
                                     <i class="bi bi-eye"></i> Code
@@ -108,13 +66,12 @@
                             {% endif %}
                         </td>
                     </tr>
-                    {# === Inline Code Viewer Container === #}
-                    {% if issue.status != 'ignored' %}
+                    {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
                     <tr id="inline-code-row-{{ issue.id }}" class="sq-inline-code-row" style="display: none;">
                         <td colspan="9" class="sq-inline-code-cell">
                             <div class="sq-inline-code-wrapper">
                                 <div class="sq-inline-code-header">
-                                    <span class="sq-file-path">{{ issue.file_path }}:{{ issue.line }}</span>
+                                    <span>{{ display_path }}:{{ issue.line }}</span>
                                     <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="closeInlineCode('{{ issue.id }}')">
                                         <i class="bi bi-x"></i> Close
                                     </button>
@@ -128,127 +85,133 @@
                     {% endif %}
                 {% endfor %}
             {% else %}
-                <tr>
-                    <td colspan="9" class="sq-empty-row">
-                        <div class="sq-empty-state">
-                            <i class="bi bi-check-circle sq-empty-icon"></i>
-                            <p>Предупреждений не найдено</p>
-                        </div>
-                    </td>
-                </tr>
+                <tr><td colspan="9" class="text-center py-4">Предупреждений не найдено</td></tr>
             {% endif %}
         </tbody>
     </table>
 </div>
 
-{# --- Pagination --- #}
 {% if issues and issues|length > 0 %}
 <div class="sq-pagination">
-    <div class="sq-pagination-info">
-        Showing {{ issues|length }} of {{ total }}
-    </div>
+    <div class="sq-pagination-info">Showing {{ issues|length }} of {{ total }}</div>
     <div class="sq-pagination-controls">
         {% if page > 1 %}
-            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page - 1 }}" 
-               class="sq-btn sq-btn-sm sq-btn-outline">Previous</a>
+            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page - 1 }}" class="sq-btn sq-btn-sm sq-btn-outline">Previous</a>
         {% endif %}
         {% if page * per_page < total %}
-            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page + 1 }}" 
-               class="sq-btn sq-btn-sm sq-btn-outline">Next</a>
+            <a href="?project_id={{ project_id }}&branch={{ branch }}&severity={{ severity }}&status_filter={{ status_filter }}&q={{ q }}&page={{ page + 1 }}" class="sq-btn sq-btn-sm sq-btn-outline">Next</a>
         {% endif %}
     </div>
 </div>
 {% endif %}
 
-{# === JavaScript for inline code viewer === #}
 <script>
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 async function toggleInlineCode(button) {
     const issueId = button.dataset.issueId;
-    const projectId = button.dataset.projectId;
     const filePath = button.dataset.filePath;
-    const lineNumber = button.dataset.line;
-    const runId = button.dataset.runId || '';
-    
-    const codeRow = document.getElementById(`inline-code-row-${issueId}`);
+    const lineNumber = parseInt(button.dataset.line);
+    const runId = '{{ run_id if run_id else "" }}';
+    const row = document.getElementById(`inline-code-row-${issueId}`);
     const content = document.getElementById(`inline-code-content-${issueId}`);
-    
-    if (codeRow && codeRow.style.display !== 'none') {
-        closeInlineCode(issueId);
+
+    if (row.style.display !== 'none') {
+        row.style.display = 'none';
         return;
     }
-    
-    document.querySelectorAll('.sq-inline-code-row').forEach(row => {
-        row.style.display = 'none';
-    });
-    
-    if (codeRow) {
-        codeRow.style.display = 'table-row';
-        content.innerHTML = '<div class="sq-loading">Loading code...</div>';
+
+    document.querySelectorAll('.sq-inline-code-row').forEach(r => r.style.display = 'none');
+    row.style.display = 'table-row';
+    content.innerHTML = '<div class="sq-loading">Loading...</div>';
+
+    try {
+        const url = `/ui/file?project_id={{ project_id }}&file_path=${encodeURIComponent(filePath)}&run_id=${runId}&line=${lineNumber}&context=10`;
+        const resp = await fetch(url);
+        const html = await resp.text();
         
-        try {
-            const response = await fetch(
-                `/ui/file?project_id=${encodeURIComponent(projectId)}&file_path=${encodeURIComponent(filePath)}&line=${encodeURIComponent(lineNumber)}&run_id=${encodeURIComponent(runId)}`
-            );
-            const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const viewer = doc.querySelector('.sq-code-viewer');
+        
+        if (viewer) {
+            content.innerHTML = '';
+            content.appendChild(viewer);
             
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const codeViewer = doc.querySelector('.sq-code-viewer');
-            
-            if (codeViewer) {
-                content.innerHTML = '';
-                content.appendChild(codeViewer);
-                
-                // 🔑 Инициализация синхронизации скролла для inline-вьюера
+            if (typeof Prism !== 'undefined') {
                 setTimeout(() => {
-                    initInlineCodeScrollSync(codeViewer);
-                    
-                    // Прокрутка к целевой строке
-                    const targetEl = codeViewer.querySelector(`.sq-line-num[data-line="${lineNumber}"]`);
-                    const scrollArea = codeViewer.querySelector('.sq-code-scroll-area');
-                    if (targetEl && scrollArea) {
-                        const offset = targetEl.offsetTop - (scrollArea.clientHeight / 3);
-                        scrollArea.scrollTop = Math.max(0, offset);
-                        // Sync gutter
-                        const gutter = codeViewer.querySelector('#sq-line-numbers');
-                        if (gutter) gutter.scrollTop = scrollArea.scrollTop;
-                    }
-                    // Highlight
-                    if (targetEl) {
-                        targetEl.classList.add('sq-active-target');
-                        setTimeout(() => targetEl.classList.remove('sq-active-target'), 2000);
-                    }
-                }, 100);
-            } else {
-                content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code</div>';
+                    Prism.highlightAllUnder(viewer);
+                }, 50);
             }
-        } catch (error) {
-            console.error('Error loading code:', error);
-            content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code: ' + error.message + '</div>';
         }
+    } catch (e) {
+        content.innerHTML = `<div class="sq-alert sq-alert-danger p-3">Error: ${e.message}</div>`;
     }
 }
 
-// 🔑 Новая функция: синхронизация скролла для inline-вьюера
-function initInlineCodeScrollSync(codeViewer) {
-    const scrollArea = codeViewer.querySelector('.sq-code-scroll-area');
-    const gutter = codeViewer.querySelector('#sq-line-numbers');
-    const annotations = codeViewer.querySelector('#sq-annotations-panel');
-    
-    if (!scrollArea || !gutter) return;
-    
-    // Удаляем старые слушатели (клонированием)
-    const newScroll = scrollArea.cloneNode(true);
-    scrollArea.parentNode.replaceChild(newScroll, scrollArea);
-    
-    newScroll.addEventListener('scroll', () => {
-        if (gutter) gutter.scrollTop = newScroll.scrollTop;
-        if (annotations) annotations.scrollTop = newScroll.scrollTop;
+function closeInlineCode(id) {
+    document.getElementById(`inline-code-row-${id}`).style.display = 'none';
+}
+
+// СОРТИРОВКА ТАБЛИЦЫ
+function initTableSort() {
+    const headers = document.querySelectorAll('#issues-table th[data-sort]');
+    headers.forEach(header => {
+        const newHeader = header.cloneNode(true);
+        header.parentNode.replaceChild(newHeader, header);
+        
+        newHeader.addEventListener('click', () => {
+            const sortKey = newHeader.dataset.sort;
+            const table = newHeader.closest('table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.id && tr.id.startsWith('issue-row-'));
+            
+            const currentDir = newHeader.dataset.dir || 'asc';
+            const nextDir = currentDir === 'asc' ? 'desc' : 'asc';
+            
+            headers.forEach(h => {
+                h.dataset.dir = '';
+                const icon = h.querySelector('.sort-icon');
+                if (icon) icon.className = 'bi bi-arrow-down-up sort-icon';
+            });
+            newHeader.dataset.dir = nextDir;
+            const icon = newHeader.querySelector('.sort-icon');
+            if (icon) icon.className = `bi bi-arrow-${nextDir === 'asc' ? 'up' : 'down'} sort-icon`;
+            
+            rows.sort((a, b) => {
+                const cellsA = a.cells;
+                const cellsB = b.cells;
+                let valA = '', valB = '';
+                
+                if (sortKey === 'status') { valA = cellsA[0].textContent; valB = cellsB[0].textContent; }
+                else if (sortKey === 'severity') { valA = cellsA[1].textContent; valB = cellsB[1].textContent; }
+                else if (sortKey === 'rule_code') { valA = cellsA[2].textContent; valB = cellsB[2].textContent; }
+                else if (sortKey === 'type') { valA = cellsA[3].textContent; valB = cellsB[3].textContent; }
+                else if (sortKey === 'priority') { valA = cellsA[4].textContent; valB = cellsB[4].textContent; }
+                else if (sortKey === 'file_path') { valA = cellsA[5].textContent; valB = cellsB[5].textContent; }
+                else if (sortKey === 'line') { 
+                    valA = parseInt(cellsA[6].textContent) || 0; 
+                    valB = parseInt(cellsB[6].textContent) || 0; 
+                }
+
+                if (valA < valB) return nextDir === 'asc' ? -1 : 1;
+                if (valA > valB) return nextDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            rows.forEach(row => tbody.appendChild(row));
+        });
     });
 }
 
-function closeInlineCode(issueId) {
-    const row = document.getElementById(`inline-code-row-${issueId}`);
-    if (row) row.style.display = 'none';
-}
+document.addEventListener('DOMContentLoaded', () => {
+    initTableSort();
+});
+document.addEventListener('htmx:afterSwap', () => {
+    setTimeout(initTableSort, 50);
+});
 </script>

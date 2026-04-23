@@ -548,6 +548,12 @@
                 content.appendChild(codeViewer);
                 viewer.scrollIntoView({behavior: 'smooth', block: 'start'});
                 
+                // 🔑 Инициализация скролла для вкладки Code
+                if (window.CodeViewer) {
+                    window.CodeViewer.reset();
+                    window.CodeViewer.init();
+                }
+                
                 // 🔑 ИНИЦИАЛИЗАЦИЯ PRISM.JS ДЛЯ ДИНАМИЧЕСКОГО КОНТЕНТА
                 if (typeof Prism !== 'undefined') {
                     // Небольшая задержка чтобы DOM точно отрендерился

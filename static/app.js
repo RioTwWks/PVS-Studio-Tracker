@@ -449,15 +449,15 @@ const CodeViewer = (() => {
     const master = document.getElementById('sq-code-scroll');
     const gutter = document.getElementById('sq-line-numbers');
     const annotations = document.getElementById('sq-annotations-panel');
-    if (!master || !gutter || !annotations) return;
-
-    // Удаляем старые слушатели (чтобы не дублировать при HTMX)
-    master.replaceWith(master.cloneNode(true));
-    const newMaster = document.getElementById('sq-code-scroll');
+    if (!master) return;
+    const newMaster = master.cloneNode(true);
+    master.parentNode.replaceChild(newMaster, master);
     
     newMaster.addEventListener('scroll', () => {
-      gutter.scrollTop = newMaster.scrollTop;
-      annotations.scrollTop = newMaster.scrollTop;
+        const gutter = document.getElementById('sq-line-numbers');
+        const annotations = document.getElementById('sq-annotations-panel');
+        if (gutter) gutter.scrollTop = newMaster.scrollTop;
+        if (annotations) annotations.scrollTop = newMaster.scrollTop;
     });
   }
 
@@ -522,3 +522,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initFadeIn();
     initAnimatedCounters();
 });
+
+// 🔑 Делаем CodeViewer доступным для других скриптов
+window.CodeViewer = CodeViewer;
