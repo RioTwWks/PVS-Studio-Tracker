@@ -523,12 +523,14 @@ document.addEventListener('DOMContentLoaded', () => {
     initAnimatedCounters();
 });
 
-// Автоматическое переключение на вкладку Code при загрузке сниппета
+// 🔑 Авто-переключение на вкладку "Код" при загрузке сниппета
 document.addEventListener('htmx:afterSwap', (e) => {
-    // Проверяем, что контент загрузился в панель кода
-    if (e.detail.target.id === 'code-viewer-pane') {
-        const codeTabBtn = document.querySelector('button[data-tab-target="tab-code"]');
+    // Проверяем, что контент загрузился именно в панель кода
+    if (e.detail.target && e.detail.target.id === 'code-viewer-pane') {
+        // Находим кнопку вкладки "Код" по data-атрибуту
+        const codeTabBtn = document.querySelector('[data-tab-target="tab-code"]');
         if (codeTabBtn) {
+            // Имитируем клик — это переключит вкладку и покажет код
             codeTabBtn.click();
         }
     }

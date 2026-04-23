@@ -14,32 +14,42 @@
 <thead>
     <tr>
         <th class="sq-col-status">Status</th>
+        
         <th class="sq-col-severity">
-            <a href="/ui/issues?{{ request.query_params }}&sort_by=severity&order={% if sort_by == 'severity' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            {% set sev_order = 'desc' if sort_by == 'severity' and order == 'asc' else 'asc' %}
+            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=severity&order={{ sev_order }}" class="sq-sort-link">
                 Severity 
                 {% if sort_by == 'severity' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
             </a>
         </th>
+        
         <th class="sq-col-rule">
-            <a href="/ui/issues?{{ request.query_params }}&sort_by=rule&order={% if sort_by == 'rule' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            {% set rule_order = 'desc' if sort_by == 'rule' and order == 'asc' else 'asc' %}
+            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=rule&order={{ rule_order }}" class="sq-sort-link">
                 Rule 
                 {% if sort_by == 'rule' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
             </a>
         </th>
+        
         <th class="sq-col-type">Type</th>
         <th class="sq-col-priority">Priority</th>
+        
         <th class="sq-col-file">
-            <a href="/ui/issues?{{ request.query_params }}&sort_by=file&order={% if sort_by == 'file' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            {% set file_order = 'desc' if sort_by == 'file' and order == 'asc' else 'asc' %}
+            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=file&order={{ file_order }}" class="sq-sort-link">
                 File 
                 {% if sort_by == 'file' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
             </a>
         </th>
+        
         <th class="sq-col-line">
-            <a href="/ui/issues?{{ request.query_params }}&sort_by=line&order={% if sort_by == 'line' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+            {% set line_order = 'desc' if sort_by == 'line' and order == 'asc' else 'asc' %}
+            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=line&order={{ line_order }}" class="sq-sort-link">
                 Line 
                 {% if sort_by == 'line' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
             </a>
         </th>
+        
         <th class="sq-col-message">Message</th>
         <th class="sq-col-actions">Actions</th>
     </tr>
