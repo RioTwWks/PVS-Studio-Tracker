@@ -434,7 +434,7 @@ async def ui_issues(
 
     import logging
     logger = logging.getLogger(__name__)
-    logger.debug(f"ui_issues: issues[0] type={type(issues[0]) if issues else 'empty'}")
+    logger.info(f"ui_issues: Found {len(issues)} issues, display_paths keys: {list(display_paths.keys())[:5]}")
     if issues:
         logger.debug(f"ui_issues: first issue attrs={dir(issues[0])}")
 

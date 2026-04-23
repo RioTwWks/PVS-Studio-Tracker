@@ -1,6 +1,14 @@
 {# === Issues Table Template — HTML Version === #}
 {% if issues is not defined %}{% set issues = [] %}{% endif %}
 {% if classifier_map is not defined %}{% set classifier_map = {} %}{% endif %}
+{% if display_paths is not defined %}{% set display_paths = {} %}{% endif %}
+
+{# 🔍 Отладка #}
+{% if issues|length == 0 %}
+<div class="alert alert-info">
+    Debug: total={{ total }}, project_id={{ project_id }}, run_id={{ run_id }}
+</div>
+{% endif %}
 
 <div class="sq-table-responsive">
     <table class="sq-table" id="issues-table">
