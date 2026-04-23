@@ -2131,12 +2131,16 @@ Code Viewer (SonarQube-style)
 
 /* Убираем все flex для строк кода */
 .sq-snippet-line {
-  display: block !important;
-  height: auto !important;
+  display: block !important;  /* 🔑 Ключевое изменение: flex → block */
+  padding: 0 16px;
+  transition: background 0.1s;
   min-height: 19.5px;
-  line-height: 1.5 !important;
-  padding: 0 16px !important;
-  margin: 0 !important;
+  height: 19.5px;
+  line-height: 19.5px !important;
+  white-space: pre !important;  /* 🔑 Сохраняет пробелы и табы */
+  overflow: visible !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
 }
 
 .sq-snippet-target {
@@ -2158,11 +2162,13 @@ Code Viewer (SonarQube-style)
   flex-shrink: 0;
 }
 
-/* Гарантируем, что код внутри строки — inline */
+/* Код и токены внутри строки — inline, не block */
 .sq-snippet-line code,
-.sq-snippet-line span {
+.sq-snippet-line span,
+.sq-snippet-line .token {
   display: inline !important;
   white-space: pre !important;
+  line-height: inherit !important;
 }
 
 .sq-snippet-target .sq-snippet-num {
@@ -2338,7 +2344,7 @@ Code Viewer (SonarQube-style)
   border-radius: var(--sq-radius-md);
 }
 
-/* Инлайн код в таблице issues */
+/* Prism.js override для сниппетов */
 .sq-inline-code-content .sq-snippet-block {
   display: block !important;
   white-space: pre !important;
