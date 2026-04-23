@@ -322,11 +322,13 @@ async def ui_dashboard(
 async def ui_issues(
     request: Request,
     project_id: int,
-    branch: str = "",
-    severity: str = "",
-    status_filter: str = "",
-    q: str = "",
+    branch: str = " ",
+    severity: str = " ",
+    status_filter: str = " ",
+    q: str = " ",
     page: int = 1,
+    sort_by: str = "file",  # 🔑 Новые параметры сортировки
+    order: str = "asc",
     session: Session = Depends(get_session),
 ):
     # Determine which run to show issues from
@@ -344,7 +346,7 @@ async def ui_issues(
             .order_by(Run.timestamp.desc())
             .limit(1),
         ).first()
-
+    
     if not latest_run:
         return templates.TemplateResponse(
             request,
@@ -361,7 +363,10 @@ async def ui_issues(
                 "status_filter": status_filter,
                 "q": q,
                 "run_id": None,
-                "classifier_map": {},  # 🔑 Пустой маппер, чтобы шаблон не упал
+                "classifier_map": {},
+                "display_paths": {},
+                "sort_by": sort_by,
+                "order": order,
             },
         )
 
@@ -379,11 +384,28 @@ async def ui_issues(
     else:
         # Default: show active issues (new + existing)
         query = query.where(Issue.status.in_(["new", "existing"]))  # type: ignore[attr-defined]
+    
     if q:
         like = f"%{q}%"
         query = query.where(  # type: ignore[call-overload]
             (Issue.file_path.ilike(like)) | (Issue.rule_code.ilike(like)) | (Issue.message.ilike(like))  # type: ignore[attr-defined]
         )
+
+    # 🔑 Логика сортировки
+    from sqlalchemy import asc, desc
+    
+    sort_map = {
+        "status": Issue.status,
+        "severity": Issue.severity,
+        "rule": Issue.rule_code,
+        "file": Issue.file_path,
+        "line": Issue.line,
+        "message": Issue.message,
+    }
+    
+    sort_column = sort_map.get(sort_by, Issue.file_path)
+    order_func = asc if order == "asc" else desc
+    query = query.order_by(order_func(sort_column))
 
     total_count = session.exec(select(Issue).where(Issue.run_id == latest_run.id)).all()
     # 🔑 Гарантируем, что issues — всегда список, даже если None
@@ -433,6 +455,8 @@ async def ui_issues(
             "classifier_map": classifier_map,
             "run_id": latest_run.id if latest_run else None,
             "display_paths": display_paths,  # 🔑 Передаём обрезанные пути
+            "sort_by": sort_by,  # 🔑 Передаём параметры сортировки
+            "order": order,
         },
     )
 
