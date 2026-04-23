@@ -12,37 +12,37 @@
 
 <table class="sq-table">
 <thead>
-<tr>
-    <th class="sq-col-status">Status</th>
-    <th class="sq-col-severity">
-        <a href="?{{ request.query_params }}&sort_by=severity&order={% if sort_by == 'severity' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-            Severity 
-            {% if sort_by == 'severity' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-        </a>
-    </th>
-    <th class="sq-col-rule">
-        <a href="?{{ request.query_params }}&sort_by=rule&order={% if sort_by == 'rule' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-            Rule 
-            {% if sort_by == 'rule' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-        </a>
-    </th>
-    <th class="sq-col-type">Type</th>
-    <th class="sq-col-priority">Priority</th>
-    <th class="sq-col-file">
-        <a href="?{{ request.query_params }}&sort_by=file&order={% if sort_by == 'file' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-            File 
-            {% if sort_by == 'file' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-        </a>
-    </th>
-    <th class="sq-col-line">
-        <a href="?{{ request.query_params }}&sort_by=line&order={% if sort_by == 'line' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
-            Line 
-            {% if sort_by == 'line' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-        </a>
-    </th>
-    <th class="sq-col-message">Message</th>
-    <th class="sq-col-actions">Actions</th>
-</tr>
+    <tr>
+        <th class="sq-col-status">Status</th>
+        <th class="sq-col-severity">
+            <a href="/ui/issues?{{ request.query_params }}&sort_by=severity&order={% if sort_by == 'severity' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                Severity 
+                {% if sort_by == 'severity' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+            </a>
+        </th>
+        <th class="sq-col-rule">
+            <a href="/ui/issues?{{ request.query_params }}&sort_by=rule&order={% if sort_by == 'rule' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                Rule 
+                {% if sort_by == 'rule' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+            </a>
+        </th>
+        <th class="sq-col-type">Type</th>
+        <th class="sq-col-priority">Priority</th>
+        <th class="sq-col-file">
+            <a href="/ui/issues?{{ request.query_params }}&sort_by=file&order={% if sort_by == 'file' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                File 
+                {% if sort_by == 'file' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+            </a>
+        </th>
+        <th class="sq-col-line">
+            <a href="/ui/issues?{{ request.query_params }}&sort_by=line&order={% if sort_by == 'line' and order == 'asc' %}desc{% else %}asc{% endif %}" class="sq-sort-link">
+                Line 
+                {% if sort_by == 'line' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+            </a>
+        </th>
+        <th class="sq-col-message">Message</th>
+        <th class="sq-col-actions">Actions</th>
+    </tr>
 </thead>
 <tbody>
     {% if issues and issues|length > 0 %}
@@ -91,7 +91,8 @@
                         <button class="sq-btn sq-btn-sm sq-btn-outline" 
                                 hx-get="/ui/file?project_id={{ project_id }}&file_path={{ issue.file_path|urlencode }}&line={{ issue.line }}&run_id={{ run_id }}&context=10"
                                 hx-target="#code-viewer-pane"
-                                hx-swap="innerHTML">
+                                hx-swap="innerHTML"
+                                hx-trigger="click">
                             <i class="bi bi-code-slash"></i> Code
                         </button>
                     {% else %}

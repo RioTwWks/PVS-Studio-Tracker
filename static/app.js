@@ -523,5 +523,16 @@ document.addEventListener('DOMContentLoaded', () => {
     initAnimatedCounters();
 });
 
+// Автоматическое переключение на вкладку Code при загрузке сниппета
+document.addEventListener('htmx:afterSwap', (e) => {
+    // Проверяем, что контент загрузился в панель кода
+    if (e.detail.target.id === 'code-viewer-pane') {
+        const codeTabBtn = document.querySelector('button[data-tab-target="tab-code"]');
+        if (codeTabBtn) {
+            codeTabBtn.click();
+        }
+    }
+});
+
 // 🔑 Делаем CodeViewer доступным для других скриптов
 window.CodeViewer = CodeViewer;

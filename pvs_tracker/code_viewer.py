@@ -147,7 +147,7 @@ async def view_code(
         target_display_line = line
 
     #  Правильное объединение строк
-    content = "\n".join(lines)
+    content = "".join(lines)
     total_lines = len(lines)
 
     #  Detect language for Prism.js
