@@ -2125,19 +2125,19 @@ Code Viewer (SonarQube-style)
   font-size: 12px;
   line-height: 1.5;
   overflow: visible;
-  white-space: pre;
+  white-space: pre !important;
   tab-size: 4;
 }
 
 /* Убираем все flex для строк кода */
 .sq-snippet-line {
-  display: block !important;
-  white-space: pre !important;
+  display: block !important;  /* Убираем flex */
+  padding: 0 16px;
+  transition: background 0.1s;
+  min-height: 19.5px;
+  height: 19.5px;
   line-height: 19.5px !important;
-  height: 19.5px !important;
-  padding: 0 16px !important;
-  margin: 0 !important;
-  overflow: visible !important;
+  white-space: pre !important;  /* Сохраняем пробелы */
 }
 
 .sq-snippet-target {
@@ -2166,12 +2166,6 @@ Code Viewer (SonarQube-style)
   white-space: pre !important;
 }
 
-/* Prism.js токены - запрещаем переносы */
-.sq-snippet-line .token {
-  display: inline !important;
-  white-space: pre !important;
-}
-
 .sq-snippet-target .sq-snippet-num {
   color: var(--sq-brand);
   opacity: 1;
@@ -2187,13 +2181,12 @@ Code Viewer (SonarQube-style)
   display: block;
 }
 
-/* Убираем display: block у токенов Prism.js */
-.sq-snippet-block .token {
+/* Prism.js токены — inline, не block */
+.sq-snippet-block .token,
+.sq-snippet-line .token {
   display: inline !important;
   white-space: pre !important;
   line-height: inherit !important;
-  padding: 0 !important;
-  margin: 0 !important;
 }
 
 /* Гарантируем, что код не растягивает таблицу по горизонтали */

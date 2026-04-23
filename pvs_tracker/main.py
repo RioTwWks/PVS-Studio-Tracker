@@ -414,10 +414,6 @@ async def ui_issues(
 
     # 🔑 Нормализация путей для отображения
     from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
-    import logging  # 🔑 Импортируем ДО использования
-
-    # Создаём логгер один раз в начале функции (или здесь)
-    logger = logging.getLogger(__name__)
 
     # Получаем глобальные настройки
     global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
@@ -432,15 +428,14 @@ async def ui_issues(
                 global_settings,
             )
             display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
-        
-        logger.info(f"ui_issues: Found {len(issues)} issues, display_paths keys: {list(display_paths.keys())[:5]}")
-    else:
-        # 🔑 Теперь logger доступен и здесь
-        logger.warning(f"ui_issues: No issues found for run_id={latest_run.id if latest_run else 'None'}, project_id={project_id}")
 
     # Fetch all classifiers for lookup
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"ui_issues: Found {len(issues)} issues, total={len(total_count)}")
 
     return templates.TemplateResponse(
         request,
@@ -458,9 +453,7 @@ async def ui_issues(
             "q": q,
             "classifier_map": classifier_map,
             "run_id": latest_run.id if latest_run else None,
-            "display_paths": display_paths,  # 🔑 Передаём обрезанные пути
-            "sort_by": sort_by,  # 🔑 Передаём параметры сортировки
-            "order": order,
+            "display_paths": display_paths,  # 🔑 Обязательно передаём!
         },
     )
 
