@@ -1,0 +1,40 @@
+    {# === Tab Content: Settings === #}
+    <div class="sq-project-tab-content" id="tab-settings" style="display: none;">
+        <div class="sq-card">
+            <div class="sq-card-header">
+                <i class="bi bi-gear"></i> Project Settings
+            </div>
+            <div class="sq-card-body">
+                <div class="sq-form-section">
+                    <h5 class="sq-section-title">
+                        <i class="bi bi-folder2"></i> Source Roots
+                    </h5>
+                    <p class="sq-section-desc">Configure the source directories for this project. This helps the code viewer locate files correctly.</p>
+
+                    <div class="sq-form-group">
+                        <label class="sq-form-label">
+                            <i class="bi bi-windows"></i> Windows Source Root
+                        </label>
+                        <input type="text" id="source-root-win" class="sq-input"
+                               value="{{ project.source_root_win or '' }}"
+                               placeholder="C:\Projects\my-project\src">
+                    </div>
+
+                    <div class="sq-form-group">
+                        <label class="sq-form-label">
+                            <i class="bi bi-ubuntu"></i> Linux Source Root
+                        </label>
+                        <input type="text" id="source-root-linux" class="sq-input"
+                               value="{{ project.source_root_linux or '' }}"
+                               placeholder="/home/user/projects/my-project/src">
+                    </div>
+
+                    <button class="sq-btn sq-btn-primary" onclick="saveSourceRoots()">
+                        <i class="bi bi-check-lg"></i> Save Source Roots
+                    </button>
+                    <span id="source-root-status" class="sq-form-status" style="display: none;"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
