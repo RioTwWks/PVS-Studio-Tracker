@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker import main
-from pvs_tracker.models import Project, Run
+from pvs_tracker.models import Issue, Project, Run
 
 SAMPLE_REPORT = {
     "version": 3,
@@ -83,10 +83,22 @@ def test_upload_and_dashboard(client):
     assert r.status_code == 200
     assert "demo" in r.text
 
-    # Issues
-    r = client.get(f"/ui/issues?project_id={project_id}&status_filter=new")
+    # Issues from the first upload are baseline, so they are active but not new.
+    r = client.get(f"/ui/issues?project_id={project_id}&status_filter=existing")
     assert r.status_code == 200
     assert "V501" in r.text
+    with Session(main.engine) as session:
+        run = session.exec(select(Run).where(Run.project_id == project_id)).first()
+        assert run is not None
+        assert run.total_issues == 1
+        assert run.new_issues == 0
+        issue = session.exec(select(Issue).where(Issue.run_id == run.id)).first()
+        assert issue is not None
+        assert issue.status == "existing"
+
+    r = client.get(f"/ui/issues?project_id={project_id}&status_filter=new")
+    assert r.status_code == 200
+    assert "V501" not in r.text
 
 
 def test_ui_upload_redirects_to_dashboard(client):
@@ -217,12 +229,8 @@ def test_non_admin_cannot_delete_project_from_ui(client):
         assert project is not None
 
 
-def test_first_upload_shows_new_issues(client):
-    """Test that first upload shows 'new' issues in the default view.
-    
-    Regression test: Previously, the default status_filter was 'existing',
-    which caused the first upload (where all issues are 'new') to show
-    'Предупреждений не найдено' even though issues existed.
+def test_first_upload_baselines_existing_issues(client):
+    """Test that first upload shows baseline issues in the default active view.
     """
     # Login
     r = client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
@@ -245,10 +253,10 @@ def test_first_upload_shows_new_issues(client):
         assert project is not None
         project_id = project.id
 
-    # Check that default status_filter (empty string) shows the 'new' issues
+    # Check that the default active view shows baseline issues.
     r = client.get(f"/ui/issues?project_id={project_id}")
     assert r.status_code == 200
-    # Should show the V501 issue even though it's status is 'new'
+    # Baseline issues are existing, but still active.
     assert "V501" in r.text
     # Should NOT show the "not found" message
     assert "Предупреждений не найдено" not in r.text

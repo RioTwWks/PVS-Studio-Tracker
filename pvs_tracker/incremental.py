@@ -32,7 +32,7 @@ def classify_and_store(
     current_fps: set[str] = set()
     for iss in new_issues:
         current_fps.add(iss["fingerprint"])
-        iss["status"] = "new" if iss["fingerprint"] not in prev_fps else "existing"
+        iss["status"] = "existing" if not prev_run or iss["fingerprint"] in prev_fps else "new"
 
         rule_code = iss.get("rule_code", "")
         classifier = code_to_classifier.get(rule_code)
