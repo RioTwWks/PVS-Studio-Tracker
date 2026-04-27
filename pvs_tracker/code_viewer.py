@@ -197,6 +197,9 @@ async def view_code(
                 display_line = issue.line - line_offset
                 warnings_by_line.setdefault(display_line, []).append(issue)
 
+    if isinstance(content, str) and not lines:
+        lines = content.splitlines(keepends=True)
+
     return templates.TemplateResponse(
         request,
         "code_view.html",

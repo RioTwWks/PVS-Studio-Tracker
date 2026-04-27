@@ -519,26 +519,19 @@ document.addEventListener('DOMContentLoaded', () => {
 HTMX Event Enhancements — Unified Handler
 ============================================================ */
 document.addEventListener('htmx:afterSwap', (e) => {
-    const target = e.detail.target;
-    
-    // 1. Re-init animations and counters (global)
-    initFadeIn();
-    initAnimatedCounters();
-    
-    // 2. Re-init CodeViewer if code was loaded
-    if (target.closest?.('.sq-code-viewer') || target.querySelector?.('.sq-code-viewer')) {
-        if (typeof CodeViewer !== 'undefined') {
-            CodeViewer.reset?.();
-            setTimeout(() => CodeViewer.init?.(), 50);
-        }
-    }
-    
-    // 3. Auto-switch to Code tab when inline snippet is loaded
-    if (target.id === 'code-viewer-pane' && target.innerHTML.trim() && !target.innerHTML.includes('Loading')) {
-        const codeTabBtn = document.querySelector('[data-tab-target="tab-code"]');
-        if (codeTabBtn) {
-            codeTabBtn.click();
-        }
+    // Re-highlight code blocks inserted by HTMX
+    if (e.detail.target.closest('.sq-inline-code-content') || 
+        e.detail.target.classList.contains('sq-inline-code-content')) {
+        
+        // Wait for content to be in DOM, then highlight
+        setTimeout(() => {
+            const codeBlocks = e.detail.target.querySelectorAll('code[class*="language-"]');
+            codeBlocks.forEach(block => {
+                if (typeof Prism !== 'undefined') {
+                    Prism.highlightElement(block);
+                }
+            });
+        }, 10);
     }
 });
 

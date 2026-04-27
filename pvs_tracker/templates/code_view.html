@@ -25,17 +25,25 @@
     <div class="sq-code-viewer-body">
       {# Left: Line Numbers + Code (Scroll synced via JS) #}
       <div class="sq-scroll-master-wrapper">
-        <div class="sq-line-numbers" id="sq-line-numbers">
-          {% for ln in range(1, total_lines + 1) %}
-            <div class="sq-line-num {% if ln == target_line %}sq-target{% endif %} {% if ln + line_offset in warnings_by_line %}sq-has-issue{% endif %}" data-line="{{ ln + line_offset }}">
-              <span>{{ ln + line_offset }}</span>
-            </div>
-          {% endfor %}
-        </div>
-
-        <div class="sq-code-scroll-area" id="sq-code-scroll">
-          <pre class="sq-code-block"><code class="language-{{ language|default('cpp') }}">{{ content }}</code></pre>
-        </div>
+          <div class="sq-line-numbers" id="sq-line-numbers">
+              {% for ln in range(1, total_lines + 1) %}
+                  <div class="sq-line-num">{{ ln + line_offset }}</div>
+              {% endfor %}
+          </div>
+          <div class="sq-code-scroll-area" id="sq-code-scroll">
+              <pre class="sq-code-block" data-target="{{ target_display_line }}">
+              <code class="language-{{ language }}">
+              {% for ln in range(1, total_lines + 1) %}
+                  {% set actual_line = ln + line_offset %}
+                  {# 🔑 Добавляем класс sq-snippet-target если это целевая строка #}
+                  <span class="sq-snippet-line{% if actual_line == target_display_line %} sq-snippet-target{% endif %}">
+                      <span class="sq-snippet-num">{{ actual_line }}</span>
+                      <code class="language-{{ language }}">{{ lines[ln-1]|e }}</code>
+                  </span>
+              {% endfor %}
+              </code>
+              </pre>
+          </div>
       </div>
 
       {# Right: Annotations #}
