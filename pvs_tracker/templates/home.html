@@ -46,15 +46,15 @@
         </div>
     </div>
 
-    {# --- Upload Column --- #}
+    {# --- Create Project Column --- #}
     <div class="col-md-6">
         <div class="sq-card h-100">
             <div class="sq-card-header">
-                <i class="bi bi-cloud-arrow-up"></i> <span data-i18n="upload_report">Upload Report</span>
+                <i class="bi bi-folder-plus"></i> Create Project
             </div>
             <div class="sq-card-body">
                 {% if current_user %}
-                <form action="/ui/upload" method="post" enctype="multipart/form-data" id="upload-form">
+                <form action="/ui/projects" method="post" id="create-project-form">
                     <div class="sq-form-group">
                         <label class="sq-form-label" data-i18n="project_name_label">Project Name</label>
                         <div class="sq-input-group">
@@ -63,42 +63,31 @@
                         </div>
                     </div>
 
-                    <div class="sq-form-group">
-                        <label class="sq-form-label" data-i18n="report_file_label">Report File (JSON)</label>
-                        <input type="file" name="file" class="sq-input sq-file-input" accept=".json" id="report-file" required>
-                    </div>
-
-                    <div class="sq-form-group">
-                        <label class="sq-form-label">Code Snapshot (.json.gz)</label>
-                        <input type="file" name="code_snapshot" class="sq-file-input" accept=".json.gz">
-                        <small class="text-muted">Optional: CI-generated snapshot for exact code viewing</small>
-                    </div>
-
                     <div class="row g-2 mb-3">
                         <div class="col-sm-6">
-                            <label class="sq-form-label" data-i18n="commit_label">Commit</label>
+                            <label class="sq-form-label" data-i18n="branch_label">Default Branch</label>
                             <div class="sq-input-group">
-                                <span class="sq-input-group-icon"><i class="bi bi-git"></i></span>
-                                <input type="text" name="commit" class="sq-input" data-i18n-placeholder="commit_placeholder" placeholder="abc1234">
+                                <span class="sq-input-group-icon"><i class="bi bi-diagram-3"></i></span>
+                                <input type="text" name="branch" class="sq-input" data-i18n-placeholder="branch_placeholder" placeholder="main" value="main">
                             </div>
                         </div>
                         <div class="col-sm-6">
-                            <label class="sq-form-label" data-i18n="branch_label">Branch</label>
+                            <label class="sq-form-label">Language</label>
                             <div class="sq-input-group">
-                                <span class="sq-input-group-icon"><i class="bi bi-diagram-3"></i></span>
-                                <input type="text" name="branch" class="sq-input" data-i18n-placeholder="branch_placeholder" placeholder="main">
+                                <span class="sq-input-group-icon"><i class="bi bi-code-square"></i></span>
+                                <input type="text" name="language" class="sq-input" placeholder="c++" value="c++">
                             </div>
                         </div>
                     </div>
 
-                    <button type="submit" class="sq-btn sq-btn-primary w-100" id="upload-btn">
-                        <i class="bi bi-upload"></i> <span data-i18n="upload_button">Upload Report</span>
+                    <button type="submit" class="sq-btn sq-btn-primary w-100">
+                        <i class="bi bi-folder-plus"></i> Create Empty Project
                     </button>
                 </form>
                 {% else %}
                 <div class="sq-empty-state">
                     <div class="sq-empty-icon"><i class="bi bi-lock" style="font-size: 3rem; opacity: 0.3;"></i></div>
-                    <p class="mb-2" data-i18n="login_to_upload">Login to upload reports.</p>
+                    <p class="mb-2">Login to create projects.</p>
                     <a href="/login" class="sq-btn sq-btn-primary">
                         <i class="bi bi-box-arrow-in-right"></i> <span data-i18n="login">Login</span>
                     </a>
@@ -108,19 +97,5 @@
         </div>
     </div>
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const fileInput = document.getElementById('report-file');
-        if (fileInput) {
-            fileInput.addEventListener('change', () => {
-                const fileName = fileInput.files[0]?.name || '';
-                if (fileName) {
-                    fileInput.setAttribute('title', fileName);
-                }
-            });
-        }
-    });
-</script>
 
 {% endblock %}

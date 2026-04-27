@@ -1,0 +1,45 @@
+    {# === Tab Content: Upload === #}
+    <div class="sq-project-tab-content" id="tab-upload" style="display: none;">
+        <div class="sq-card">
+            <div class="sq-card-header">
+                <i class="bi bi-cloud-arrow-up"></i> Upload Analysis
+            </div>
+            <div class="sq-card-body">
+                <form action="/ui/upload" method="post" enctype="multipart/form-data" id="project-upload-form">
+                    <input type="hidden" name="project_name" value="{{ project.name }}">
+
+                    <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="report_file_label">Report File (JSON)</label>
+                        <input type="file" name="file" class="sq-input sq-file-input" accept=".json" id="report-file" required>
+                    </div>
+
+                    <div class="sq-form-group">
+                        <label class="sq-form-label">Code Snapshot (.json.gz)</label>
+                        <input type="file" name="code_snapshot" class="sq-file-input" accept=".json.gz">
+                        <small class="text-muted">Optional: CI-generated snapshot for exact code viewing</small>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-sm-6">
+                            <label class="sq-form-label" data-i18n="commit_label">Commit</label>
+                            <div class="sq-input-group">
+                                <span class="sq-input-group-icon"><i class="bi bi-git"></i></span>
+                                <input type="text" name="commit" class="sq-input" data-i18n-placeholder="commit_placeholder" placeholder="abc1234">
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="sq-form-label" data-i18n="branch_label">Branch</label>
+                            <div class="sq-input-group">
+                                <span class="sq-input-group-icon"><i class="bi bi-diagram-3"></i></span>
+                                <input type="text" name="branch" class="sq-input" data-i18n-placeholder="branch_placeholder" placeholder="main" value="{{ active_branch or project.git_branch or 'main' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="sq-btn sq-btn-primary">
+                        <i class="bi bi-upload"></i> Upload Report
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>

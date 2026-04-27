@@ -62,6 +62,12 @@
                 </button>
             </li>
             <li class="sq-project-tab">
+                <button class="sq-project-tab-btn" data-tab="upload" onclick="switchProjectTab('upload')">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                    <span>Upload</span>
+                </button>
+            </li>
+            <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" 
                         data-tab="code" 
                         onclick="switchProjectTab('code'); setTimeout(loadFileTree, 100);">
@@ -86,6 +92,7 @@
 
     {% include "dashboard/_overview_tab.html" %}
     {% include "dashboard/_issues_tab.html" %}
+    {% include "dashboard/_upload_tab.html" %}
     {% include "dashboard/_code_tab.html" %}
     {% include "dashboard/_settings_tab.html" %}
 </div>

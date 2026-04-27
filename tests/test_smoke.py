@@ -115,6 +115,77 @@ def test_ui_upload_redirects_to_dashboard(client):
     assert "ui-test-project" in r.text
 
 
+def test_create_empty_project_from_ui(client):
+    r = client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
+    assert r.status_code == 303
+
+    r = client.post(
+        "/ui/projects",
+        data={"project_name": "empty-project", "branch": "develop", "language": "c++"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "/ui/projects/" in r.headers["location"]
+    assert "/dashboard" in r.headers["location"]
+
+    with Session(main.engine) as session:
+        project = session.exec(select(Project).where(Project.name == "empty-project")).first()
+        assert project is not None
+        assert project.git_branch == "develop"
+
+    r = client.get(r.headers["location"])
+    assert r.status_code == 200
+    assert "No analysis data yet" in r.text
+    assert "Upload" in r.text
+
+
+def test_admin_can_delete_project_from_ui(client):
+    client.post("/login", data={"username": "admin", "password": "secret"}, follow_redirects=False)
+
+    r = client.post(
+        "/ui/projects",
+        data={"project_name": "delete-me", "branch": "main", "language": "c++"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    with Session(main.engine) as session:
+        project = session.exec(select(Project).where(Project.name == "delete-me")).first()
+        assert project is not None
+        project_id = project.id
+
+    r = client.post(f"/ui/projects/{project_id}/delete", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/"
+
+    with Session(main.engine) as session:
+        project = session.get(Project, project_id)
+        assert project is None
+
+
+def test_non_admin_cannot_delete_project_from_ui(client):
+    client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
+
+    r = client.post(
+        "/ui/projects",
+        data={"project_name": "not-delete-me", "branch": "main", "language": "c++"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    with Session(main.engine) as session:
+        project = session.exec(select(Project).where(Project.name == "not-delete-me")).first()
+        assert project is not None
+        project_id = project.id
+
+    r = client.post(f"/ui/projects/{project_id}/delete", follow_redirects=False)
+    assert r.status_code == 403
+
+    with Session(main.engine) as session:
+        project = session.get(Project, project_id)
+        assert project is not None
+
+
 def test_first_upload_shows_new_issues(client):
     """Test that first upload shows 'new' issues in the default view.
     

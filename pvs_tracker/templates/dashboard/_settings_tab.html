@@ -34,7 +34,23 @@
                     </button>
                     <span id="source-root-status" class="sq-form-status" style="display: none;"></span>
                 </div>
+
+                {% if current_user == "admin" %}
+                <hr class="my-4">
+                <div class="sq-form-section">
+                    <h5 class="sq-section-title text-danger">
+                        <i class="bi bi-trash"></i> Delete Project
+                    </h5>
+                    <p class="sq-section-desc">Delete this project and all stored analysis runs, issues, comments, and activity logs.</p>
+
+                    <form action="/ui/projects/{{ project.id }}/delete" method="post"
+                          onsubmit="return confirm('Delete project {{ project.name }}? This cannot be undone.');">
+                        <button type="submit" class="sq-btn sq-btn-outline text-danger">
+                            <i class="bi bi-trash"></i> Delete Project
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
-</div>

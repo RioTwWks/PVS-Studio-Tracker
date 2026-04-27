@@ -9,7 +9,20 @@ from typing import Optional
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import Session, select, func
 
-from pvs_tracker.models import Issue, Project, Run, SQLModel, ErrorClassifier, User, UserRole, GlobalSettings
+from pvs_tracker.models import (
+    ActivityLog,
+    Issue,
+    IssueComment,
+    MetricSnapshot,
+    Project,
+    ProjectMember,
+    Run,
+    SQLModel,
+    ErrorClassifier,
+    User,
+    UserRole,
+    GlobalSettings,
+)
 from pvs_tracker.parser import parse_pvs_report
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
@@ -186,6 +199,12 @@ def require_auth(user: str | None = Depends(get_current_user)) -> str:
     return user
 
 
+def require_admin_user(user: str = Depends(require_auth)) -> str:
+    if user != "admin":
+        raise HTTPException(403, "Admin access required")
+    return user
+
+
 # ---------------------------------------------------------------------------
 # Auth routes
 # ---------------------------------------------------------------------------
@@ -235,6 +254,43 @@ async def home(request: Request, session: Session = Depends(get_session)):
     )
 
 
+@app.post("/ui/projects", response_class=HTMLResponse)
+async def create_project_ui(
+    request: Request,
+    project_name: str = Form(...),
+    branch: str = Form("main"),
+    language: str = Form("c++"),
+    session: Session = Depends(get_session),
+    _user: str = Depends(require_auth),
+):
+    """Create an empty project from the web UI."""
+    name = project_name.strip()
+    if not name:
+        projects = session.exec(select(Project).order_by(Project.name)).all()
+        return templates.TemplateResponse(
+            request,
+            "home.html",
+            {
+                "current_user": get_current_user(request),
+                "projects": projects,
+                "error": "Project name is required",
+            },
+            status_code=400,
+        )
+
+    project = session.exec(select(Project).where(Project.name == name)).first()
+    if project:
+        return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
+
+    default_branch = (branch or "main").strip() or "main"
+    project = Project(name=name, language=language or "c++", git_branch=default_branch)
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+
+    return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
+
+
 @app.get("/ui/projects/{project_id}/dashboard", response_class=HTMLResponse)
 async def ui_dashboard(
     project_id: int,
@@ -258,6 +314,9 @@ async def ui_dashboard(
         b = (r.branch or "").strip()
         if b and b not in branches:
             branches.append(b)
+    default_branch = (project.git_branch or "").strip()
+    if default_branch and default_branch not in branches:
+        branches.append(default_branch)
 
     # Determine active branch: explicit param > main > master > first available
     if branch:
@@ -736,6 +795,9 @@ def api_dashboard(project_id: int, branch: str = "", session: Session = Depends(
         b = (r.branch or "").strip()
         if b and b not in branches:
             branches.append(b)
+    default_branch = (project.git_branch or "").strip()
+    if default_branch and default_branch not in branches:
+        branches.append(default_branch)
 
     # Determine active branch: explicit param > main > master > first available
     if branch:
@@ -847,6 +909,52 @@ async def update_source_roots(
         "source_root_win": project.source_root_win,
         "source_root_linux": project.source_root_linux,
     }
+
+
+@app.post("/ui/projects/{project_id}/delete")
+async def delete_project_ui(
+    project_id: int,
+    session: Session = Depends(get_session),
+    _admin: str = Depends(require_admin_user),
+):
+    """Delete a project and its stored analysis data from the UI."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    runs = session.exec(select(Run).where(Run.project_id == project_id)).all()
+    run_ids = [run.id for run in runs if run.id is not None]
+
+    if run_ids:
+        issues = session.exec(select(Issue).where(Issue.run_id.in_(run_ids))).all()
+        issue_ids = [issue.id for issue in issues if issue.id is not None]
+
+        if issue_ids:
+            comments = session.exec(select(IssueComment).where(IssueComment.issue_id.in_(issue_ids))).all()
+            for comment in comments:
+                session.delete(comment)
+
+        for issue in issues:
+            session.delete(issue)
+
+        metrics = session.exec(select(MetricSnapshot).where(MetricSnapshot.run_id.in_(run_ids))).all()
+        for metric in metrics:
+            session.delete(metric)
+
+    members = session.exec(select(ProjectMember).where(ProjectMember.project_id == project_id)).all()
+    for member in members:
+        session.delete(member)
+
+    activity_logs = session.exec(select(ActivityLog).where(ActivityLog.project_id == project_id)).all()
+    for log in activity_logs:
+        session.delete(log)
+
+    for run in runs:
+        session.delete(run)
+
+    session.delete(project)
+    session.commit()
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/api/v1/issues/{issue_id}/snippet")
