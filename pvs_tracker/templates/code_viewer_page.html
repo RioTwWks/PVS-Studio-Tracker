@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ project.name }} — Code Viewer{% endblock %}
+{% block title %}{{ project.name }} - Code Viewer{% endblock %}
 {% block content %}
 
 <div class="sq-code-viewer-page fade-in">
@@ -16,9 +16,7 @@
         </a>
     </div>
 
-    {# --- File Browser + Code Display --- #}
     <div class="row g-4">
-        {# --- Left: File Tree --- #}
         <div class="col-lg-3">
             <div class="sq-file-browser">
                 <div class="sq-file-browser-header">
@@ -48,7 +46,6 @@
             </div>
         </div>
 
-        {# --- Right: Code Display --- #}
         <div class="col-lg-9">
             <div id="code-display">
                 <div class="sq-code-placeholder text-center py-5">
@@ -66,7 +63,6 @@
         element.classList.add('sq-active');
     }
 
-    // Auto-select first file on page load
     document.addEventListener('DOMContentLoaded', () => {
         const firstFile = document.querySelector('.sq-file-item');
         if (firstFile) {
@@ -75,7 +71,6 @@
     });
 </script>
 
-{# --- Footer stats --- #}
 <div class="sq-viewer-footer">
     <div class="sq-viewer-stats">
         <div class="sq-stat">
@@ -92,17 +87,4 @@
         </div>
     </div>
 </div>
-
-<script>
-// 🔑 Инициализация Prism.js для подсветки синтаксиса
-if (typeof Prism !== 'undefined') {
-    // Небольшая задержка чтобы DOM точно отрендерился
-    setTimeout(function() {
-        const codeElement = document.querySelector('.sq-code-block code');
-        if (codeElement) {
-            Prism.highlightElement(codeElement);
-        }
-    }, 100);
-}
-</script>
 {% endblock %}
