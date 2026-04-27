@@ -1,14 +1,13 @@
 """Tests for error classifier functionality."""
 import json
 import os
-import tempfile
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker import main
-from pvs_tracker.models import ErrorClassifier, Project, SQLModel
+from pvs_tracker.models import ErrorClassifier, Project
 
 
 SAMPLE_REPORT = {
@@ -38,32 +37,6 @@ SAMPLE_REPORT = {
         },
     ],
 }
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    """Recreate tables and load classifiers before each test."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    tmp.close()
-    main.engine.url = f"sqlite:///{tmp.name}"
-    SQLModel.metadata.drop_all(main.engine)
-    SQLModel.metadata.create_all(main.engine)
-    
-    # Load classifiers from CSV
-    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Actual_warnings.csv")
-    if os.path.exists(csv_path):
-        from pvs_tracker.classifier_parser import parse_classifier_csv
-        with Session(main.engine) as session:
-            classifiers = parse_classifier_csv(csv_path)
-            for clf in classifiers:
-                session.add(ErrorClassifier(**clf))
-            session.commit()
-    
-    yield
-    try:
-        os.unlink(tmp.name)
-    except:
-        pass
 
 
 @pytest.fixture()

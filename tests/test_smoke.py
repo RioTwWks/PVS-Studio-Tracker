@@ -1,14 +1,13 @@
 """Smoke tests for the MVP."""
 import json
 import os
-import tempfile
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker import main
-from pvs_tracker.models import Project, SQLModel
+from pvs_tracker.models import Project
 
 SAMPLE_REPORT = {
     "version": 3,
@@ -37,19 +36,6 @@ SAMPLE_REPORT = {
         },
     ],
 }
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    """Recreate tables on the app's engine before each test."""
-    # Use a temp file for the DB
-    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    tmp.close()
-    main.engine.url = f"sqlite:///{tmp.name}"
-    SQLModel.metadata.drop_all(main.engine)
-    SQLModel.metadata.create_all(main.engine)
-    yield
-    os.unlink(tmp.name)
 
 
 @pytest.fixture()

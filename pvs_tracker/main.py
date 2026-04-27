@@ -675,11 +675,6 @@ async def upload_report_api(
     session.commit()
     session.refresh(run)
 
-    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
-    session.add(run)
-    session.commit()
-    session.refresh(run)
-
     # 🔑 Сохраняем snapshot если приложен
     if code_snapshot and code_snapshot.filename:
         snapshot_path = Path(SNAPSHOTS_DIR) / f"{run.id}.json.gz"
