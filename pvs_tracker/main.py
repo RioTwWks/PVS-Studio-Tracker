@@ -488,17 +488,19 @@ async def ui_issues(
 
     # 🔑 Сортировка
     from sqlalchemy import asc, desc
+    if sort_by in {"type", "priority"}:
+        query = query.outerjoin(ErrorClassifier, Issue.classifier_id == ErrorClassifier.id)
     sort_map = {
         "status": Issue.status,
         "severity": Issue.severity,
         "rule": Issue.rule_code,
+        "type": ErrorClassifier.type,
+        "priority": ErrorClassifier.priority,
         "file": Issue.file_path,
-        "line": Issue.line,
-        "message": Issue.message,
     }
     sort_column = sort_map.get(sort_by, Issue.file_path)
     order_func = asc if order == "asc" else desc
-    query = query.order_by(order_func(sort_column))
+    query = query.order_by(order_func(sort_column), asc(Issue.id))
 
     # 🔑 Получаем ВСЕ issues для подсчёта total
     total_count = session.exec(

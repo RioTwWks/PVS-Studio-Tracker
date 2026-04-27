@@ -10,66 +10,32 @@
 </div>
 {% endif %}
 
+{% macro sort_header(label, key, class_name) -%}
+    {% set next_order = 'desc' if sort_by == key and order == 'asc' else 'asc' %}
+    <th class="{{ class_name }}">
+        <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
+           class="sq-sort-link"
+           hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
+           hx-target="#issues-table-full"
+           hx-swap="innerHTML"
+           hx-push-url="false"
+           hx-boost="false">
+            {{ label }}
+            {% if sort_by == key %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+        </a>
+    </th>
+{%- endmacro %}
+
 <table class="sq-table">
 <thead>
     <tr>
-        <th class="sq-col-status">Status</th>
-        
-        <th class="sq-col-severity">
-            {% set sev_order = 'desc' if sort_by == 'severity' and order == 'asc' else 'asc' %}
-            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=severity&order={{ sev_order }}" 
-               class="sq-sort-link"
-               hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=severity&order={{ sev_order }}"
-               hx-target="body"
-               hx-push-url="true"
-               hx-boost="false">
-                Severity 
-                {% if sort_by == 'severity' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-            </a>
-        </th>
-        
-        <th class="sq-col-rule">
-            {% set rule_order = 'desc' if sort_by == 'rule' and order == 'asc' else 'asc' %}
-            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=rule&order={{ rule_order }}" 
-               class="sq-sort-link"
-               hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=rule&order={{ rule_order }}"
-               hx-target="body"
-               hx-push-url="true"
-               hx-boost="false">
-                Rule 
-                {% if sort_by == 'rule' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-            </a>
-        </th>
-        
-        <th class="sq-col-type">Type</th>
-        <th class="sq-col-priority">Priority</th>
-        
-        <th class="sq-col-file">
-            {% set file_order = 'desc' if sort_by == 'file' and order == 'asc' else 'asc' %}
-            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=file&order={{ file_order }}" 
-               class="sq-sort-link"
-               hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=file&order={{ file_order }}"
-               hx-target="body"
-               hx-push-url="true"
-               hx-boost="false">
-                File 
-                {% if sort_by == 'file' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-            </a>
-        </th>
-        
-        <th class="sq-col-line">
-            {% set line_order = 'desc' if sort_by == 'line' and order == 'asc' else 'asc' %}
-            <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=line&order={{ line_order }}" 
-               class="sq-sort-link"
-               hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by=line&order={{ line_order }}"
-               hx-target="body"
-               hx-push-url="true"
-               hx-boost="false">
-                Line 
-                {% if sort_by == 'line' %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
-            </a>
-        </th>
-        
+        {{ sort_header("Status", "status", "sq-col-status") }}
+        {{ sort_header("Severity", "severity", "sq-col-severity") }}
+        {{ sort_header("Rule", "rule", "sq-col-rule") }}
+        {{ sort_header("Type", "type", "sq-col-type") }}
+        {{ sort_header("Priority", "priority", "sq-col-priority") }}
+        {{ sort_header("File", "file", "sq-col-file") }}
+        <th class="sq-col-line">Line</th>
         <th class="sq-col-message">Message</th>
         <th class="sq-col-actions">Actions</th>
     </tr>

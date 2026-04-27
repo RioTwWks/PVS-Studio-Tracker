@@ -157,3 +157,12 @@ def test_ui_issues_shows_classifier_info(client):
     # Should show classifier info
     assert "BUG" in r.text
     assert "MAJOR" in r.text
+    assert "sort_by=status" in r.text
+    assert "sort_by=type" in r.text
+    assert "sort_by=priority" in r.text
+    assert 'hx-target="#issues-table-full"' in r.text
+    assert 'hx-target="body"' not in r.text
+
+    for sort_by in ("status", "severity", "rule", "type", "priority", "file"):
+        r = client.get(f"/ui/issues?project_id={project_id}&sort_by={sort_by}&order=asc")
+        assert r.status_code == 200
