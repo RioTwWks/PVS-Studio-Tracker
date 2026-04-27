@@ -54,13 +54,25 @@
             </div>
             <div class="sq-card-body">
                 {% if current_user %}
-                <form action="/ui/projects" method="post" id="create-project-form">
+                <form action="/ui/projects" method="post" enctype="multipart/form-data" id="create-project-form">
                     <div class="sq-form-group">
                         <label class="sq-form-label" data-i18n="project_name_label">Project Name</label>
                         <div class="sq-input-group">
                             <span class="sq-input-group-icon"><i class="bi bi-tag"></i></span>
                             <input type="text" name="project_name" class="sq-input" data-i18n-placeholder="project_name_placeholder" placeholder="MyProject" required>
                         </div>
+                    </div>
+
+                    <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="report_file_label">Report File (JSON)</label>
+                        <input type="file" name="file" class="sq-input sq-file-input" accept=".json">
+                        <small class="text-muted">Optional: leave empty to create a project without analysis data</small>
+                    </div>
+
+                    <div class="sq-form-group">
+                        <label class="sq-form-label">Code Snapshot (.json.gz)</label>
+                        <input type="file" name="code_snapshot" class="sq-input sq-file-input" accept=".json.gz">
+                        <small class="text-muted">Optional: CI-generated snapshot for exact code viewing</small>
                     </div>
 
                     <div class="row g-2 mb-3">
@@ -80,8 +92,16 @@
                         </div>
                     </div>
 
+                    <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="commit_label">Commit</label>
+                        <div class="sq-input-group">
+                            <span class="sq-input-group-icon"><i class="bi bi-git"></i></span>
+                            <input type="text" name="commit" class="sq-input" data-i18n-placeholder="commit_placeholder" placeholder="abc1234">
+                        </div>
+                    </div>
+
                     <button type="submit" class="sq-btn sq-btn-primary w-100">
-                        <i class="bi bi-folder-plus"></i> Create Empty Project
+                        <i class="bi bi-folder-plus"></i> Create Project
                     </button>
                 </form>
                 {% else %}

@@ -1054,7 +1054,13 @@ a:hover {
 }
 
 .sq-file-input {
+  display: block;
+  width: 100%;
   padding: var(--sq-spacing-sm);
+  color: var(--sq-text-primary);
+  background: var(--sq-bg-secondary);
+  border: 1px solid var(--sq-border);
+  border-radius: var(--sq-radius-sm);
 }
 
 .sq-input-group {

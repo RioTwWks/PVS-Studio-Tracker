@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker import main
-from pvs_tracker.models import Project
+from pvs_tracker.models import Project, Run
 
 SAMPLE_REPORT = {
     "version": 3,
@@ -137,6 +137,37 @@ def test_create_empty_project_from_ui(client):
     assert r.status_code == 200
     assert "No analysis data yet" in r.text
     assert "Upload" in r.text
+
+
+def test_create_project_from_ui_with_optional_report(client):
+    client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
+
+    with open("reports/smoke_test.json", "rb") as f:
+        r = client.post(
+            "/ui/projects",
+            data={
+                "project_name": "project-with-report",
+                "branch": "feature/one",
+                "language": "c++",
+                "commit": "abc1234",
+            },
+            files={"file": ("smoke_test.json", f, "application/json")},
+            follow_redirects=False,
+        )
+
+    assert r.status_code == 303
+    assert "/ui/projects/" in r.headers["location"]
+    assert "/dashboard" in r.headers["location"]
+
+    with Session(main.engine) as session:
+        project = session.exec(select(Project).where(Project.name == "project-with-report")).first()
+        assert project is not None
+        assert project.git_branch == "feature/one"
+        run = session.exec(select(Run).where(Run.project_id == project.id)).first()
+        assert run is not None
+        assert run.branch == "feature/one"
+        assert run.commit == "abc1234"
+        assert run.status == "done"
 
 
 def test_admin_can_delete_project_from_ui(client):

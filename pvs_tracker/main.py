@@ -260,10 +260,13 @@ async def create_project_ui(
     project_name: str = Form(...),
     branch: str = Form("main"),
     language: str = Form("c++"),
+    file: UploadFile = Form(None),
+    code_snapshot: UploadFile = Form(None),
+    commit: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
-    """Create an empty project from the web UI."""
+    """Create a project from the web UI, optionally with an initial report."""
     name = project_name.strip()
     if not name:
         projects = session.exec(select(Project).order_by(Project.name)).all()
@@ -280,6 +283,18 @@ async def create_project_ui(
 
     project = session.exec(select(Project).where(Project.name == name)).first()
     if project:
+        if file and file.filename:
+            return await upload_report_ui(
+                request=request,
+                project_name=name,
+                file=file,
+                source_archive=None,
+                code_snapshot=code_snapshot,
+                commit=commit,
+                branch=(branch or project.git_branch or "main").strip() or "main",
+                session=session,
+                _user=_user,
+            )
         return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
 
     default_branch = (branch or "main").strip() or "main"
@@ -287,6 +302,19 @@ async def create_project_ui(
     session.add(project)
     session.commit()
     session.refresh(project)
+
+    if file and file.filename:
+        return await upload_report_ui(
+            request=request,
+            project_name=name,
+            file=file,
+            source_archive=None,
+            code_snapshot=code_snapshot,
+            commit=commit,
+            branch=default_branch,
+            session=session,
+            _user=_user,
+        )
 
     return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
 
