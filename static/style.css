@@ -1798,6 +1798,18 @@ a:hover {
   gap: var(--sq-spacing-xs);
 }
 
+.sq-table td.sq-actions {
+  display: table-cell;
+  text-align: right;
+  vertical-align: middle;
+}
+
+.sq-code-action-btn {
+  min-width: 72px;
+  height: 30px;
+  padding: 4px 10px;
+}
+
 .sq-text-center {
   text-align: center;
 }
@@ -2001,6 +2013,11 @@ Code Viewer (SonarQube-style)
   display: block !important;
 }
 
+.sq-code-block > code {
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
 /* Annotations Panel */
 .sq-annotations-panel {
   flex: 0 0 140px;
@@ -2169,6 +2186,17 @@ Code Viewer (SonarQube-style)
   display: inline !important;
   white-space: pre !important;
   line-height: inherit !important;
+}
+
+.sq-code-line-code {
+  display: inline !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+  font-size: 13px !important;
+  line-height: 19.5px !important;
+  white-space: pre !important;
 }
 
 .sq-snippet-target .sq-snippet-num {
@@ -2386,6 +2414,40 @@ Code Viewer (SonarQube-style)
   word-wrap: normal !important;
   overflow-wrap: normal !important;
   word-break: normal !important;
+}
+
+/* Inline code inside Issues expands to full snippet height; no inner vertical scroll. */
+.sq-inline-code-content .sq-code-viewer-body {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.sq-inline-code-content .sq-line-numbers {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.sq-inline-code-content .sq-code-scroll-area {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+.sq-inline-code-content .sq-annotations-panel {
+  padding: 0 6px !important;
+  overflow: hidden !important;
+}
+
+.sq-inline-code-content .sq-code-block {
+  padding: 0 16px !important;
+  overflow: visible !important;
+}
+
+.sq-inline-code-content .sq-snippet-line,
+.sq-inline-code-content .sq-line-num,
+.sq-inline-code-content .sq-annotation-row {
+  height: 19.5px !important;
+  min-height: 19.5px !important;
+  line-height: 19.5px !important;
 }
 
 /* ============================================================

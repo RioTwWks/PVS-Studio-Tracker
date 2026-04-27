@@ -118,7 +118,7 @@
                 </td>
                 <td class="sq-actions">
                     {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
-                        <button class="sq-btn sq-btn-sm sq-btn-outline" 
+                        <button class="sq-btn sq-btn-sm sq-btn-outline sq-code-action-btn" 
                                 hx-get="/ui/file?project_id={{ project_id }}&file_path={{ issue.file_path|urlencode }}&line={{ issue.line }}&run_id={{ run_id }}&context=10"
                                 hx-target="#code-content-{{ issue.id }}"
                                 hx-swap="innerHTML"

@@ -174,10 +174,11 @@ async def view_code(
     warnings_by_line = {}
     classifier_map = {}
     if run:
+        normalized_file_path = file_path.replace("\\", "/")
         issues = session.exec(
             select(Issue).where(
                 Issue.run_id == run.id,
-                Issue.file_path == file_path.replace("\\", "/"),
+                Issue.file_path.in_([file_path, normalized_file_path]),
                 Issue.status.in_(["new", "existing"]),
             )
         ).all()
@@ -208,9 +209,11 @@ async def view_code(
             "file_path": file_path,
             "file_name": _extract_file_name(file_path),
             "content": content,
+            "lines": lines,
             "language": lang,
             "warnings_by_line": warnings_by_line,
-            "target_line": target_display_line,  # Может быть None, но шаблон теперь это обрабатывает
+            "target_line": line,
+            "target_display_line": target_display_line,
             "run_id": run.id if run else None,
             "error": error,
             "classifier_map": classifier_map,

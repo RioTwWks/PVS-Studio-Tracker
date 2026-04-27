@@ -462,15 +462,11 @@ const CodeViewer = (() => {
   }
 
   function highlightCode() {
-    const codeBlock = document.querySelector('.sq-code-block code');
-    if (!codeBlock || typeof Prism === 'undefined') return;
-
-    // Сбрасываем, если Prism уже подсветил
-    if (codeBlock.classList.contains('language-') || codeBlock.getAttribute('data-highlighted')) {
+    if (typeof Prism === 'undefined') return;
+    document.querySelectorAll('.sq-code-line-code').forEach((codeBlock) => {
       codeBlock.removeAttribute('data-highlighted');
-    }
-    
-    Prism.highlightElement(codeBlock);
+      Prism.highlightElement(codeBlock);
+    });
   }
 
   function scrollToTarget() {

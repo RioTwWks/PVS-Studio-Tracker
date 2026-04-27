@@ -15,7 +15,7 @@
       </div>
       <div class="sq-viewer-actions">
         <span class="sq-badge" title="Source: {{ source_type }}">📦 {{ source_type }}</span>
-        <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="navigator.clipboard.writeText(document.querySelector('.sq-code-block code').innerText)" title="Copy code">
+        <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="navigator.clipboard.writeText(Array.from(document.querySelectorAll('.sq-code-line-code')).map((el) => el.innerText).join('\n'))" title="Copy code">
           <i class="bi bi-clipboard"></i>
         </button>
       </div>
@@ -27,30 +27,25 @@
       <div class="sq-scroll-master-wrapper">
           <div class="sq-line-numbers" id="sq-line-numbers">
               {% for ln in range(1, total_lines + 1) %}
-                  <div class="sq-line-num">{{ ln + line_offset }}</div>
+                  <div class="sq-line-num" data-line="{{ ln + line_offset }}">{{ ln + line_offset }}</div>
               {% endfor %}
           </div>
           <div class="sq-code-scroll-area" id="sq-code-scroll">
-              <pre class="sq-code-block" data-target="{{ target_display_line }}">
-              <code class="language-{{ language }}">
+              <pre class="sq-code-block" data-target="{{ target_display_line }}"><code>
               {% for ln in range(1, total_lines + 1) %}
                   {% set actual_line = ln + line_offset %}
                   {# 🔑 Добавляем класс sq-snippet-target если это целевая строка #}
-                  <span class="sq-snippet-line{% if actual_line == target_display_line %} sq-snippet-target{% endif %}">
-                      <span class="sq-snippet-num">{{ actual_line }}</span>
-                      <code class="language-{{ language }}">{{ lines[ln-1]|e }}</code>
-                  </span>
+                  <span class="sq-snippet-line{% if actual_line == target_line %} sq-snippet-target{% endif %}"><span class="sq-code-line-code language-{{ language }}">{{ lines[ln-1]|e }}</span></span>
               {% endfor %}
-              </code>
-              </pre>
+              </code></pre>
           </div>
       </div>
 
       {# Right: Annotations #}
       <div class="sq-annotations-panel" id="sq-annotations-panel">
-        {% for ln, issues in warnings_by_line.items() %}
+        {% for ln in range(1, total_lines + 1) %}
           <div class="sq-annotation-row" data-line="{{ ln }}">
-            {% for issue in issues %}
+            {% for issue in warnings_by_line.get(ln, []) %}
               <span class="sq-annotation-badge sq-sev-{{ issue.severity|lower }}" title="{{ issue.message }}">
                 {{ issue.rule_code }}
               </span>
@@ -65,10 +60,9 @@
 <script>
 if (typeof Prism !== 'undefined') {
     setTimeout(function() {
-        const codeElement = document.querySelector('.sq-code-block code');
-        if (codeElement) {
+        document.querySelectorAll('.sq-code-line-code').forEach((codeElement) => {
             Prism.highlightElement(codeElement);
-        }
+        });
     }, 100);
 }
 
