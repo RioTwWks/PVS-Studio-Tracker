@@ -23,7 +23,7 @@
             {% if history and history|length > 0 %}
             {% set latest = history[-1] %}
             <p class="sq-project-meta">
-                <i class="bi bi-calendar3"></i> Last analysis: {{ latest.timestamp }}
+                <i class="bi bi-calendar3"></i> <span data-i18n="last_analysis">Last analysis</span>: {{ latest.timestamp }}
                 {% if branches and branches|length > 0 %}
                 <span class="sq-branch-inline">
                     <i class="bi bi-diagram-3"></i>
@@ -72,13 +72,13 @@
             <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" data-tab="trends" onclick="switchProjectTab('trends')">
                     <i class="bi bi-graph-up"></i>
-                    <span>Trends</span>
+                    <span data-i18n="tab_trends">Trends</span>
                 </button>
             </li>
             <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" data-tab="upload" onclick="switchProjectTab('upload')">
                     <i class="bi bi-cloud-arrow-up"></i>
-                    <span>Upload</span>
+                    <span data-i18n="tab_upload">Upload</span>
                 </button>
             </li>
             <li class="sq-project-tab">

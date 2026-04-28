@@ -3,10 +3,10 @@
         <div class="sq-card">
             <div class="sq-card-header sq-card-header-actions">
                 <div>
-                    <i class="bi bi-list-ul"></i> Issues
+                    <i class="bi bi-list-ul"></i> <span data-i18n="tab_issues">Issues</span>
                     {% if history and history|length > 0 %}
                     {% set latest = history[-1] %}
-                    <span class="sq-issues-count">{{ latest.total }} total</span>
+                    <span class="sq-issues-count">{{ latest.total }} <span data-i18n="total_lower">total</span></span>
                     {% endif %}
                 </div>
                 <button class="sq-btn sq-btn-sm sq-btn-outline" type="button" data-bs-toggle="collapse" data-bs-target="#filters-collapse" aria-expanded="false">
@@ -22,33 +22,33 @@
                         <input type="hidden" name="branch" value="{{ active_branch }}">
 
                         <div class="sq-filter-group">
-                            <label class="sq-filter-label">Severity</label>
+                            <label class="sq-filter-label" data-i18n="severity_label">Severity</label>
                             <select name="severity" class="sq-select">
-                                <option value="">All</option>
-                                <option value="High">High</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Low">Low</option>
+                                <option value="" data-i18n="severity_all">All</option>
+                                <option value="High" data-i18n="severity_high">High</option>
+                                <option value="Medium" data-i18n="severity_medium">Medium</option>
+                                <option value="Low" data-i18n="severity_low">Low</option>
                             </select>
                         </div>
 
                         <div class="sq-filter-group">
-                            <label class="sq-filter-label">Status</label>
+                            <label class="sq-filter-label" data-i18n="status_label">Status</label>
                             <select name="status_filter" class="sq-select">
-                                <option value="">Active</option>
-                                <option value="new">New only</option>
-                                <option value="existing">Existing only</option>
-                                <option value="fixed">Fixed only</option>
+                                <option value="" data-i18n="status_active">Active</option>
+                                <option value="new" data-i18n="status_new_only">New only</option>
+                                <option value="existing" data-i18n="status_existing_only">Existing only</option>
+                                <option value="fixed" data-i18n="status_fixed_only">Fixed only</option>
                             </select>
                         </div>
 
                         <div class="sq-filter-group sq-filter-search">
-                            <label class="sq-filter-label">Search</label>
-                            <input type="text" name="q" class="sq-input" placeholder="File, rule, messageвЂ¦">
+                            <label class="sq-filter-label" data-i18n="search_label">Search</label>
+                            <input type="text" name="q" class="sq-input" data-i18n-placeholder="search_placeholder" placeholder="File, rule, message...">
                         </div>
 
                         <div class="sq-filter-actions">
                             <button type="submit" class="sq-btn sq-btn-primary sq-btn-sm">
-                                <i class="bi bi-search"></i> Apply
+                                <i class="bi bi-search"></i> <span data-i18n="apply_button">Apply</span>
                             </button>
                         </div>
                     </form>
@@ -59,9 +59,9 @@
                 <div id="issues-table-full" hx-get="/ui/issues?project_id={{ project.id }}{% if active_branch %}&branch={{ active_branch }}{% endif %}" hx-trigger="load">
                     <div class="sq-loading">
                         <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">LoadingвЂ¦</span>
+                            <span class="visually-hidden" data-i18n="loading_data">Loading...</span>
                         </div>
-                        <span>Loading issuesвЂ¦</span>
+                        <span data-i18n="loading_issues">Loading issues...</span>
                     </div>
                 </div>
             </div>

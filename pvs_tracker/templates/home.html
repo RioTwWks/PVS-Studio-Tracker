@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}PVS-Tracker — <span data-i18n="app_title">Home</span>{% endblock %}
+{% block title %}PVS-Tracker{% endblock %}
 {% block content %}
 
 <div class="sq-page-header text-center mb-5">
@@ -50,7 +50,7 @@
     <div class="col-md-6">
         <div class="sq-card h-100">
             <div class="sq-card-header">
-                <i class="bi bi-folder-plus"></i> Create Project
+                <i class="bi bi-folder-plus"></i> <span data-i18n="create_project">Create Project</span>
             </div>
             <div class="sq-card-body">
                 {% if current_user %}
@@ -66,13 +66,13 @@
                     <div class="sq-form-group">
                         <label class="sq-form-label" data-i18n="report_file_label">Report File (JSON)</label>
                         <input type="file" name="file" class="sq-input sq-file-input" accept=".json">
-                        <small class="text-muted">Optional: leave empty to create a project without analysis data</small>
+                        <small class="text-muted" data-i18n="report_file_hint">Optional: leave empty to create a project without analysis data</small>
                     </div>
 
                     <div class="sq-form-group">
-                        <label class="sq-form-label">Code Snapshot (.json.gz)</label>
+                        <label class="sq-form-label" data-i18n="code_snapshot_label">Code Snapshot (.json.gz)</label>
                         <input type="file" name="code_snapshot" class="sq-input sq-file-input" accept=".json.gz">
-                        <small class="text-muted">Optional: CI-generated snapshot for exact code viewing</small>
+                        <small class="text-muted" data-i18n="code_snapshot_hint">Optional: CI-generated snapshot for exact code viewing</small>
                     </div>
 
                     <div class="row g-2 mb-3">
@@ -84,7 +84,7 @@
                             </div>
                         </div>
                         <div class="col-sm-6">
-                            <label class="sq-form-label">Language</label>
+                            <label class="sq-form-label" data-i18n="language_label">Language</label>
                             <div class="sq-input-group">
                                 <span class="sq-input-group-icon"><i class="bi bi-code-square"></i></span>
                                 <input type="text" name="language" class="sq-input" placeholder="c++" value="c++">
@@ -101,13 +101,13 @@
                     </div>
 
                     <button type="submit" class="sq-btn sq-btn-primary w-100">
-                        <i class="bi bi-folder-plus"></i> Create Project
+                        <i class="bi bi-folder-plus"></i> <span data-i18n="create_project">Create Project</span>
                     </button>
                 </form>
                 {% else %}
                 <div class="sq-empty-state">
                     <div class="sq-empty-icon"><i class="bi bi-lock" style="font-size: 3rem; opacity: 0.3;"></i></div>
-                    <p class="mb-2">Login to create projects.</p>
+                    <p class="mb-2" data-i18n="login_to_create_projects">Login to create projects.</p>
                     <a href="/login" class="sq-btn sq-btn-primary">
                         <i class="bi bi-box-arrow-in-right"></i> <span data-i18n="login">Login</span>
                     </a>

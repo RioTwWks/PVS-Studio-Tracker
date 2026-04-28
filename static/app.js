@@ -73,7 +73,14 @@ const I18n = (() => {
             const value = t(key);
             
             try {
-                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                if (el.getAttribute('data-i18n-attr') === 'title') {
+                    el.title = value;
+                } else if (el.getAttribute('data-i18n-attr') === 'aria-label') {
+                    el.setAttribute('aria-label', value);
+                } else if (el.getAttribute('data-i18n-attr') === 'title aria-label') {
+                    el.title = value;
+                    el.setAttribute('aria-label', value);
+                } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
                     if (el.getAttribute('data-i18n-attr') === 'placeholder') {
                         el.placeholder = value;
                     } else {
@@ -605,6 +612,8 @@ document.addEventListener('DOMContentLoaded', () => {
 HTMX Event Enhancements — Unified Handler
 ============================================================ */
 document.addEventListener('htmx:afterSwap', (e) => {
+    I18n.applyLanguage(I18n.getPreferredLang());
+
     // Re-highlight code blocks inserted by HTMX
     if (e.detail.target.closest('.sq-inline-code-content') || 
         e.detail.target.classList.contains('sq-inline-code-content')) {
@@ -632,13 +641,13 @@ async function toggleInlineCode(btn, issueId) {
     if (isVisible) {
         // Закрыть и вернуть кнопке исходный вид
         row.style.display = 'none';
-        btn.innerHTML = '<i class="bi bi-code-slash"></i> Code';
+        btn.innerHTML = `<i class="bi bi-code-slash"></i> ${I18n.t('tab_code')}`;
         return;
     }
 
     // Показать строку и сменить кнопку на Close
     row.style.display = 'table-row';
-    btn.innerHTML = '<i class="bi bi-x"></i> Close';
+    btn.innerHTML = `<i class="bi bi-x"></i> ${I18n.t('close')}`;
 
     const content = document.getElementById('code-content-' + issueId);
     if (content && content.dataset.loaded === 'true') {
@@ -652,7 +661,7 @@ async function toggleInlineCode(btn, issueId) {
     const projectId = btn.dataset.projectId;
     const runId = btn.dataset.runId;
 
-    content.innerHTML = '<div class="sq-loading">Loading code...</div>';
+    content.innerHTML = `<div class="sq-loading">${I18n.t('loading_code')}</div>`;
 
     try {
         const params = new URLSearchParams({

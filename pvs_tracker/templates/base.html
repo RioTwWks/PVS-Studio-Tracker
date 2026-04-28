@@ -31,16 +31,16 @@
                 </a>
             </div>
             <div class="sq-header-right">
-                <button class="sq-header-btn" id="lang-toggle" onclick="I18n.toggle()" title="Switch language" aria-label="Switch language">
+                <button class="sq-header-btn" id="lang-toggle" onclick="I18n.toggle()" title="Switch language" aria-label="Switch language" data-i18n="toggle_lang" data-i18n-attr="title aria-label">
                     <i class="bi bi-translate"></i>
                     <span class="btn-label">EN</span>
                 </button>
-                <button class="sq-header-btn" onclick="ThemeManager.toggle()" title="Switch theme" aria-label="Switch theme">
+                <button class="sq-header-btn" onclick="ThemeManager.toggle()" title="Switch theme" aria-label="Switch theme" data-i18n="toggle_theme" data-i18n-attr="title aria-label">
                     <i class="bi bi-sun-fill sq-icon-sun"></i>
                     <i class="bi bi-moon-fill sq-icon-moon"></i>
                 </button>
                 {% if current_user and current_user == 'admin' %}
-                <a href="/ui/settings/global" class="sq-header-btn" title="Global Settings">
+                <a href="/ui/settings/global" class="sq-header-btn" title="Global Settings" data-i18n="global_settings" data-i18n-attr="title">
                     <i class="bi bi-globe"></i>
                 </a>
                 {% endif %}
@@ -50,7 +50,7 @@
                         {{ current_user[0]|upper }}
                     </div>
                     <span class="sq-username">{{ current_user }}</span>
-                    <a href="/logout" class="sq-header-btn" title="Logout">
+                    <a href="/logout" class="sq-header-btn" title="Logout" data-i18n="logout" data-i18n-attr="title">
                         <i class="bi bi-box-arrow-right"></i>
                     </a>
                 </div>
@@ -89,33 +89,33 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-globe"></i> Global Settings</h5>
+                    <h5 class="modal-title"><i class="bi bi-globe"></i> <span data-i18n="global_settings">Global Settings</span></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="global-settings-form">
                         <div class="sq-form-group">
-                            <label class="sq-form-label">Default Source Root (Windows)</label>
+                            <label class="sq-form-label" data-i18n="default_source_root_win">Default Source Root (Windows)</label>
                             <input type="text" id="global-root-win" class="sq-input" 
                                 placeholder="C:\Projects\src">
-                            <small class="text-muted">Used when project has no custom source root</small>
+                            <small class="text-muted" data-i18n="default_source_root_hint">Used when project has no custom source root</small>
                         </div>
                         <div class="sq-form-group">
-                            <label class="sq-form-label">Default Source Root (Linux)</label>
+                            <label class="sq-form-label" data-i18n="default_source_root_linux">Default Source Root (Linux)</label>
                             <input type="text" id="global-root-linux" class="sq-input" 
                                 placeholder="/home/user/projects/src">
                         </div>
                         <div class="sq-form-group">
-                            <label class="sq-form-label">Default Git Branch</label>
+                            <label class="sq-form-label" data-i18n="default_git_branch">Default Git Branch</label>
                             <input type="text" id="global-git-branch" class="sq-input" 
                                 value="main" placeholder="main">
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="sq-btn sq-btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="sq-btn sq-btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">Cancel</button>
                     <button type="button" class="sq-btn sq-btn-primary" onclick="saveGlobalSettings()">
-                        <i class="bi bi-check-lg"></i> Save
+                        <i class="bi bi-check-lg"></i> <span data-i18n="save">Save</span>
                     </button>
                     <span id="global-settings-status" class="sq-form-status ms-2"></span>
                 </div>
@@ -142,14 +142,14 @@
             }
             modal.show();
         } catch (e) {
-            status.textContent = 'Error loading settings';
+            status.textContent = I18n.t('error_loading_settings');
             status.style.color = '#dc3545';
         }
     }
 
     async function saveGlobalSettings() {
         const status = document.getElementById('global-settings-status');
-        status.textContent = 'Saving...';
+        status.textContent = I18n.t('saving');
         status.style.color = '#6c757d';
         
         try {
@@ -167,7 +167,7 @@
             });
             
             if (resp.ok) {
-                status.textContent = '✓ Saved';
+                status.textContent = '✓ ' + I18n.t('saved');
                 status.style.color = '#198754';
                 setTimeout(() => {
                     bootstrap.Modal.getInstance(document.getElementById('globalSettingsModal')).hide();
@@ -175,11 +175,11 @@
                 }, 1500);
             } else {
                 const err = await resp.json();
-                status.textContent = '✗ ' + (err.detail || 'Error');
+                status.textContent = '✗ ' + (err.detail || I18n.t('error'));
                 status.style.color = '#dc3545';
             }
         } catch (e) {
-            status.textContent = '✗ Network error';
+            status.textContent = '✗ ' + I18n.t('network_error');
             status.style.color = '#dc3545';
         }
     }

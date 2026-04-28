@@ -3,12 +3,12 @@
         <div class="sq-file-browser-container">
             {# Search #}
             <div class="sq-file-browser-search">
-                <input type="text" id="file-search" class="sq-input" placeholder="Search files..." onkeyup="filterFileTree(this.value)">
+                <input type="text" id="file-search" class="sq-input" data-i18n-placeholder="search_files_placeholder" placeholder="Search files..." onkeyup="filterFileTree(this.value)">
             </div>
             
             {# File Tree #}
             <div id="file-tree" class="sq-file-tree">
-                <div class="sq-loading">Loading file structure...</div>
+                <div class="sq-loading" data-i18n="loading_file_structure">Loading file structure...</div>
             </div>
             
             {# Inline Code Viewer #}
@@ -16,7 +16,7 @@
                 <div class="sq-code-viewer-header">
                     <span id="code-viewer-file-path" class="sq-file-name"></span>
                     <button class="sq-btn sq-btn-sm sq-btn-outline" onclick="closeCodeViewer()">
-                        <i class="bi bi-x"></i> Close
+                        <i class="bi bi-x"></i> <span data-i18n="close">Close</span>
                     </button>
                 </div>
                 <div id="code-viewer-content"></div>
@@ -59,13 +59,13 @@
             .catch(error => {
                 console.error("рџ’Ґ Error:", error);
                 document.getElementById('file-tree').innerHTML = 
-                    `<div class="sq-alert sq-alert-danger">Error: ${error.message}<br><small>Check console for details</small></div>`;
+                    `<div class="sq-alert sq-alert-danger">${I18n.t('error')}: ${error.message}<br><small>${I18n.t('check_console_details')}</small></div>`;
             });
     }
 
     function renderFileTree(items, level = 0) {
         if (!items || items.length === 0) {
-            return '<div class="sq-empty-state">No files with warnings</div>';
+            return `<div class="sq-empty-state">${I18n.t('no_files_with_warnings')}</div>`;
         }
         
         let html = '<ul class="sq-file-tree-list" style="list-style:none;padding:0;margin:0;">';
@@ -132,7 +132,7 @@
         const pathLabel = document.getElementById('code-viewer-file-path');
         
         viewer.style.display = 'block';
-        content.innerHTML = '<div class="sq-loading">Loading...</div>';
+        content.innerHTML = `<div class="sq-loading">${I18n.t('loading')}</div>`;
         pathLabel.textContent = filePath;
         
         try {
@@ -180,11 +180,11 @@
                     }, 50);
                 }
             } else {
-                content.innerHTML = '<div class="sq-alert sq-alert-danger">Failed to load code</div>';
+                content.innerHTML = `<div class="sq-alert sq-alert-danger">${I18n.t('failed_to_load_code')}</div>`;
             }
         } catch (e) {
             console.error("рџ’Ґ Error:", e);
-            content.innerHTML = `<div class="sq-alert sq-alert-danger">Error: ${e.message}</div>`;
+            content.innerHTML = `<div class="sq-alert sq-alert-danger">${I18n.t('error')}: ${e.message}</div>`;
         }
     }
 

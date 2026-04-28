@@ -16,14 +16,14 @@
                         {% endif %}
                     </div>
                     <div class="sq-quality-gate-strip-content">
-                        <div class="sq-quality-gate-strip-label">Quality Gate</div>
+                        <div class="sq-quality-gate-strip-label" data-i18n="quality_gate">Quality Gate</div>
                         <div class="sq-quality-gate-strip-status {% if latest.new == 0 %}sq-status-passed{% else %}sq-status-failed{% endif %}">
-                            {% if latest.new == 0 %}Passed{% else %}Failed{% endif %}
+                            {% if latest.new == 0 %}<span data-i18n="passed">Passed</span>{% else %}<span data-i18n="failed">Failed</span>{% endif %}
                         </div>
                         {% if latest.new > 0 %}
                         <div class="sq-quality-gate-strip-condition">
                             <span class="sq-condition-item">
-                                <span class="sq-condition-label">New Issues</span>
+                                <span class="sq-condition-label" data-i18n="new_issues">New Issues</span>
                                 <span class="sq-condition-value sq-condition-failed">{{ latest.new }}</span>
                             </span>
                         </div>
@@ -32,11 +32,11 @@
                 </div>
                 <div class="sq-quality-gate-strip-right">
                     <div class="sq-gate-stat">
-                        <div class="sq-gate-stat-label">Total</div>
+                        <div class="sq-gate-stat-label" data-i18n="total">Total</div>
                         <div class="sq-gate-stat-value">{{ latest.total }}</div>
                     </div>
                     <div class="sq-gate-stat">
-                        <div class="sq-gate-stat-label">Fixed</div>
+                        <div class="sq-gate-stat-label" data-i18n="fixed">Fixed</div>
                         <div class="sq-gate-stat-value sq-gate-stat-fixed">{{ latest.fixed }}</div>
                     </div>
                 </div>
@@ -49,8 +49,8 @@
             <div class="sq-metric-section">
                 <div class="sq-metric-section-header">
                     <i class="bi bi-plus-circle"></i>
-                    <h3 class="sq-metric-section-title">New Code</h3>
-                    <span class="sq-metric-section-badge">{{ latest.new }} new issues</span>
+                    <h3 class="sq-metric-section-title" data-i18n="new_code">New Code</h3>
+                    <span class="sq-metric-section-badge">{{ latest.new }} <span data-i18n="new_issues_lower">new issues</span></span>
                 </div>
                 <div class="sq-metric-section-body">
                     <div class="sq-metric-tile">
@@ -58,11 +58,11 @@
                             <i class="bi bi-bug"></i>
                         </div>
                         <div class="sq-metric-tile-content">
-                            <div class="sq-metric-tile-label">Reliability</div>
+                            <div class="sq-metric-tile-label" data-i18n="reliability">Reliability</div>
                             <div class="sq-metric-tile-value {% if latest.new == 0 %}sq-rating-a{% elif latest.new <= 5 %}sq-rating-b{% elif latest.new <= 20 %}sq-rating-c{% elif latest.new <= 50 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
                                 {% if latest.new == 0 %}A{% elif latest.new <= 5 %}B{% elif latest.new <= 20 %}C{% elif latest.new <= 50 %}D{% else %}E{% endif %}
                             </div>
-                            <div class="sq-metric-tile-subtitle">{{ latest.new }} issues</div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.new }} <span data-i18n="issues_lower">issues</span></div>
                         </div>
                     </div>
 
@@ -71,11 +71,11 @@
                             <i class="bi bi-shield-lock"></i>
                         </div>
                         <div class="sq-metric-tile-content">
-                            <div class="sq-metric-tile-label">Security</div>
+                            <div class="sq-metric-tile-label" data-i18n="security">Security</div>
                             <div class="sq-metric-tile-value {% if latest.new == 0 %}sq-rating-a{% elif latest.new <= 3 %}sq-rating-b{% elif latest.new <= 10 %}sq-rating-c{% elif latest.new <= 20 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
                                 {% if latest.new == 0 %}A{% elif latest.new <= 3 %}B{% elif latest.new <= 10 %}C{% elif latest.new <= 20 %}D{% else %}E{% endif %}
                             </div>
-                            <div class="sq-metric-tile-subtitle">{{ latest.new }} vulnerabilities</div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.new }} <span data-i18n="vulnerabilities_lower">vulnerabilities</span></div>
                         </div>
                     </div>
 
@@ -84,21 +84,21 @@
                             <i class="bi bi-gear"></i>
                         </div>
                         <div class="sq-metric-tile-content">
-                            <div class="sq-metric-tile-label">Maintainability</div>
+                            <div class="sq-metric-tile-label" data-i18n="maintainability">Maintainability</div>
                             <div class="sq-metric-tile-value {% if latest.new == 0 %}sq-rating-a{% elif latest.new <= 5 %}sq-rating-b{% elif latest.new <= 20 %}sq-rating-c{% elif latest.new <= 50 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
                                 {% if latest.new == 0 %}A{% elif latest.new <= 5 %}B{% elif latest.new <= 20 %}C{% elif latest.new <= 50 %}D{% else %}E{% endif %}
                             </div>
-                            <div class="sq-metric-tile-subtitle">{{ latest.new }} code smells</div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.new }} <span data-i18n="code_smells_lower">code smells</span></div>
                         </div>
                     </div>
 
                     <div class="sq-metric-summary-list">
                         <div class="sq-metric-summary-item">
-                            <span class="sq-metric-summary-label"><i class="bi bi-plus-circle"></i> New Issues</span>
+                            <span class="sq-metric-summary-label"><i class="bi bi-plus-circle"></i> <span data-i18n="new_issues">New Issues</span></span>
                             <span class="sq-metric-summary-value {% if latest.new > 0 %}sq-metric-warning{% endif %}">{{ latest.new }}</span>
                         </div>
                         <div class="sq-metric-summary-item">
-                            <span class="sq-metric-summary-label"><i class="bi bi-check-circle"></i> Fixed</span>
+                            <span class="sq-metric-summary-label"><i class="bi bi-check-circle"></i> <span data-i18n="fixed">Fixed</span></span>
                             <span class="sq-metric-summary-value sq-metric-success">{{ latest.fixed }}</span>
                         </div>
                     </div>
@@ -109,8 +109,8 @@
             <div class="sq-metric-section">
                 <div class="sq-metric-section-header">
                     <i class="bi bi-code-square"></i>
-                    <h3 class="sq-metric-section-title">Overall Code</h3>
-                    <span class="sq-metric-section-badge">{{ latest.total }} total issues</span>
+                    <h3 class="sq-metric-section-title" data-i18n="overall_code">Overall Code</h3>
+                    <span class="sq-metric-section-badge">{{ latest.total }} <span data-i18n="total_issues_lower">total issues</span></span>
                 </div>
                 <div class="sq-metric-section-body">
                     <div class="sq-metric-tile">
@@ -118,11 +118,11 @@
                             <i class="bi bi-bug"></i>
                         </div>
                         <div class="sq-metric-tile-content">
-                            <div class="sq-metric-tile-label">Reliability</div>
+                            <div class="sq-metric-tile-label" data-i18n="reliability">Reliability</div>
                             <div class="sq-metric-tile-value {% if latest.total == 0 %}sq-rating-a{% elif latest.total <= 10 %}sq-rating-b{% elif latest.total <= 30 %}sq-rating-c{% elif latest.total <= 100 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
                                 {% if latest.total == 0 %}A{% elif latest.total <= 10 %}B{% elif latest.total <= 30 %}C{% elif latest.total <= 100 %}D{% else %}E{% endif %}
                             </div>
-                            <div class="sq-metric-tile-subtitle">{{ latest.total }} issues</div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.total }} <span data-i18n="issues_lower">issues</span></div>
                         </div>
                     </div>
 
@@ -131,11 +131,11 @@
                             <i class="bi bi-shield-lock"></i>
                         </div>
                         <div class="sq-metric-tile-content">
-                            <div class="sq-metric-tile-label">Security</div>
+                            <div class="sq-metric-tile-label" data-i18n="security">Security</div>
                             <div class="sq-metric-tile-value {% if latest.total == 0 %}sq-rating-a{% elif latest.total <= 5 %}sq-rating-b{% elif latest.total <= 20 %}sq-rating-c{% elif latest.total <= 50 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
                                 {% if latest.total == 0 %}A{% elif latest.total <= 5 %}B{% elif latest.total <= 20 %}C{% elif latest.total <= 50 %}D{% else %}E{% endif %}
                             </div>
-                            <div class="sq-metric-tile-subtitle">{{ latest.total }} vulnerabilities</div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.total }} <span data-i18n="vulnerabilities_lower">vulnerabilities</span></div>
                         </div>
                     </div>
 
@@ -144,21 +144,21 @@
                             <i class="bi bi-gear"></i>
                         </div>
                         <div class="sq-metric-tile-content">
-                            <div class="sq-metric-tile-label">Maintainability</div>
+                            <div class="sq-metric-tile-label" data-i18n="maintainability">Maintainability</div>
                             <div class="sq-metric-tile-value {% if latest.total == 0 %}sq-rating-a{% elif latest.total <= 10 %}sq-rating-b{% elif latest.total <= 30 %}sq-rating-c{% elif latest.total <= 100 %}sq-rating-d{% else %}sq-rating-e{% endif %}">
                                 {% if latest.total == 0 %}A{% elif latest.total <= 10 %}B{% elif latest.total <= 30 %}C{% elif latest.total <= 100 %}D{% else %}E{% endif %}
                             </div>
-                            <div class="sq-metric-tile-subtitle">{{ latest.total }} code smells</div>
+                            <div class="sq-metric-tile-subtitle">{{ latest.total }} <span data-i18n="code_smells_lower">code smells</span></div>
                         </div>
                     </div>
 
                     <div class="sq-metric-summary-list">
                         <div class="sq-metric-summary-item">
-                            <span class="sq-metric-summary-label"><i class="bi bi-exclamation-triangle"></i> Active Issues</span>
+                            <span class="sq-metric-summary-label"><i class="bi bi-exclamation-triangle"></i> <span data-i18n="active_issues">Active Issues</span></span>
                             <span class="sq-metric-summary-value">{{ latest.total }}</span>
                         </div>
                         <div class="sq-metric-summary-item">
-                            <span class="sq-metric-summary-label"><i class="bi bi-check-circle"></i> Total Fixed</span>
+                            <span class="sq-metric-summary-label"><i class="bi bi-check-circle"></i> <span data-i18n="total_fixed">Total Fixed</span></span>
                             <span class="sq-metric-summary-value sq-metric-success">{{ history|sum(attribute='fixed') }}</span>
                         </div>
                     </div>
@@ -169,7 +169,7 @@
         {# Severity Distribution #}
         <div class="sq-card mb-4">
             <div class="sq-card-header">
-                <i class="bi bi-bar-chart-line"></i> Issues by Severity
+                <i class="bi bi-bar-chart-line"></i> <span data-i18n="issues_by_severity">Issues by Severity</span>
             </div>
             <div class="sq-card-body">
                 <div class="sq-severity-chart">
@@ -180,21 +180,21 @@
                     <div class="sq-severity-item sq-severity-high">
                         <div class="sq-severity-bar" style="width: {{ high_pct if high_pct <= 100 else 100 }}%"></div>
                         <div class="sq-severity-label">
-                            <span class="sq-severity-name">High</span>
+                            <span class="sq-severity-name" data-i18n="severity_high">High</span>
                             <span class="sq-severity-count">{{ latest.new }}</span>
                         </div>
                     </div>
                     <div class="sq-severity-item sq-severity-medium">
                         <div class="sq-severity-bar" style="width: {{ medium_pct if medium_pct <= 100 else 100 }}%"></div>
                         <div class="sq-severity-label">
-                            <span class="sq-severity-name">Medium</span>
+                            <span class="sq-severity-name" data-i18n="severity_medium">Medium</span>
                             <span class="sq-severity-count">{{ medium_pct }}%</span>
                         </div>
                     </div>
                     <div class="sq-severity-item sq-severity-low">
                         <div class="sq-severity-bar" style="width: {{ low_pct if low_pct <= 100 else 100 }}%"></div>
                         <div class="sq-severity-label">
-                            <span class="sq-severity-name">Low</span>
+                            <span class="sq-severity-name" data-i18n="severity_low">Low</span>
                             <span class="sq-severity-count">{{ low_pct }}%</span>
                         </div>
                     </div>
@@ -206,8 +206,8 @@
         {# Empty State #}
         <div class="sq-empty-state py-5">
             <div class="sq-empty-icon"><i class="bi bi-inbox" style="font-size: 4rem; opacity: 0.3;"></i></div>
-            <h5 class="mt-3">No analysis data yet</h5>
-            <p class="text-muted">Upload your first PVS-Studio report to see the overview</p>
+            <h5 class="mt-3" data-i18n="no_analysis_data">No analysis data yet</h5>
+            <p class="text-muted" data-i18n="upload_first_for_overview">Upload your first PVS-Studio report to see the overview</p>
         </div>
         {% endif %}
     </div>

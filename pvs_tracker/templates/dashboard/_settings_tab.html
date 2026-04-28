@@ -2,18 +2,18 @@
     <div class="sq-project-tab-content" id="tab-settings" style="display: none;">
         <div class="sq-card">
             <div class="sq-card-header">
-                <i class="bi bi-gear"></i> Project Settings
+                <i class="bi bi-gear"></i> <span data-i18n="project_settings">Project Settings</span>
             </div>
             <div class="sq-card-body">
                 <div class="sq-form-section">
                     <h5 class="sq-section-title">
-                        <i class="bi bi-folder2"></i> Source Roots
+                        <i class="bi bi-folder2"></i> <span data-i18n="source_roots">Source Roots</span>
                     </h5>
-                    <p class="sq-section-desc">Configure the source directories for this project. This helps the code viewer locate files correctly.</p>
+                    <p class="sq-section-desc" data-i18n="source_roots_desc">Configure the source directories for this project. This helps the code viewer locate files correctly.</p>
 
                     <div class="sq-form-group">
                         <label class="sq-form-label">
-                            <i class="bi bi-windows"></i> Windows Source Root
+                            <i class="bi bi-windows"></i> <span data-i18n="windows_source_root">Windows Source Root</span>
                         </label>
                         <input type="text" id="source-root-win" class="sq-input"
                                value="{{ project.source_root_win or '' }}"
@@ -22,7 +22,7 @@
 
                     <div class="sq-form-group">
                         <label class="sq-form-label">
-                            <i class="bi bi-ubuntu"></i> Linux Source Root
+                            <i class="bi bi-ubuntu"></i> <span data-i18n="linux_source_root">Linux Source Root</span>
                         </label>
                         <input type="text" id="source-root-linux" class="sq-input"
                                value="{{ project.source_root_linux or '' }}"
@@ -30,7 +30,7 @@
                     </div>
 
                     <button class="sq-btn sq-btn-primary" onclick="saveSourceRoots()">
-                        <i class="bi bi-check-lg"></i> Save Source Roots
+                        <i class="bi bi-check-lg"></i> <span data-i18n="save_source_roots">Save Source Roots</span>
                     </button>
                     <span id="source-root-status" class="sq-form-status" style="display: none;"></span>
                 </div>
@@ -39,14 +39,14 @@
                 <hr class="my-4">
                 <div class="sq-form-section">
                     <h5 class="sq-section-title text-danger">
-                        <i class="bi bi-trash"></i> Delete Project
+                        <i class="bi bi-trash"></i> <span data-i18n="delete_project">Delete Project</span>
                     </h5>
-                    <p class="sq-section-desc">Delete this project and all stored analyses, issues, comments, and activity logs.</p>
+                    <p class="sq-section-desc" data-i18n="delete_project_desc">Delete this project and all stored analyses, issues, comments, and activity logs.</p>
 
                     <form action="/ui/projects/{{ project.id }}/delete" method="post"
                           onsubmit="return confirm('Delete project {{ project.name }}? This cannot be undone.');">
                         <button type="submit" class="sq-btn sq-btn-outline text-danger">
-                            <i class="bi bi-trash"></i> Delete Project
+                            <i class="bi bi-trash"></i> <span data-i18n="delete_project">Delete Project</span>
                         </button>
                     </form>
                 </div>

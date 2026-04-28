@@ -6,11 +6,11 @@
 {# 🔍 Debug info #}
 {% if issues|length == 0 and total > 0 %}
 <div class="alert alert-info">
-    <strong>Debug:</strong> total={{ total }}, project_id={{ project_id }}, run_id={{ run_id }}, page={{ page }}, issues_count={{ issues|length }}
+    <strong data-i18n="debug_label">Debug:</strong> total={{ total }}, project_id={{ project_id }}, run_id={{ run_id }}, page={{ page }}, issues_count={{ issues|length }}
 </div>
 {% endif %}
 
-{% macro sort_header(label, key, class_name) -%}
+{% macro sort_header(label, key, class_name, i18n_key) -%}
     {% set next_order = 'desc' if sort_by == key and order == 'asc' else 'asc' %}
     <th class="{{ class_name }}">
         <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
@@ -20,7 +20,7 @@
            hx-swap="innerHTML"
            hx-push-url="false"
            hx-boost="false">
-            {{ label }}
+            <span data-i18n="{{ i18n_key }}">{{ label }}</span>
             {% if sort_by == key %}<i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
         </a>
     </th>
@@ -29,15 +29,15 @@
 <table class="sq-table sq-table-fixed">
 <thead>
     <tr>
-        {{ sort_header("Status", "status", "sq-col-status") }}
-        {{ sort_header("Severity", "severity", "sq-col-severity") }}
-        {{ sort_header("Rule", "rule", "sq-col-rule") }}
-        {{ sort_header("Type", "type", "sq-col-type") }}
-        {{ sort_header("Priority", "priority", "sq-col-priority") }}
-        {{ sort_header("File", "file", "sq-col-file") }}
-        <th class="sq-col-line">Line</th>
-        <th class="sq-col-message">Message</th>
-        <th class="sq-col-actions">Actions</th>
+        {{ sort_header("Status", "status", "sq-col-status", "status") }}
+        {{ sort_header("Severity", "severity", "sq-col-severity", "severity_label") }}
+        {{ sort_header("Rule", "rule", "sq-col-rule", "rule") }}
+        {{ sort_header("Type", "type", "sq-col-type", "type") }}
+        {{ sort_header("Priority", "priority", "sq-col-priority", "priority") }}
+        {{ sort_header("File", "file", "sq-col-file", "file") }}
+        <th class="sq-col-line" data-i18n="line">Line</th>
+        <th class="sq-col-message" data-i18n="message">Message</th>
+        <th class="sq-col-actions" data-i18n="actions">Actions</th>
     </tr>
 </thead>
 <tbody>
@@ -91,7 +91,7 @@
                                 data-line="{{ issue.line }}"
                                 data-project-id="{{ project_id }}"
                                 data-run-id="{{ run_id if run_id else '' }}">
-                            <i class="bi bi-code-slash"></i> Code
+                            <i class="bi bi-code-slash"></i> <span data-i18n="tab_code">Code</span>
                         </button>
                     {% else %}
                         <span class="sq-empty">—</span>
@@ -120,11 +120,11 @@
             <td colspan="9" class="sq-empty-row">
                 {% if total > 0 %}
                     <div class="alert alert-warning">
-                        <strong>Warning:</strong> total={{ total }}, but issues list is empty. 
-                        Check pagination: page={{ page }}, per_page={{ per_page }}, offset={{ (page - 1) * per_page }}
+                        <strong data-i18n="warning_label">Warning:</strong> total={{ total }}, <span data-i18n="issues_list_empty_debug">but issues list is empty.</span>
+                        <span data-i18n="check_pagination">Check pagination:</span> page={{ page }}, per_page={{ per_page }}, offset={{ (page - 1) * per_page }}
                     </div>
                 {% else %}
-                    Предупреждений не найдено
+                    <span data-i18n="no_issues">No warnings found</span>
                 {% endif %}
             </td>
         </tr>
@@ -135,17 +135,17 @@
 {% if issues and issues|length > 0 %}
 <div class="sq-pagination">
     <div class="sq-pagination-info">
-        Showing {{ issues|length }} of {{ total }}
+        <span data-i18n="showing">Showing</span> {{ issues|length }} <span data-i18n="of">of</span> {{ total }}
     </div>
     <div class="sq-pagination-controls">
         {% if page > 1 %}
             <a href="?{{ request.query_params }}&page={{ page - 1 }}" class="sq-btn sq-btn-sm sq-btn-secondary">
-                <i class="bi bi-chevron-left"></i> Previous
+                <i class="bi bi-chevron-left"></i> <span data-i18n="prev_page">Previous</span>
             </a>
         {% endif %}
         {% if page * per_page < total %}
             <a href="?{{ request.query_params }}&page={{ page + 1 }}" class="sq-btn sq-btn-sm sq-btn-secondary">
-                Next <i class="bi bi-chevron-right"></i>
+                <span data-i18n="next_page">Next</span> <i class="bi bi-chevron-right"></i>
             </a>
         {% endif %}
     </div>
