@@ -67,24 +67,12 @@
                         onclick="switchProjectTab('code'); setTimeout(loadFileTree, 100);">
                     <i class="bi bi-code-slash"></i>
                     <span data-i18n="tab_code">Code</span>
-                    {% if history and history|length > 0 %}
-                    {% set latest = history[-1] %}
-                    {% if latest.total > 0 %}
-                    <span class="sq-tab-badge">{{ latest.total }}</span>
-                    {% endif %}
-                    {% endif %}
                 </button>
             </li>
             <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" data-tab="trends" onclick="switchProjectTab('trends')">
                     <i class="bi bi-graph-up"></i>
                     <span>Trends</span>
-                    {% if history and history|length > 0 %}
-                    {% set latest = history[-1] %}
-                    {% if latest.total > 0 %}
-                    <span class="sq-tab-badge">{{ latest.total }}</span>
-                    {% endif %}
-                    {% endif %}
                 </button>
             </li>
             <li class="sq-project-tab">

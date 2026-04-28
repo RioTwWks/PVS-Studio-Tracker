@@ -173,20 +173,32 @@ function createTrendChart(canvasId, historyData) {
     const ctx = canvas.getContext('2d');
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     const colors = getChartColors(theme);
+    const isDark = theme === 'dark';
+
+    const activeGradient = ctx.createLinearGradient(0, 0, 0, 360);
+    activeGradient.addColorStop(0, isDark ? 'rgba(88, 166, 255, 0.28)' : 'rgba(13, 110, 253, 0.18)');
+    activeGradient.addColorStop(1, 'rgba(13, 110, 253, 0)');
+
+    const newGradient = ctx.createLinearGradient(0, 0, 0, 360);
+    newGradient.addColorStop(0, isDark ? 'rgba(255, 123, 114, 0.24)' : 'rgba(220, 53, 69, 0.14)');
+    newGradient.addColorStop(1, 'rgba(220, 53, 69, 0)');
+
+    const fixedGradient = ctx.createLinearGradient(0, 0, 0, 360);
+    fixedGradient.addColorStop(0, isDark ? 'rgba(63, 185, 80, 0.22)' : 'rgba(25, 135, 84, 0.12)');
+    fixedGradient.addColorStop(1, 'rgba(25, 135, 84, 0)');
 
     // Build labels: show commit hash + timestamp if available
     const labels = historyData.map((d) => {
         if (d.commit && d.commit !== '—') {
-            // Short commit hash (6 chars) + date
-            const shortHash = d.commit.substring(0, 6);
             const date = new Date(d.timestamp).toLocaleDateString();
-            return `${shortHash} (${date})`;
+            return date;
         }
         return new Date(d.timestamp).toLocaleDateString();
     });
     const newData = historyData.map((d) => d.new);
     const activeData = historyData.map((d) => d.total);
     const fixedData = historyData.map((d) => d.fixed);
+    const maxValue = Math.max(1, ...newData, ...activeData, ...fixedData);
 
     const chart = new Chart(ctx, {
         type: 'line',
@@ -196,37 +208,43 @@ function createTrendChart(canvasId, historyData) {
                 {
                     label: I18n.t('chart_legend_active'),
                     data: activeData,
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13,110,253,0.08)',
-                    borderWidth: 2.5,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    pointBackgroundColor: '#0d6efd',
-                    tension: 0.3,
+                    borderColor: isDark ? '#58a6ff' : '#0d6efd',
+                    backgroundColor: activeGradient,
+                    borderWidth: 3,
+                    pointRadius: 3,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: isDark ? '#0d1117' : '#ffffff',
+                    pointBorderColor: isDark ? '#58a6ff' : '#0d6efd',
+                    pointBorderWidth: 2,
+                    tension: 0.36,
                     fill: true,
                 },
                 {
                     label: I18n.t('chart_legend_new'),
                     data: newData,
-                    borderColor: '#dc3545',
-                    backgroundColor: 'rgba(220,53,69,0.08)',
+                    borderColor: isDark ? '#ff7b72' : '#dc3545',
+                    backgroundColor: newGradient,
                     borderWidth: 2.5,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    pointBackgroundColor: '#dc3545',
-                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: isDark ? '#0d1117' : '#ffffff',
+                    pointBorderColor: isDark ? '#ff7b72' : '#dc3545',
+                    pointBorderWidth: 2,
+                    tension: 0.36,
                     fill: true,
                 },
                 {
                     label: I18n.t('chart_legend_fixed'),
                     data: fixedData,
-                    borderColor: '#198754',
-                    backgroundColor: 'rgba(25,135,84,0.08)',
+                    borderColor: isDark ? '#3fb950' : '#198754',
+                    backgroundColor: fixedGradient,
                     borderWidth: 2.5,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    pointBackgroundColor: '#198754',
-                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: isDark ? '#0d1117' : '#ffffff',
+                    pointBorderColor: isDark ? '#3fb950' : '#198754',
+                    pointBorderWidth: 2,
+                    tension: 0.36,
                     fill: true,
                 },
             ],
@@ -238,64 +256,75 @@ function createTrendChart(canvasId, historyData) {
                 intersect: false,
                 mode: 'index',
             },
+            layout: {
+                padding: { top: 8, right: 12, bottom: 0, left: 4 },
+            },
             plugins: {
                 legend: {
-                    labels: {
-                        color: colors.legendColor,
-                        font: { size: 13, weight: '500' },
-                        padding: 20,
-                        usePointStyle: true,
-                        pointStyleWidth: 12,
-                    },
+                    display: false,
                 },
                 tooltip: {
                     backgroundColor: colors.tooltipBg,
                     titleColor: colors.tooltipText,
                     bodyColor: colors.tooltipText,
-                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(13,110,253,0.16)',
                     borderWidth: 1,
-                    cornerRadius: 8,
-                    padding: 12,
+                    cornerRadius: 10,
+                    padding: 14,
                     titleFont: { size: 13, weight: '600' },
-                    bodyFont: { size: 12 },
+                    bodyFont: { size: 12, weight: '500' },
                     displayColors: true,
-                    boxPadding: 4,
+                    boxPadding: 6,
+                    caretPadding: 8,
                     callbacks: {
                         title: function (items) {
                             if (items.length > 0) {
                                 const idx = items[0].dataIndex;
                                 const d = historyData[idx];
-                                const parts = [];
-                                if (d.branch && d.branch !== '—') {
-                                    parts.push(`${I18n.t('chart_branch_label')}: ${d.branch}`);
+                                const parts = [new Date(d.timestamp).toLocaleString()];
+                                if (d.commit && d.commit.length > 0) {
+                                    parts.push(d.commit.substring(0, 8));
                                 }
-                                if (d.commit && d.commit !== '—') {
-                                    parts.push(`${I18n.t('chart_commit_label')}: ${d.commit}`);
-                                }
-                                parts.push(`${I18n.t('chart_date_label')}: ${new Date(d.timestamp).toLocaleString()}`);
-                                return parts.join(' | ');
+                                return parts.join('  |  ');
                             }
                             return '';
+                        },
+                        afterTitle: function (items) {
+                            if (items.length === 0) return '';
+                            const d = historyData[items[0].dataIndex];
+                            return d.branch && d.branch.length > 0 ? `${I18n.t('chart_branch_label')}: ${d.branch}` : '';
+                        },
+                        label: function (item) {
+                            return `${item.dataset.label}: ${item.formattedValue}`;
                         },
                     },
                 },
             },
             scales: {
                 x: {
-                    grid: { color: colors.gridColor },
+                    grid: { display: false },
+                    border: { display: false },
                     ticks: {
                         color: colors.tickColor,
-                        font: { size: 11 },
-                        maxRotation: 45,
+                        font: { size: 11, weight: '500' },
+                        maxRotation: 0,
                         minRotation: 0,
+                        maxTicksLimit: 8,
                     },
                 },
                 y: {
                     beginAtZero: true,
-                    grid: { color: colors.gridColor },
+                    suggestedMax: Math.ceil(maxValue * 1.15),
+                    grid: {
+                        color: colors.gridColor,
+                        drawTicks: false,
+                    },
+                    border: { display: false },
                     ticks: {
                         color: colors.tickColor,
                         font: { size: 11 },
+                        padding: 10,
+                        precision: 0,
                         // stepSize удалён — Chart.js подберёт автоматически
                         callback: function(value) {
                             // Показывать только целые числа
@@ -312,7 +341,34 @@ function createTrendChart(canvasId, historyData) {
     });
 
     window.__pvsChart = chart;
+    initTrendChartFilters(chart);
     return chart;
+}
+
+function initTrendChartFilters(chart) {
+    const controls = document.querySelectorAll('.sq-legend-filter[data-dataset-index]');
+    if (!chart || controls.length === 0) return;
+
+    controls.forEach((control) => {
+        const index = Number(control.dataset.datasetIndex);
+        const visible = chart.isDatasetVisible(index);
+        control.classList.toggle('active', visible);
+        control.setAttribute('aria-pressed', String(visible));
+
+        control.onclick = () => {
+            const visibleCount = chart.data.datasets.filter((_, datasetIndex) => chart.isDatasetVisible(datasetIndex)).length;
+            const isVisible = chart.isDatasetVisible(index);
+
+            if (isVisible && visibleCount === 1) {
+                return;
+            }
+
+            chart.setDatasetVisibility(index, !isVisible);
+            chart.update();
+            control.classList.toggle('active', !isVisible);
+            control.setAttribute('aria-pressed', String(!isVisible));
+        };
+    });
 }
 
 function updateChartTheme(chart, theme) {
@@ -323,7 +379,9 @@ function updateChartTheme(chart, theme) {
     chart.options.scales.x.ticks.color = colors.tickColor;
     chart.options.scales.y.grid.color = colors.gridColor;
     chart.options.scales.y.ticks.color = colors.tickColor;
-    chart.options.plugins.legend.labels.color = colors.legendColor;
+    if (chart.options.plugins.legend.labels) {
+        chart.options.plugins.legend.labels.color = colors.legendColor;
+    }
     chart.options.plugins.tooltip.backgroundColor = colors.tooltipBg;
     chart.options.plugins.tooltip.titleColor = colors.tooltipText;
     chart.options.plugins.tooltip.bodyColor = colors.tooltipText;

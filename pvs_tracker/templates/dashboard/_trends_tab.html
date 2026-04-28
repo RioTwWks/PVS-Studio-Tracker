@@ -1,18 +1,59 @@
     {# === Tab Content: Trends === #}
     <div class="sq-project-tab-content" id="tab-trends" style="display: none;">
         {% if history and history|length > 0 %}
-        <div class="sq-card mb-4">
-            <div class="sq-card-header">
-                <i class="bi bi-graph-up"></i> Issue Trends
+        {% set latest = history[-1] %}
+        {% set previous = history[-2] if history|length > 1 else None %}
+        <div class="sq-trends-summary mb-4">
+            <div class="sq-trend-kpi sq-trend-kpi-active">
+                <div class="sq-trend-kpi-label">Active Issues</div>
+                <div class="sq-trend-kpi-value">{{ latest.total }}</div>
+                {% if previous %}
+                {% set delta_total = latest.total - previous.total %}
+                <div class="sq-trend-kpi-delta {% if delta_total > 0 %}sq-delta-bad{% elif delta_total < 0 %}sq-delta-good{% else %}sq-delta-flat{% endif %}">
+                    {% if delta_total > 0 %}+{% endif %}{{ delta_total }} since previous analyse
+                </div>
+                {% endif %}
+            </div>
+            <div class="sq-trend-kpi sq-trend-kpi-new">
+                <div class="sq-trend-kpi-label">New Issues</div>
+                <div class="sq-trend-kpi-value">{{ latest.new }}</div>
+                <div class="sq-trend-kpi-delta {% if latest.new > 0 %}sq-delta-bad{% else %}sq-delta-good{% endif %}">
+                    {% if latest.new > 0 %}Needs attention{% else %}No new issues{% endif %}
+                </div>
+            </div>
+            <div class="sq-trend-kpi sq-trend-kpi-fixed">
+                <div class="sq-trend-kpi-label">Fixed Issues</div>
+                <div class="sq-trend-kpi-value">{{ latest.fixed }}</div>
+                {% if previous %}
+                {% set delta_fixed = latest.fixed - previous.fixed %}
+                <div class="sq-trend-kpi-delta {% if delta_fixed > 0 %}sq-delta-good{% elif delta_fixed < 0 %}sq-delta-bad{% else %}sq-delta-flat{% endif %}">
+                    {% if delta_fixed > 0 %}+{% endif %}{{ delta_fixed }} since previous analyse
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="sq-card sq-trends-card mb-4">
+            <div class="sq-card-header sq-trends-card-header">
+                <div>
+                    <i class="bi bi-graph-up"></i> Issue Trends
+                    <div class="sq-card-subtitle">Last {{ history|length }} analyses</div>
+                </div>
             </div>
             <div class="sq-card-body">
                 <div class="sq-chart-container">
                     <canvas id="trendChart"></canvas>
                 </div>
-                <div class="sq-chart-legend">
-                    <span class="sq-legend-item"><span class="sq-legend-color" style="background: #dc3545;"></span> New</span>
-                    <span class="sq-legend-item"><span class="sq-legend-color" style="background: #198754;"></span> Fixed</span>
-                    <span class="sq-legend-item"><span class="sq-legend-color" style="background: #0d6efd;"></span> Total</span>
+                <div class="sq-chart-legend" role="group" aria-label="Trend metrics">
+                    <button type="button" class="sq-legend-item sq-legend-filter active" data-dataset-index="0" aria-pressed="true">
+                        <span class="sq-legend-color sq-legend-active"></span> Active
+                    </button>
+                    <button type="button" class="sq-legend-item sq-legend-filter active" data-dataset-index="1" aria-pressed="true">
+                        <span class="sq-legend-color sq-legend-new"></span> New
+                    </button>
+                    <button type="button" class="sq-legend-item sq-legend-filter active" data-dataset-index="2" aria-pressed="true">
+                        <span class="sq-legend-color sq-legend-fixed"></span> Fixed
+                    </button>
                 </div>
             </div>
         </div>

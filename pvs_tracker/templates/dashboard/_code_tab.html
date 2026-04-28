@@ -78,7 +78,7 @@
             if (item.type === 'folder') {
                 html += `
                     <li style="margin-left:${indent}px;">
-                        <div class="sq-tree-item sq-folder" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="toggleFolder(this)">
+                        <div class="sq-tree-item sq-folder" data-search-text="${item.name.replace(/"/g, '&quot;')}" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="toggleFolder(this)">
                             <i class="bi bi-folder" style="color:#e6872a;"></i>
                             <span>${item.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
                             <span class="sq-badge" style="margin-left:auto;background:#f0f0f0;color:#666;font-size:11px;">${item.total_warnings || 0}</span>
@@ -97,7 +97,7 @@
                 
                 html += `
                     <li style="margin-left:${indent}px;">
-                        <div class="sq-tree-item sq-file" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="loadFileCode('${encodedPath}')">
+                        <div class="sq-tree-item sq-file" data-search-text="${displayPath.replace(/"/g, '&quot;')}" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="loadFileCode('${encodedPath}')">
                             <i class="bi bi-file-code" style="color:#6c757d;"></i>
                             <span title="${displayPath.replace(/</g, '&lt;').replace(/>/g, '&gt;')}">${fileNameSafe}</span>
                             <span class="sq-badge ${severityClass}" style="margin-left:auto;font-size:11px;">${item.warnings || 0}</span>
@@ -194,11 +194,38 @@
 
     function filterFileTree(query) {
         const q = query.toLowerCase().trim();
-        document.querySelectorAll('.sq-tree-item').forEach(item => {
-            const name = item.textContent?.toLowerCase() || '';
-            const li = item.closest('li');
-            li.style.display = (name.includes(q) || !q) ? '' : 'none';
-        });
+        const root = document.getElementById('file-tree');
+        if (!root) return;
+
+        function filterNode(li) {
+            const item = li.querySelector(':scope > .sq-tree-item');
+            const children = li.querySelector(':scope > .sq-folder-children');
+            const searchText = (item?.dataset.searchText || item?.textContent || '').toLowerCase();
+            const selfMatches = !q || searchText.includes(q);
+            let childMatches = false;
+
+            if (children) {
+                children.querySelectorAll(':scope > .sq-file-tree-list > li').forEach(childLi => {
+                    childMatches = filterNode(childLi) || childMatches;
+                });
+
+                if (q && childMatches) {
+                    children.style.display = 'block';
+                    const icon = item?.querySelector('i');
+                    if (icon) icon.className = 'bi bi-folder-open';
+                } else if (!q) {
+                    children.style.display = 'none';
+                    const icon = item?.querySelector('i');
+                    if (icon) icon.className = 'bi bi-folder';
+                }
+            }
+
+            const visible = selfMatches || childMatches;
+            li.style.display = visible ? '' : 'none';
+            return visible;
+        }
+
+        root.querySelectorAll(':scope > .sq-file-tree-list > li').forEach(filterNode);
     }
 
     document.addEventListener('DOMContentLoaded', () => {

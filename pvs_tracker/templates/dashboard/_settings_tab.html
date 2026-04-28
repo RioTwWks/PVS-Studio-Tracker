@@ -41,7 +41,7 @@
                     <h5 class="sq-section-title text-danger">
                         <i class="bi bi-trash"></i> Delete Project
                     </h5>
-                    <p class="sq-section-desc">Delete this project and all stored analysis runs, issues, comments, and activity logs.</p>
+                    <p class="sq-section-desc">Delete this project and all stored analyses, issues, comments, and activity logs.</p>
 
                     <form action="/ui/projects/{{ project.id }}/delete" method="post"
                           onsubmit="return confirm('Delete project {{ project.name }}? This cannot be undone.');">
