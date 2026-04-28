@@ -84,12 +84,13 @@
                 </td>
                 <td class="sq-actions">
                     {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
-                        <button class="sq-btn sq-btn-sm sq-btn-outline sq-code-action-btn" 
-                                hx-get="/ui/file?project_id={{ project_id }}&file_path={{ issue.file_path|urlencode }}&line={{ issue.line }}&run_id={{ run_id }}&context=10"
-                                hx-target="#code-content-{{ issue.id }}"
-                                hx-swap="innerHTML"
-                                hx-trigger="click"
-                                hx-on::after-request="let row=document.getElementById('code-row-{{ issue.id }}'); if(row) row.style.display='table-row'">
+                        <button class="sq-btn sq-btn-sm sq-btn-outline sq-code-action-btn"
+                                id="code-btn-{{ issue.id }}"
+                                onclick="toggleInlineCode(this, '{{ issue.id }}')"
+                                data-file-path="{{ issue.file_path }}"
+                                data-line="{{ issue.line }}"
+                                data-project-id="{{ project_id }}"
+                                data-run-id="{{ run_id if run_id else '' }}">
                             <i class="bi bi-code-slash"></i> Code
                         </button>
                     {% else %}
@@ -105,13 +106,9 @@
                     <div class="sq-inline-code-wrapper">
                         <div class="sq-inline-code-header">
                             <span>{{ display_paths.get(issue.id, issue.file_path) }}:{{ issue.line }}</span>
-                            <button class="sq-btn sq-btn-sm sq-btn-outline" 
-                                    onclick="document.getElementById('code-row-{{ issue.id }}').style.display='none'">
-                                <i class="bi bi-x"></i> Close
-                            </button>
                         </div>
-                        <div class="sq-inline-code-content" id="code-content-{{ issue.id }}">
-                            <div class="sq-loading">Loading code...</div>
+                        <div class="sq-inline-code-content" id="code-content-{{ issue.id }}" data-loaded="false">
+                            <!-- Контент будет загружаться при первом открытии -->
                         </div>
                     </div>
                 </td>

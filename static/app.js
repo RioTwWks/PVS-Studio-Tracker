@@ -533,3 +533,56 @@ document.addEventListener('htmx:afterSwap', (e) => {
 
 // 🔑 Делаем CodeViewer доступным для других скриптов
 window.CodeViewer = CodeViewer;
+
+async function toggleInlineCode(btn, issueId) {
+    const row = document.getElementById('code-row-' + issueId);
+    if (!row) return;
+
+    const isVisible = row.style.display === 'table-row';
+    if (isVisible) {
+        // Закрыть и вернуть кнопке исходный вид
+        row.style.display = 'none';
+        btn.innerHTML = '<i class="bi bi-code-slash"></i> Code';
+        return;
+    }
+
+    // Показать строку и сменить кнопку на Close
+    row.style.display = 'table-row';
+    btn.innerHTML = '<i class="bi bi-x"></i> Close';
+
+    const content = document.getElementById('code-content-' + issueId);
+    if (content && content.dataset.loaded === 'true') {
+        // Код уже загружен, просто показали
+        return;
+    }
+
+    // Загружаем код
+    const filePath = btn.dataset.filePath;
+    const line = btn.dataset.line;
+    const projectId = btn.dataset.projectId;
+    const runId = btn.dataset.runId;
+
+    content.innerHTML = '<div class="sq-loading">Loading code...</div>';
+
+    try {
+        const params = new URLSearchParams({
+            project_id: projectId,
+            file_path: filePath,
+            line: line,
+            context: 10
+        });
+        if (runId) params.append('run_id', runId);
+        const resp = await fetch(`/ui/file?${params.toString()}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const html = await resp.text();
+        content.innerHTML = html;
+        content.dataset.loaded = 'true';
+
+        // Подсветка синтаксиса
+        if (typeof Prism !== 'undefined') {
+            content.querySelectorAll('code[class*="language-"]').forEach(el => Prism.highlightElement(el));
+        }
+    } catch (e) {
+        content.innerHTML = `<div class="sq-alert sq-alert-danger">Error: ${e.message}</div>`;
+    }
+}
