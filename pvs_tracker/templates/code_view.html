@@ -67,34 +67,36 @@ if (typeof Prism !== 'undefined') {
 }
 
 // Синхронизация скролла
-function initCodeViewerScroll() {
-    const master = document.getElementById('sq-code-scroll');
-    const gutter = document.getElementById('sq-line-numbers');
-    const annotations = document.getElementById('sq-annotations-panel');
+(function() {
+    function initCodeViewerScroll() {
+        const master = document.getElementById('sq-code-scroll');
+        const gutter = document.getElementById('sq-line-numbers');
+        const annotations = document.getElementById('sq-annotations-panel');
 
-    if (!master) return;
+        if (!master) return;
 
-    const syncScroll = () => {
-        if (gutter) {
-            gutter.scrollTop = master.scrollTop;
-            gutter.scrollLeft = master.scrollLeft;   // ← добавить, если нужно
+        // Удаляем старые обработчики, чтобы не дублировать
+        master.removeEventListener('scroll', syncScroll);
+        master.addEventListener('scroll', syncScroll, { passive: true });
+
+        function syncScroll() {
+            if (gutter) gutter.scrollTop = master.scrollTop;
+            if (annotations) annotations.scrollTop = master.scrollTop;
         }
-        if (annotations) {
-            annotations.scrollTop = master.scrollTop;
-            // аннотации обычно не скроллят горизонтально
-        }
-    };
+    }
 
-    // Удаляем старые обработчики, если нужно (для безопасности)
-    master.removeEventListener('scroll', syncScroll);
-    master.addEventListener('scroll', syncScroll, { passive: true });
-}
-
-// Вызов при загрузке и после HTMX-обновлений
-document.addEventListener('DOMContentLoaded', initCodeViewerScroll);
-document.addEventListener('htmx:afterSwap', (e) => {
-    if (e.detail.target.closest('#sq-code-scroll')) {
+    // Запускаем при первой отрисовке
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCodeViewerScroll);
+    } else {
         initCodeViewerScroll();
     }
-});
+
+    // Перезапускаем после каждого обновления HTMX
+    document.addEventListener('htmx:afterSwap', function(e) {
+        if (e.detail.target.querySelector('#sq-code-scroll')) {
+            initCodeViewerScroll();
+        }
+    });
+})();
 </script>

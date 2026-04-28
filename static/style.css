@@ -2234,6 +2234,13 @@ Code Viewer (SonarQube-style)
   width: 100%;
 }
 
+/* Подсветка строки с ошибкой (усиленный приоритет) */
+.sq-inline-code-content .sq-snippet-target {
+    background: rgba(76, 150, 232, 0.2) !important;
+    border-left: 3px solid var(--sq-brand) !important;
+    font-weight: 600 !important;
+}
+
 /* ============================================================
    File Browser
    ============================================================ */
@@ -2383,7 +2390,7 @@ Code Viewer (SonarQube-style)
 
 .sq-inline-code-content .sq-code-scroll-area {
   overflow-x: auto !important;
-  overflow-y: hidden !important;
+  overflow-y: hidden !important;   /* убирает вертикальный скролл */
 }
 
 .sq-inline-code-content .sq-annotations-panel {
