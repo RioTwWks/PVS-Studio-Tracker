@@ -62,12 +62,6 @@
                 </button>
             </li>
             <li class="sq-project-tab">
-                <button class="sq-project-tab-btn" data-tab="upload" onclick="switchProjectTab('upload')">
-                    <i class="bi bi-cloud-arrow-up"></i>
-                    <span>Upload</span>
-                </button>
-            </li>
-            <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" 
                         data-tab="code" 
                         onclick="switchProjectTab('code'); setTimeout(loadFileTree, 100);">
@@ -82,6 +76,24 @@
                 </button>
             </li>
             <li class="sq-project-tab">
+                <button class="sq-project-tab-btn" data-tab="trends" onclick="switchProjectTab('trends')">
+                    <i class="bi bi-graph-up"></i>
+                    <span>Trends</span>
+                    {% if history and history|length > 0 %}
+                    {% set latest = history[-1] %}
+                    {% if latest.total > 0 %}
+                    <span class="sq-tab-badge">{{ latest.total }}</span>
+                    {% endif %}
+                    {% endif %}
+                </button>
+            </li>
+            <li class="sq-project-tab">
+                <button class="sq-project-tab-btn" data-tab="upload" onclick="switchProjectTab('upload')">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                    <span>Upload</span>
+                </button>
+            </li>
+            <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" data-tab="settings" onclick="switchProjectTab('settings')">
                     <i class="bi bi-gear"></i>
                     <span data-i18n="tab_settings">Settings</span>
@@ -92,8 +104,9 @@
 
     {% include "dashboard/_overview_tab.html" %}
     {% include "dashboard/_issues_tab.html" %}
-    {% include "dashboard/_upload_tab.html" %}
     {% include "dashboard/_code_tab.html" %}
+    {% include "dashboard/_trends_tab.html" %}
+    {% include "dashboard/_upload_tab.html" %}
     {% include "dashboard/_settings_tab.html" %}
 </div>
 

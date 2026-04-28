@@ -35,6 +35,10 @@
                 `;
             }
         }
+
+        if (tabName === 'trends' && window.__pvsChart) {
+            requestAnimationFrame(() => window.__pvsChart.resize());
+        }
     }
 
     // Called when clicking code button on an issue
@@ -85,6 +89,9 @@
         const historyData = JSON.parse('{{ history | tojson | safe }}');
         if (historyData && historyData.length > 0) {
             createTrendChart('trendChart', historyData);
+            if (window.__pvsChart) {
+                window.__pvsChart.resize();
+            }
         }
     });
 </script>
