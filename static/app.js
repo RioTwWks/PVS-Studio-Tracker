@@ -444,60 +444,92 @@ Code Viewer Manager (Scroll Sync + Prism + Target Highlight)
 ============================================================ */
 const CodeViewer = (() => {
   let isInitialized = false;
+  let activeViewer = null;
 
-  function syncScroll() {
-    const master = document.getElementById('sq-code-scroll');
-    const gutter = document.getElementById('sq-line-numbers');
-    const annotations = document.getElementById('sq-annotations-panel');
+  function getViewer(root) {
+    if (!root) return document.querySelector('.sq-code-viewer');
+    if (root.classList && root.classList.contains('sq-code-viewer')) return root;
+    return root.querySelector ? root.querySelector('.sq-code-viewer') : null;
+  }
+
+  function syncScroll(viewer) {
+    const master = viewer.querySelector('.sq-code-scroll-area');
+    const gutter = viewer.querySelector('.sq-line-numbers');
+    const annotations = viewer.querySelector('.sq-annotations-panel');
     if (!master) return;
-    const newMaster = master.cloneNode(true);
-    master.parentNode.replaceChild(newMaster, master);
-    
-    newMaster.addEventListener('scroll', () => {
-        const gutter = document.getElementById('sq-line-numbers');
-        const annotations = document.getElementById('sq-annotations-panel');
-        if (gutter) gutter.scrollTop = newMaster.scrollTop;
-        if (annotations) annotations.scrollTop = newMaster.scrollTop;
+
+    if (master.__pvsScrollHandler) {
+      master.removeEventListener('scroll', master.__pvsScrollHandler);
+    }
+
+    master.__pvsScrollHandler = () => {
+      if (gutter) gutter.scrollTop = master.scrollTop;
+      if (annotations) annotations.scrollTop = master.scrollTop;
+    };
+    master.addEventListener('scroll', master.__pvsScrollHandler, { passive: true });
+    master.__pvsScrollHandler();
+
+    [gutter, annotations].forEach((sidePanel) => {
+      if (!sidePanel) return;
+
+      if (sidePanel.__pvsWheelHandler) {
+        sidePanel.removeEventListener('wheel', sidePanel.__pvsWheelHandler);
+      }
+
+      sidePanel.__pvsWheelHandler = (event) => {
+        master.scrollTop += event.deltaY;
+        master.scrollLeft += event.deltaX;
+        if (master.__pvsScrollHandler) master.__pvsScrollHandler();
+        event.preventDefault();
+      };
+      sidePanel.addEventListener('wheel', sidePanel.__pvsWheelHandler, { passive: false });
     });
   }
 
-  function highlightCode() {
+  function highlightCode(viewer) {
     if (typeof Prism === 'undefined') return;
-    document.querySelectorAll('.sq-code-line-code').forEach((codeBlock) => {
+    viewer.querySelectorAll('.sq-code-line-code').forEach((codeBlock) => {
       codeBlock.removeAttribute('data-highlighted');
       Prism.highlightElement(codeBlock);
     });
   }
 
-  function scrollToTarget() {
-    const target = document.querySelector('.sq-code-block').dataset.target;
+  function scrollToTarget(viewer) {
+    const codeBlock = viewer.querySelector('.sq-code-block');
+    const target = codeBlock ? codeBlock.dataset.target : null;
     if (!target) return;
     
-    const targetEl = document.querySelector(`.sq-line-num[data-line="${target}"]`);
+    const targetEl = viewer.querySelector(`.sq-line-num[data-line="${target}"]`);
     if (targetEl) {
-      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       // Синхронизируем скролл сразу после плавной прокрутки
-      const master = document.getElementById('sq-code-scroll');
-      if (master) master.scrollTop = targetEl.offsetTop - (master.clientHeight / 2);
+      const master = viewer.querySelector('.sq-code-scroll-area');
+      if (master) {
+        master.scrollTop = Math.max(0, targetEl.offsetTop - (master.clientHeight / 2));
+        if (master.__pvsScrollHandler) master.__pvsScrollHandler();
+      }
     }
   }
 
-  function init() {
-    if (isInitialized) return;
-    const viewer = document.querySelector('.sq-code-viewer');
+  function init(root) {
+    const viewer = getViewer(root);
     if (!viewer) return;
+    if (isInitialized && activeViewer === viewer) return;
 
-    highlightCode();
-    syncScroll();
+    activeViewer = viewer;
+    highlightCode(viewer);
+    syncScroll(viewer);
     
     // Даем браузеру отрендерить линии, потом скроллим к цели
-    requestAnimationFrame(() => requestAnimationFrame(scrollToTarget));
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToTarget(viewer)));
     isInitialized = true;
   }
 
-  function reset() { isInitialized = false; }
+  function reset() {
+    isInitialized = false;
+    activeViewer = null;
+  }
 
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => init());
 
   return { init, reset };
 })();
@@ -577,6 +609,11 @@ async function toggleInlineCode(btn, issueId) {
         const html = await resp.text();
         content.innerHTML = html;
         content.dataset.loaded = 'true';
+
+        if (window.CodeViewer) {
+            window.CodeViewer.reset();
+            window.CodeViewer.init(content);
+        }
 
         // Подсветка синтаксиса
         if (typeof Prism !== 'undefined') {

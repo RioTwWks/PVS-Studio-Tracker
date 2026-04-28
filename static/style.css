@@ -1979,10 +1979,12 @@ Code Viewer (SonarQube-style)
   color: var(--sq-text-muted);
   position: relative;
   height: 19.5px;
+  min-height: 19.5px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  line-height: 1.5 !important;
+  line-height: 19.5px !important;
+  box-sizing: border-box;
 }
 
 /* Code Area */
@@ -2030,7 +2032,7 @@ Code Viewer (SonarQube-style)
   border-left: 1px solid var(--sq-border);
   background: var(--sq-bg-secondary);
   padding: 8px 6px;
-  overflow-y: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
 }
 
@@ -2040,11 +2042,14 @@ Code Viewer (SonarQube-style)
 
 .sq-annotation-row {
   height: 19.5px;
+  min-height: 19.5px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   justify-content: flex-end;
   align-items: center;
+  line-height: 19.5px !important;
+  box-sizing: border-box;
 }
 
 .sq-annotation-badge {
@@ -2055,6 +2060,8 @@ Code Viewer (SonarQube-style)
   cursor: help;
   white-space: nowrap;
   border: 1px solid var(--sq-border-light);
+  position: relative;
+  z-index: 1;
 }
 
 .sq-sev-high { 
@@ -2112,6 +2119,42 @@ Code Viewer (SonarQube-style)
   font-size: 13px !important;
   line-height: 19.5px !important;
   white-space: pre !important;
+}
+
+.sq-snippet-line {
+  display: block !important;
+  height: 19.5px !important;
+  min-height: 19.5px;
+  line-height: 19.5px !important;
+  white-space: pre !important;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.sq-snippet-warning {
+  background: rgba(76, 150, 232, 0.18) !important;
+  box-shadow: inset 3px 0 rgba(76, 150, 232, 0.8);
+}
+
+.sq-line-num.sq-line-with-warning,
+.sq-annotation-row.sq-line-with-warning {
+  background: rgba(76, 150, 232, 0.12);
+}
+
+.sq-snippet-target {
+  background: rgba(76, 150, 232, 0.28) !important;
+  box-shadow: inset 3px 0 var(--sq-brand);
+  font-weight: 600 !important;
+}
+
+.sq-inline-code-content .sq-snippet-warning:not(.sq-snippet-target) {
+  background: rgba(76, 150, 232, 0.1) !important;
+  box-shadow: inset 3px 0 rgba(76, 150, 232, 0.35);
+}
+
+.sq-inline-code-content .sq-line-num.sq-line-with-warning,
+.sq-inline-code-content .sq-annotation-row.sq-line-with-warning {
+  background: rgba(76, 150, 232, 0.06);
 }
 
 .sq-code-viewer .sq-line-numbers {
@@ -2236,8 +2279,8 @@ Code Viewer (SonarQube-style)
 
 /* Подсветка строки с ошибкой (усиленный приоритет) */
 .sq-inline-code-content .sq-snippet-target {
-    background: rgba(76, 150, 232, 0.2) !important;
-    border-left: 3px solid var(--sq-brand) !important;
+    background: rgba(76, 150, 232, 0.28) !important;
+    box-shadow: inset 3px 0 var(--sq-brand) !important;
     font-weight: 600 !important;
 }
 
