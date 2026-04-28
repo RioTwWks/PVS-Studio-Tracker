@@ -580,7 +580,7 @@ async function toggleInlineCode(btn, issueId) {
 
         // Подсветка синтаксиса
         if (typeof Prism !== 'undefined') {
-            content.querySelectorAll('code[class*="language-"]').forEach(el => Prism.highlightElement(el));
+            content.querySelectorAll('.sq-code-line-code').forEach(el => Prism.highlightElement(el));
         }
     } catch (e) {
         content.innerHTML = `<div class="sq-alert sq-alert-danger">Error: ${e.message}</div>`;
