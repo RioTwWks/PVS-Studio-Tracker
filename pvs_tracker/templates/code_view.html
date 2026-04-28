@@ -71,14 +71,30 @@ function initCodeViewerScroll() {
     const master = document.getElementById('sq-code-scroll');
     const gutter = document.getElementById('sq-line-numbers');
     const annotations = document.getElementById('sq-annotations-panel');
-    
-    if (!master || !gutter || !annotations) return;
-    
-    master.addEventListener('scroll', () => {
-        gutter.scrollTop = master.scrollTop;
-        annotations.scrollTop = master.scrollTop;
-    });
+
+    if (!master) return;
+
+    const syncScroll = () => {
+        if (gutter) {
+            gutter.scrollTop = master.scrollTop;
+            gutter.scrollLeft = master.scrollLeft;   // ← добавить, если нужно
+        }
+        if (annotations) {
+            annotations.scrollTop = master.scrollTop;
+            // аннотации обычно не скроллят горизонтально
+        }
+    };
+
+    // Удаляем старые обработчики, если нужно (для безопасности)
+    master.removeEventListener('scroll', syncScroll);
+    master.addEventListener('scroll', syncScroll, { passive: true });
 }
 
+// Вызов при загрузке и после HTMX-обновлений
 document.addEventListener('DOMContentLoaded', initCodeViewerScroll);
+document.addEventListener('htmx:afterSwap', (e) => {
+    if (e.detail.target.closest('#sq-code-scroll')) {
+        initCodeViewerScroll();
+    }
+});
 </script>

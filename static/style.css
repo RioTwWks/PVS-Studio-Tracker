@@ -2102,23 +2102,39 @@ Code Viewer (SonarQube-style)
   color: var(--sq-text-muted); 
 }
 
-/* Inline Code Row in Issues Table */
+/* Общий стиль для строк кода (используется во всех code viewer'ах) */
+.sq-code-line-code {
+  display: inline !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+  font-size: 13px !important;
+  line-height: 19.5px !important;
+  white-space: pre !important;
+}
+
+.sq-code-viewer .sq-line-numbers {
+  overflow-y: hidden;
+}
+
+/* ============================================================
+   Inline Code Row in Issues Table
+   ============================================================ */
 .sq-inline-code-row {
   background: var(--sq-bg-secondary);
   transition: all 0.2s;
 }
 
+/* ---------- Ячейка и обёртки ---------- */
 .sq-inline-code-cell {
-  padding: 0 !important;
-  border: none !important;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .sq-inline-code-wrapper {
-  margin: 10px 20px;
-  border: 1px solid var(--sq-border);
-  border-radius: 6px;
+  max-width: 100%;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 .sq-inline-code-header {
@@ -2132,130 +2148,59 @@ Code Viewer (SonarQube-style)
   font-size: 12px;
 }
 
-/* Snippet Viewer Styles (No Scroll) */
+/* ---------- Контейнер с загруженным кодом ---------- */
 .sq-inline-code-content {
-  max-height: none !important;
-  overflow: visible !important;
-  padding: 0;
-  background: var(--sq-bg-secondary);
+  overflow: hidden;          /* сам контейнер не скроллится */
+  max-width: 100%;
+  width: 100%;
 }
 
-.sq-snippet-block {
-  margin: 0;
-  padding: 8px 0;
-  background: transparent;
-  font-family: var(--sq-font-mono);
-  font-size: 12px;
-  line-height: 1.5;
-  overflow: visible;
-  white-space: pre !important;
+/* Убираем скролл у родительских flex-обёрток, горизонталью управляет дочерний */
+.sq-inline-code-content .sq-code-viewer-body,
+.sq-inline-code-content .sq-scroll-master-wrapper {
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* Разрешаем flex-элементам сжиматься (чтобы появился скролл) */
+.sq-inline-code-content .sq-scroll-master-wrapper,
+.sq-inline-code-content .sq-code-scroll-area {
+  min-width: 0;
+}
+
+/* ---------- Область с кодом (горизонтальный скролл) ---------- */
+.sq-inline-code-content .sq-code-scroll-area {
+  overflow-x: auto !important;   /* скролл включается при переполнении */
+  overflow-y: hidden !important; /* вертикальный не нужен */
+  width: 100%;
+  max-width: 100%;
+}
+
+/* ---------- Строки кода ---------- */
+.sq-inline-code-content .sq-code-block {
+  white-space: pre;               /* без переносов */
+  overflow-wrap: normal;
+  word-break: normal;
+  max-width: none;                /* контент определяет ширину */
+  margin: 0 !important;
+  padding: 8px 16px !important;
+  background: transparent !important;
   tab-size: 4;
 }
 
-/* Убираем все flex для строк кода */
-.sq-snippet-line {
-  display: block !important;  /* 🔑 Ключевое изменение: flex → block */
-  padding: 0 16px;
-  transition: background 0.1s;
-  min-height: 19.5px;
-  height: 19.5px;
-  line-height: 19.5px !important;
-  white-space: pre !important;  /* 🔑 Сохраняет пробелы и табы */
-  overflow: visible !important;
-  word-wrap: normal !important;
-  overflow-wrap: normal !important;
-}
-
-.sq-snippet-target {
-  background: rgba(76, 150, 232, 0.2);
-  border-left: 3px solid var(--sq-brand);
-  font-weight: 600;
-}
-
-/* Номер строки */
-.sq-snippet-num {
-  display: inline-block !important;
-  width: 36px;
-  text-align: right;
-  margin-right: 12px;
-  color: var(--sq-text-muted);
-  user-select: none;
-  font-size: 11px;
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-/* Код и токены внутри строки — inline, не block */
-.sq-snippet-line code,
-.sq-snippet-line span,
-.sq-snippet-line .token {
-  display: inline !important;
-  white-space: pre !important;
-  line-height: inherit !important;
-}
-
-.sq-code-line-code {
+.sq-inline-code-content .sq-code-line-code {
   display: inline !important;
   background: transparent !important;
-  padding: 0 !important;
-  margin: 0 !important;
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
   font-size: 13px !important;
   line-height: 19.5px !important;
   white-space: pre !important;
 }
 
-.sq-snippet-target .sq-snippet-num {
-  color: var(--sq-brand);
-  opacity: 1;
-}
-
-/* Prism override for snippet */
-.sq-snippet-block code {
-  background: transparent !important;
+/* ---------- Нумерация строк и аннотации ---------- */
+.sq-inline-code-content .sq-line-numbers {
   padding: 0 !important;
-  font-family: inherit !important;
-  font-size: inherit !important;
-  line-height: inherit !important;
-  display: block;
-}
-
-.sq-snippet-block .token,
-.sq-snippet-line .token,
-.sq-snippet-line span {
-  display: inline !important;
-  white-space: pre !important;
-}
-
-/* Prism.js — отключаем его стили для наших сниппетов */
-.sq-inline-code-content .token {
-  display: inline !important;
-  background: transparent !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-/* Гарантируем, что код не растягивает таблицу по горизонтали */
-.sq-inline-code-content .sq-code-viewer {
-  min-width: fit-content;
-  width: 100%;
-}
-
-/* Sync scroll for gutter */
-.sq-code-viewer .sq-line-numbers {
-  overflow-y: hidden;
-}
-
-.sq-inline-code-content .sq-code-scroll-area {
-  overflow-x: auto;
-  overflow-y: auto;
-}
-
-/* Синхронизация скролла для инлайн-вьюера */
-.sq-inline-code-content .sq-line-numbers,
-.sq-inline-code-content .sq-code-scroll-area,
-.sq-inline-code-content .sq-annotations-panel {
-  line-height: 1.5 !important;
+  overflow: hidden !important;
 }
 
 .sq-inline-code-content .sq-line-num {
@@ -2264,26 +2209,29 @@ Code Viewer (SonarQube-style)
   align-items: center !important;
 }
 
+.sq-inline-code-content .sq-annotations-panel {
+  padding: 0 6px !important;
+  overflow: hidden !important;
+}
+
 .sq-inline-code-content .sq-annotation-row {
   height: 19.5px !important;
   display: flex !important;
   align-items: center !important;
 }
 
-/* Предотвращаем горизонтальный скролл всей таблицы */
-.sq-inline-code-content .sq-code-block {
-  overflow-x: auto;
-  max-width: 100%;
+/* ---------- Prism-подсветка (инлайн) ---------- */
+.sq-inline-code-content .token {
+  display: inline !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
-/* Fixes for Code Snippets inside Table & Viewer */
-.sq-inline-code-content pre,
-.sq-inline-code-content code {
-  margin: 0 !important;
-  padding: 0 !important;
-  display: block !important;
-  background: transparent !important;
-  height: auto !important;
+/* ---------- Фиксированная таблица ---------- */
+.sq-table-fixed {
+  table-layout: fixed;
+  width: 100%;
 }
 
 /* ============================================================
