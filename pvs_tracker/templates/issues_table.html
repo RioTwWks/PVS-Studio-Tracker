@@ -43,86 +43,13 @@
 <tbody>
     {% if issues and issues|length > 0 %}
         {% for issue in issues %}
-            {% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
-            {# 🔑 Получаем display_path из словаря display_paths #}
-            {% set display_path = display_paths.get(issue.id, issue.file_path) %}
-            
-            <tr class="sq-table-row severity-{{ issue.severity }}">
-                <td>
-                    <span class="sq-status-badge status-{{ issue.status }}">
-                        {% if issue.status == 'new' %}NEW
-                        {% elif issue.status == 'fixed' %}FIXED
-                        {% elif issue.status == 'ignored' %}IGNORED
-                        {% else %}{{ issue.status|upper }}{% endif %}
-                    </span>
-                </td>
-                <td><span class="sq-severity-badge severity-{{ issue.severity }}">{{ issue.severity }}</span></td>
-                <td><span class="sq-rule-code">{{ issue.rule_code }}</span></td>
-                <td>{% if classifier %}{{ classifier.type }}{% else %}—{% endif %}</td>
-                <td>{% if classifier %}<span class="sq-priority-badge sq-priority-{{ classifier.priority|lower }}">{{ classifier.priority }}</span>{% else %}—{% endif %}</td>
-                <td>
-                    {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
-                        <span class="sq-empty">—</span>
-                    {% else %}
-                        <span class="sq-file-path" title="{{ issue.file_path }}">{{ display_path }}</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
-                        <span class="sq-empty">—</span>
-                    {% else %}
-                        <span class="sq-line-badge">{{ issue.line }}</span>
-                    {% endif %}
-                </td>
-                <td class="sq-message-cell">
-                    <div class="sq-message-text">{{ issue.message }}</div>
-                    {% if classifier %}
-                        <div class="sq-classifier-name">
-                            <i class="bi bi-info-circle"></i> {{ classifier.name }}
-                        </div>
-                    {% endif %}
-                </td>
-                <td class="sq-actions">
-                    {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
-                        <button class="sq-btn sq-btn-sm sq-btn-outline sq-code-action-btn"
-                                id="code-btn-{{ issue.id }}"
-                                onclick="toggleInlineCode(this, '{{ issue.id }}')"
-                                data-file-path="{{ issue.file_path }}"
-                                data-line="{{ issue.line }}"
-                                data-project-id="{{ project_id }}"
-                                data-run-id="{{ run_id if run_id else '' }}">
-                            <i class="bi bi-code-slash"></i> <span data-i18n="tab_code">Code</span>
-                        </button>
-                    {% else %}
-                        <span class="sq-empty">—</span>
-                    {% endif %}
-                </td>
-            </tr>
-            
-            {# Inline code viewer (hidden by default, shown via HTMX) #}
-            {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
-            <tr class="sq-inline-code-row" id="code-row-{{ issue.id }}" style="display:none;">
-                <td colspan="9" class="sq-inline-code-cell">
-                    <div class="sq-inline-code-wrapper">
-                        <div class="sq-inline-code-header">
-                            <span>{{ display_paths.get(issue.id, issue.file_path) }}:{{ issue.line }}</span>
-                        </div>
-                        <div class="sq-inline-code-content" id="code-content-{{ issue.id }}" data-loaded="false">
-                            <!-- Контент будет загружаться при первом открытии -->
-                        </div>
-                    </div>
-                </td>
-            </tr>
-            {% endif %}
+            {% include 'partials/issue_row.html' %}
         {% endfor %}
     {% else %}
         <tr>
             <td colspan="9" class="sq-empty-row">
                 {% if total > 0 %}
-                    <div class="alert alert-warning">
-                        <strong data-i18n="warning_label">Warning:</strong> total={{ total }}, <span data-i18n="issues_list_empty_debug">but issues list is empty.</span>
-                        <span data-i18n="check_pagination">Check pagination:</span> page={{ page }}, per_page={{ per_page }}, offset={{ (page - 1) * per_page }}
-                    </div>
+                    <div class="alert alert-warning">…</div>
                 {% else %}
                     <span data-i18n="no_issues">No warnings found</span>
                 {% endif %}
@@ -130,24 +57,16 @@
         </tr>
     {% endif %}
 </tbody>
-</table>
-
-{% if issues and issues|length > 0 %}
-<div class="sq-pagination">
-    <div class="sq-pagination-info">
-        <span data-i18n="showing">Showing</span> {{ issues|length }} <span data-i18n="of">of</span> {{ total }}
-    </div>
-    <div class="sq-pagination-controls">
-        {% if page > 1 %}
-            <a href="?{{ request.query_params }}&page={{ page - 1 }}" class="sq-btn sq-btn-sm sq-btn-secondary">
-                <i class="bi bi-chevron-left"></i> <span data-i18n="prev_page">Previous</span>
-            </a>
-        {% endif %}
-        {% if page * per_page < total %}
-            <a href="?{{ request.query_params }}&page={{ page + 1 }}" class="sq-btn sq-btn-sm sq-btn-secondary">
-                <span data-i18n="next_page">Next</span> <i class="bi bi-chevron-right"></i>
-            </a>
-        {% endif %}
-    </div>
-</div>
+{% if has_next %}
+<tr id="load-more-sentinel"
+    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page={{ next_page }}&per_page=25&fragment=true&sort_by={{ sort_by }}&order={{ order }}"
+    hx-trigger="revealed"
+    hx-swap="outerHTML"
+    hx-target="this"
+    hx-include="none">
+    <td colspan="9" class="text-center py-2">
+        <div class="sq-loading" data-i18n="loading_data">Loading...</div>
+    </td>
+</tr>
 {% endif %}
+</table>

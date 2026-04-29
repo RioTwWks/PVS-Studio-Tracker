@@ -1,0 +1,69 @@
+{% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
+{% set display_path = display_paths.get(issue.id, issue.file_path) %}
+
+<tr class="sq-table-row severity-{{ issue.severity }}">
+    <td>
+        <span class="sq-status-badge status-{{ issue.status }}">
+            {% if issue.status == 'new' %}NEW
+            {% elif issue.status == 'fixed' %}FIXED
+            {% elif issue.status == 'ignored' %}IGNORED
+            {% else %}{{ issue.status|upper }}{% endif %}
+        </span>
+    </td>
+    <td><span class="sq-severity-badge severity-{{ issue.severity }}">{{ issue.severity }}</span></td>
+    <td><span class="sq-rule-code">{{ issue.rule_code }}</span></td>
+    <td>{% if classifier %}{{ classifier.type }}{% else %}—{% endif %}</td>
+    <td>{% if classifier %}<span class="sq-priority-badge sq-priority-{{ classifier.priority|lower }}">{{ classifier.priority }}</span>{% else %}—{% endif %}</td>
+    <td>
+        {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
+            <span class="sq-empty">—</span>
+        {% else %}
+            <span class="sq-file-path" title="{{ issue.file_path }}">{{ display_path }}</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if issue.file_path and issue.file_path.startswith('__analysis__/') %}
+            <span class="sq-empty">—</span>
+        {% else %}
+            <span class="sq-line-badge">{{ issue.line }}</span>
+        {% endif %}
+    </td>
+    <td class="sq-message-cell">
+        <div class="sq-message-text">{{ issue.message }}</div>
+        {% if classifier %}
+            <div class="sq-classifier-name">
+                <i class="bi bi-info-circle"></i> {{ classifier.name }}
+            </div>
+        {% endif %}
+    </td>
+    <td class="sq-actions">
+        {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
+            <button class="sq-btn sq-btn-sm sq-btn-outline sq-code-action-btn"
+                    id="code-btn-{{ issue.id }}"
+                    onclick="toggleInlineCode(this, '{{ issue.id }}')"
+                    data-file-path="{{ issue.file_path }}"
+                    data-line="{{ issue.line }}"
+                    data-project-id="{{ project_id }}"
+                    data-run-id="{{ run_id if run_id else '' }}">
+                <i class="bi bi-code-slash"></i> <span data-i18n="tab_code">Code</span>
+            </button>
+        {% else %}
+            <span class="sq-empty">—</span>
+        {% endif %}
+    </td>
+</tr>
+
+{% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
+<tr class="sq-inline-code-row" id="code-row-{{ issue.id }}" style="display:none;">
+    <td colspan="9" class="sq-inline-code-cell">
+        <div class="sq-inline-code-wrapper">
+            <div class="sq-inline-code-header">
+                <span>{{ display_path }}:{{ issue.line }}</span>
+            </div>
+            <div class="sq-inline-code-content" id="code-content-{{ issue.id }}" data-loaded="false">
+                <!-- Контент загружается при первом открытии -->
+            </div>
+        </div>
+    </td>
+</tr>
+{% endif %}

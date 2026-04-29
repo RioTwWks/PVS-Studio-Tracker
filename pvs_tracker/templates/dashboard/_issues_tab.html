@@ -17,7 +17,7 @@
             {# Collapsible Filters #}
             <div class="collapse" id="filters-collapse">
                 <div class="sq-filters-bar">
-                    <form hx-get="/ui/issues" hx-target="#issues-table-full" hx-indicator="#issues-table-full" hx-swap="innerHTML" class="sq-filters-form">
+                    <form hx-get="/ui/issues" hx-target="#issues-table-full" hx-trigger="submit" hx-indicator="#issues-table-full" hx-swap="innerHTML" class="sq-filters-form">
                         <input type="hidden" name="project_id" value="{{ project.id }}">
                         <input type="hidden" name="branch" value="{{ active_branch }}">
 
@@ -56,7 +56,10 @@
             </div>
 
             <div class="sq-card-body sq-card-no-padding">
-                <div id="issues-table-full" hx-get="/ui/issues?project_id={{ project.id }}{% if active_branch %}&branch={{ active_branch }}{% endif %}" hx-trigger="load">
+                <div id="issues-table-full"
+                    hx-get="/ui/issues?project_id={{ project.id }}{% if active_branch %}&branch={{ active_branch }}{% endif %}"
+                    hx-trigger="load"
+                    hx-indicator="#issues-table-full">
                     <div class="sq-loading">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden" data-i18n="loading_data">Loading...</span>

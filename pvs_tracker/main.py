@@ -416,12 +416,13 @@ async def ui_issues(
     page: int = 1,
     sort_by: str = "file",
     order: str = "asc",
+    fragment: bool = False,
     session: Session = Depends(get_session),
 ):
     import logging
     logger = logging.getLogger(__name__)
-    
-    # Determine which run to show issues from
+
+    # Определяем последний успешный прогон
     if branch:
         latest_run = session.exec(
             select(Run)
@@ -436,7 +437,7 @@ async def ui_issues(
             .order_by(Run.timestamp.desc())
             .limit(1),
         ).first()
-    
+
     if not latest_run:
         return templates.TemplateResponse(
             request,
@@ -446,7 +447,7 @@ async def ui_issues(
                 "issues": [],
                 "total": 0,
                 "page": page,
-                "per_page": 50,
+                "per_page": 25 if fragment else 50,
                 "project_id": project_id,
                 "branch": branch,
                 "severity": severity,
@@ -457,6 +458,8 @@ async def ui_issues(
                 "display_paths": {},
                 "sort_by": sort_by,
                 "order": order,
+                "has_next": False,
+                "next_page": 1,
             },
         )
 
@@ -464,32 +467,31 @@ async def ui_issues(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    per_page = 50
-    query = select(Issue).where(Issue.run_id == latest_run.id)
+    per_page = 25 if fragment else 50
 
-    # 🔑 Фильтры
+    # Основной запрос на получение issues
+    issues_query = select(Issue).where(Issue.run_id == latest_run.id)
+
     if severity:
-        query = query.where(Issue.severity == severity)
-    
-    # Фильтр сработает только если передано значение, отличное от пустой строки
+        issues_query = issues_query.where(Issue.severity == severity)
+
     if status_filter and status_filter.strip():
-        query = query.where(Issue.status == status_filter)
+        issues_query = issues_query.where(Issue.status == status_filter)
     else:
-        # Если фильтр не выбран — показываем активные (new + existing)
-        query = query.where(Issue.status.in_(["new", "existing"]))
+        issues_query = issues_query.where(Issue.status.in_(["new", "existing"]))
 
     if q:
         like = f"%{q}%"
-        query = query.where(
-            (Issue.file_path.ilike(like)) | 
-            (Issue.rule_code.ilike(like)) | 
+        issues_query = issues_query.where(
+            (Issue.file_path.ilike(like)) |
+            (Issue.rule_code.ilike(like)) |
             (Issue.message.ilike(like))
         )
 
-    # 🔑 Сортировка
+    # Сортировка
     from sqlalchemy import asc, desc
     if sort_by in {"type", "priority"}:
-        query = query.outerjoin(ErrorClassifier, Issue.classifier_id == ErrorClassifier.id)
+        issues_query = issues_query.outerjoin(ErrorClassifier, Issue.classifier_id == ErrorClassifier.id)
     sort_map = {
         "status": Issue.status,
         "severity": Issue.severity,
@@ -500,27 +502,34 @@ async def ui_issues(
     }
     sort_column = sort_map.get(sort_by, Issue.file_path)
     order_func = asc if order == "asc" else desc
-    query = query.order_by(order_func(sort_column), asc(Issue.id))
+    issues_query = issues_query.order_by(order_func(sort_column), asc(Issue.id))
 
-    # 🔑 Получаем ВСЕ issues для подсчёта total
-    total_count = session.exec(
-        select(Issue).where(Issue.run_id == latest_run.id)
-    ).all()
-    
-    # 🔑 Получаем пагинированные issues
+    # Запрос общего числа (без лимита)
+    total_query = select(func.count()).select_from(Issue).where(Issue.run_id == latest_run.id)
+    if severity:
+        total_query = total_query.where(Issue.severity == severity)
+    if status_filter and status_filter.strip():
+        total_query = total_query.where(Issue.status == status_filter)
+    else:
+        total_query = total_query.where(Issue.status.in_(["new", "existing"]))
+    if q:
+        like = f"%{q}%"
+        total_query = total_query.where(
+            (Issue.file_path.ilike(like)) |
+            (Issue.rule_code.ilike(like)) |
+            (Issue.message.ilike(like))
+        )
+    total = session.exec(total_query).one()
+
+    # Пагинация
     issues = session.exec(
-        query.offset((page - 1) * per_page).limit(per_page)
+        issues_query.offset((page - 1) * per_page).limit(per_page)
     ).all()
-    
-    # 🔑 Логируем для отладки
-    logger.info(f"ui_issues: run_id={latest_run.id}, total_in_db={len(total_count)}, filtered_count={len(issues)}")
-    if issues:
-        logger.info(f"First issue: id={issues[0].id}, status={issues[0].status}, file={issues[0].file_path[:50]}")
 
-    # 🔑 Нормализация путей
+    # Нормализация путей
     from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
     global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
-    
+
     display_paths = {}
     for issue in issues:
         effective_root = get_effective_source_root(
@@ -534,27 +543,33 @@ async def ui_issues(
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
 
-    return templates.TemplateResponse(
-        request,
-        "issues_table.html",
-        {
-            "current_user": get_current_user(request),
-            "issues": issues,
-            "total": len(total_count),
-            "page": page,
-            "per_page": per_page,
-            "project_id": project_id,
-            "branch": branch,
-            "severity": severity,
-            "status_filter": status_filter,
-            "q": q,
-            "classifier_map": classifier_map,
-            "run_id": latest_run.id,
-            "display_paths": display_paths,
-            "sort_by": sort_by,
-            "order": order,
-        },
-    )
+    has_next = (page * per_page < total)
+    next_page = page + 1
+
+    template_vars = {
+        "current_user": get_current_user(request),
+        "issues": issues,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "project_id": project_id,
+        "branch": branch,
+        "severity": severity,
+        "status_filter": status_filter,
+        "q": q,
+        "run_id": latest_run.id,
+        "classifier_map": classifier_map,
+        "display_paths": display_paths,
+        "sort_by": sort_by,
+        "order": order,
+        "has_next": has_next,
+        "next_page": next_page,
+    }
+
+    if fragment:
+        return templates.TemplateResponse(request, "partials/issues_rows.html", template_vars)
+    else:
+        return templates.TemplateResponse(request, "issues_table.html", template_vars)
 
 
 # ---------------------------------------------------------------------------
