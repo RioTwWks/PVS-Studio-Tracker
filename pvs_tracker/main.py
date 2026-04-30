@@ -462,7 +462,9 @@ async def ui_issues(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    per_page = 25 if fragment else 50
+    initial_per_page = 50
+    per_page = 25 if fragment else initial_per_page
+    offset = initial_per_page + max(page - 2, 0) * per_page if fragment else (page - 1) * per_page
 
     # Основной запрос на получение issues
     issues_query = select(Issue).where(Issue.run_id == latest_run.id)
@@ -518,7 +520,7 @@ async def ui_issues(
 
     # Пагинация
     issues = session.exec(
-        issues_query.offset((page - 1) * per_page).limit(per_page)
+        issues_query.offset(offset).limit(per_page)
     ).all()
 
     # Нормализация путей
@@ -538,7 +540,7 @@ async def ui_issues(
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
 
-    has_next = (page * per_page < total)
+    has_next = offset + per_page < total
     next_page = page + 1
 
     template_vars = {

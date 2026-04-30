@@ -144,6 +144,50 @@ def test_upload_stores_code_snapshot_in_database(client):
     assert "int main" in r.text
 
 
+def test_issues_infinite_scroll_uses_initial_50_then_25(client):
+    with Session(main.engine) as session:
+        project = Project(name="infinite-scroll-project")
+        session.add(project)
+        session.commit()
+        session.refresh(project)
+
+        run = Run(project_id=project.id, branch="main", report_file="db:test.json", status="done")
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+
+        for idx in range(80):
+            session.add(
+                Issue(
+                    run_id=run.id,
+                    fingerprint=f"scroll-{idx}",
+                    file_path=f"src/file_{idx:03}.cpp",
+                    line=idx + 1,
+                    rule_code="V501",
+                    severity="Medium",
+                    message=f"Message {idx}",
+                    status="existing",
+                )
+            )
+        session.commit()
+        project_id = project.id
+
+    first = client.get(f"/ui/issues?project_id={project_id}&branch=main&sort_by=file&order=asc")
+    assert first.status_code == 200
+    assert "src/file_000.cpp" in first.text
+    assert "src/file_049.cpp" in first.text
+    assert "src/file_050.cpp" not in first.text
+
+    second = client.get(
+        f"/ui/issues?project_id={project_id}&branch=main&page=2&fragment=true&sort_by=file&order=asc"
+    )
+    assert second.status_code == 200
+    assert "src/file_049.cpp" not in second.text
+    assert "src/file_050.cpp" in second.text
+    assert "src/file_074.cpp" in second.text
+    assert "src/file_075.cpp" not in second.text
+
+
 def test_ui_upload_redirects_to_dashboard(client):
     """Test that UI upload redirects to project dashboard instead of returning JSON."""
     # Login

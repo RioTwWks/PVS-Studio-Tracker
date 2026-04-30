@@ -56,11 +56,10 @@
             </td>
         </tr>
     {% endif %}
-</tbody>
 {% if has_next %}
 <tr id="load-more-sentinel"
     hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page={{ next_page }}&per_page=25&fragment=true&sort_by={{ sort_by }}&order={{ order }}"
-    hx-trigger="revealed"
+    hx-trigger="pvs-load-more"
     hx-swap="outerHTML"
     hx-target="this"
     hx-include="none">
@@ -69,4 +68,5 @@
     </td>
 </tr>
 {% endif %}
+</tbody>
 </table>

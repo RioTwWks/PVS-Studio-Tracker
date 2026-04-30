@@ -39,6 +39,10 @@
         if (tabName === 'trends' && window.__pvsChart) {
             requestAnimationFrame(() => window.__pvsChart.resize());
         }
+
+        if (tabName === 'issues') {
+            loadIssuesTab();
+        }
     }
 
     // Called when clicking code button on an issue
@@ -82,6 +86,78 @@
             setTimeout(() => { status.style.display = 'none'; }, 3000);
         }
     }
+</script>
+
+<script>
+    let issuesObserver = null;
+    let issuesScrollArmed = false;
+
+    function isIssuesTabActive() {
+        const tab = document.getElementById('tab-issues');
+        return tab && tab.style.display !== 'none';
+    }
+
+    function loadIssuesTab() {
+        const container = document.getElementById('issues-table-full');
+        if (!container || container.dataset.issuesLoaded === 'true') {
+            initIssuesInfiniteScroll();
+            return;
+        }
+
+        const url = container.dataset.issuesUrl;
+        if (!url) {
+            return;
+        }
+
+        container.dataset.issuesLoaded = 'true';
+        issuesScrollArmed = false;
+        const request = htmx.ajax('GET', url, {
+            target: '#issues-table-full',
+            swap: 'innerHTML',
+        });
+        if (request && typeof request.then === 'function') {
+            request.then(() => initIssuesInfiniteScroll());
+        }
+    }
+
+    function initIssuesInfiniteScroll() {
+        if (issuesObserver) {
+            issuesObserver.disconnect();
+            issuesObserver = null;
+        }
+
+        const sentinel = document.getElementById('load-more-sentinel');
+        if (!sentinel) {
+            return;
+        }
+
+        issuesObserver = new IntersectionObserver((entries) => {
+            const entry = entries[0];
+            if (!entry || !entry.isIntersecting || !isIssuesTabActive() || !issuesScrollArmed || sentinel.dataset.loading === 'true') {
+                return;
+            }
+
+            sentinel.dataset.loading = 'true';
+            sentinel.dispatchEvent(new Event('pvs-load-more', { bubbles: true }));
+        }, { root: null, rootMargin: '120px 0px', threshold: 0.01 });
+
+        issuesObserver.observe(sentinel);
+    }
+
+    document.body.addEventListener('htmx:afterSwap', (event) => {
+        if (event.detail && event.detail.target && event.detail.target.id === 'issues-table-full') {
+            issuesScrollArmed = false;
+            initIssuesInfiniteScroll();
+        } else if (event.target && event.target.id === 'load-more-sentinel') {
+            initIssuesInfiniteScroll();
+        }
+    });
+
+    window.addEventListener('scroll', () => {
+        if (isIssuesTabActive()) {
+            issuesScrollArmed = true;
+        }
+    }, { passive: true });
 </script>
 
 <script>
