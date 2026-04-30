@@ -130,8 +130,20 @@ def parse_pvs_report(report_path: str) -> list[dict[str, Any]]:
     with open(report_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    return parse_pvs_report_data(data)
+
+
+def parse_pvs_report_bytes(report_bytes: bytes) -> list[dict[str, Any]]:
+    """Parse a PVS-Studio JSON report already loaded from upload or DB."""
+    data = json.loads(report_bytes.decode("utf-8-sig"))
+    return parse_pvs_report_data(data)
+
+
+def parse_pvs_report_data(data: Any) -> list[dict[str, Any]]:
+    """Parse a decoded PVS-Studio JSON report."""
+
     # PVS-Studio typically returns {"version": "...", "warnings": [...]}
-    warnings = data.get("warnings", data if isinstance(data, list) else [])
+    warnings = data if isinstance(data, list) else data.get("warnings", [])
 
     # Extract CWE from warning-level (applies to all positions)
     issues: list[dict[str, Any]] = []

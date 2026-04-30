@@ -116,9 +116,42 @@ class GitCache:
 git_cache = GitCache()
 
 
+def _fetch_from_db_snapshot(run_id: int, file_path: str) -> Optional[SourceFile]:
+    """Fetch a source file from database-backed snapshot storage."""
+    from sqlmodel import Session, select
+
+    from pvs_tracker.db import engine
+    from pvs_tracker.models import CodeSnapshotFile
+
+    normalized = file_path.replace("\\", "/")
+    variations = _generate_path_variations(normalized)
+
+    with Session(engine) as session:
+        row = session.exec(
+            select(CodeSnapshotFile).where(
+                CodeSnapshotFile.run_id == run_id,
+                CodeSnapshotFile.file_path.in_(variations),
+            )
+        ).first()
+
+    if row is None:
+        return None
+
+    return SourceFile(
+        file_path=row.file_path,
+        content=row.content,
+        lines=row.content.splitlines(keepends=True),
+        source="snapshot",
+    )
+
+
 async def fetch_from_run_snapshot(run_id: int, file_path: str) -> Optional[SourceFile]:
     """Fetch file from the run-specific code snapshot."""
-    snapshot_path = SNAPSHOTS_DIR / f"{run_id}.json.gz"
+    db_result = _fetch_from_db_snapshot(run_id, file_path)
+    if db_result:
+        return db_result
+
+    snapshot_path = Path(SNAPSHOTS_DIR) / f"{run_id}.json.gz"
     if not snapshot_path.exists():
         return None
     
@@ -386,6 +419,10 @@ async def _extract_from_tar(archive_path: Path, file_path: str) -> Optional[Sour
 
 async def fetch_from_run_snapshot(run_id: int, file_path: str) -> Optional[SourceFile]:
     """Fetch file from the run-specific code snapshot."""
+    db_result = _fetch_from_db_snapshot(run_id, file_path)
+    if db_result:
+        return db_result
+
     snapshot_path = Path(SNAPSHOTS_DIR) / f"{run_id}.json.gz"
     if not snapshot_path.exists():
         return None

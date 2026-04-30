@@ -17,13 +17,16 @@ from pvs_tracker.models import (
     Project,
     ProjectMember,
     Run,
+    RunReport,
     SQLModel,
+    CodeSnapshotFile,
     ErrorClassifier,
     User,
     UserRole,
     GlobalSettings,
 )
-from pvs_tracker.parser import parse_pvs_report
+from pvs_tracker.parser import parse_pvs_report_bytes
+from pvs_tracker.artifact_storage import store_code_snapshot, store_run_report
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
 from pvs_tracker.db import engine
@@ -32,14 +35,6 @@ from pvs_tracker.code_viewer import router as code_viewer_router
 from pvs_tracker.api import router as api_v2_router
 from pvs_tracker.quality_gate import create_default_quality_gate
 from pvs_tracker.security import hash_password
-
-import gzip
-import json
-from pathlib import Path
-
-# Add this near the top with other paths
-SNAPSHOTS_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "snapshots")
-os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # App & DB
@@ -594,13 +589,10 @@ async def upload_report_ui(
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
 
-    # 1. Save report file
-    os.makedirs("reports", exist_ok=True)
+    # 1. Read report upload. The raw report is stored in DB after run creation.
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
-    report_path = os.path.join("reports", f"{project_name}_{timestamp}_{safe_filename}")
-    with open(report_path, "wb") as f:
-        f.write(await file.read())
+    report_bytes = await file.read()
 
     # 1.5. Save source archive if provided
     source_archive_path = None
@@ -629,24 +621,21 @@ async def upload_report_ui(
     user_id = user.id if user else None
 
     # 3. Create run record (получаем run.id до сохранения снапшота)
-    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
+    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
     session.add(run)
     session.commit()
     session.refresh(run)
+    store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
 
     # 🔑 Сохраняем code snapshot, если приложен
     if code_snapshot and code_snapshot.filename:
-        from pathlib import Path
-        snapshot_dir = Path(os.path.join(BASE_DIR, "..", "data", "snapshots"))
-        snapshot_dir.mkdir(parents=True, exist_ok=True)
-        snapshot_path = snapshot_dir / f"{run.id}.json.gz"
-        with open(snapshot_path, "wb") as f:
-            f.write(await code_snapshot.read())
-        # log optional: print(f"✅ Saved snapshot for run {run.id} -> {snapshot_path}")
+        store_code_snapshot(session, run.id, await code_snapshot.read())
+
+    session.commit()
 
     # 4. Parse & classify
     try:
-        issues = parse_pvs_report(report_path)
+        issues = parse_pvs_report_bytes(report_bytes)
         classify_and_store(session, project.id, run.id, issues)
         run.status = "done"
         
@@ -739,13 +728,10 @@ async def upload_report_api(
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
 
-    # 1. Save report file
-    os.makedirs("reports", exist_ok=True)
+    # 1. Read report upload. The raw report is stored in DB after run creation.
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
-    report_path = os.path.join("reports", f"{project_name}_{timestamp}_{safe_filename}")
-    with open(report_path, "wb") as f:
-        f.write(await file.read())
+    report_bytes = await file.read()
 
     # 1.5. Save source archive if provided
     source_archive_path = None
@@ -774,20 +760,20 @@ async def upload_report_api(
     user_id = user.id if user else None
 
     # 3. Create run record
-    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=report_path)
+    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
     session.add(run)
     session.commit()
     session.refresh(run)
+    store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
 
     # 🔑 Сохраняем snapshot если приложен
     if code_snapshot and code_snapshot.filename:
-        snapshot_path = Path(SNAPSHOTS_DIR) / f"{run.id}.json.gz"
-        with open(snapshot_path, "wb") as f:
-            f.write(await code_snapshot.read())
+        store_code_snapshot(session, run.id, await code_snapshot.read())
+    session.commit()
 
     # 4. Parse & classify
     try:
-        issues = parse_pvs_report(report_path)
+        issues = parse_pvs_report_bytes(report_bytes)
         classify_and_store(session, project.id, run.id, issues)
         run.status = "done"
         
@@ -985,6 +971,16 @@ async def delete_project_ui(
         metrics = session.exec(select(MetricSnapshot).where(MetricSnapshot.run_id.in_(run_ids))).all()
         for metric in metrics:
             session.delete(metric)
+
+        reports = session.exec(select(RunReport).where(RunReport.run_id.in_(run_ids))).all()
+        for report in reports:
+            session.delete(report)
+
+        snapshot_files = session.exec(
+            select(CodeSnapshotFile).where(CodeSnapshotFile.run_id.in_(run_ids))
+        ).all()
+        for snapshot_file in snapshot_files:
+            session.delete(snapshot_file)
 
     members = session.exec(select(ProjectMember).where(ProjectMember.project_id == project_id)).all()
     for member in members:

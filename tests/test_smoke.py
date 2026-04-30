@@ -1,13 +1,14 @@
 """Smoke tests for the MVP."""
 import json
 import os
+import gzip
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker import main
-from pvs_tracker.models import Issue, Project, Run
+from pvs_tracker.models import CodeSnapshotFile, Issue, Project, Run, RunReport
 
 SAMPLE_REPORT = {
     "version": 3,
@@ -90,8 +91,12 @@ def test_upload_and_dashboard(client):
     with Session(main.engine) as session:
         run = session.exec(select(Run).where(Run.project_id == project_id)).first()
         assert run is not None
+        assert run.report_file.startswith("db:")
         assert run.total_issues == 1
         assert run.new_issues == 0
+        report = session.exec(select(RunReport).where(RunReport.run_id == run.id)).first()
+        assert report is not None
+        assert report.filename == "smoke_test.json"
         issue = session.exec(select(Issue).where(Issue.run_id == run.id)).first()
         assert issue is not None
         assert issue.status == "existing"
@@ -99,6 +104,44 @@ def test_upload_and_dashboard(client):
     r = client.get(f"/ui/issues?project_id={project_id}&status_filter=new")
     assert r.status_code == 200
     assert "V501" not in r.text
+
+
+def test_upload_stores_code_snapshot_in_database(client):
+    client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
+
+    snapshot = gzip.compress(json.dumps({"src/main.cpp": "int main() { return 0; }\n"}).encode("utf-8"))
+    with open("reports/smoke_test.json", "rb") as f:
+        r = client.post(
+            "/api/v1/upload",
+            data={"project_name": "snapshot-db-test", "commit": "abc123", "branch": "main"},
+            files={
+                "file": ("smoke_test.json", f, "application/json"),
+                "code_snapshot": ("snapshot.json.gz", snapshot, "application/gzip"),
+            },
+        )
+
+    assert r.status_code == 200
+    run_id = r.json()["run_id"]
+
+    with Session(main.engine) as session:
+        project = session.exec(select(Project).where(Project.name == "snapshot-db-test")).first()
+        assert project is not None
+        project_id = project.id
+        row = session.exec(
+            select(CodeSnapshotFile).where(
+                CodeSnapshotFile.run_id == run_id,
+                CodeSnapshotFile.file_path == "src/main.cpp",
+            )
+        ).first()
+        assert row is not None
+        assert "int main" in row.content
+
+    r = client.get(
+        "/ui/file",
+        params={"project_id": project_id, "run_id": run_id, "file_path": "src/main.cpp"},
+    )
+    assert r.status_code == 200
+    assert "int main" in r.text
 
 
 def test_ui_upload_redirects_to_dashboard(client):

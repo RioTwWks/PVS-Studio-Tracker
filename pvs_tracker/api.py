@@ -12,7 +12,8 @@ import io
 from pvs_tracker.models import (
     Project, Run, Issue, ErrorClassifier, User, UserRole,
     ProjectMember, QualityGate, QualityGateCondition, GlobalSettings,
-    IssueComment, ActivityLog, MetricSnapshot, IssueResolution
+    IssueComment, ActivityLog, MetricSnapshot, IssueResolution,
+    RunReport, CodeSnapshotFile,
 )
 from pvs_tracker.auth_service import (
     require_auth, require_admin, require_role, create_user,
@@ -392,9 +393,28 @@ async def delete_project_api(project_id: int, session: Session = Depends(lambda:
         
         # Delete all related data
         runs = db_session.exec(select(Run).where(Run.project_id == project_id)).all()
+        run_ids = [run.id for run in runs if run.id is not None]
+        if run_ids:
+            reports = db_session.exec(select(RunReport).where(RunReport.run_id.in_(run_ids))).all()
+            for report in reports:
+                db_session.delete(report)
+
+            snapshot_files = db_session.exec(
+                select(CodeSnapshotFile).where(CodeSnapshotFile.run_id.in_(run_ids))
+            ).all()
+            for snapshot_file in snapshot_files:
+                db_session.delete(snapshot_file)
+
+            metrics = db_session.exec(select(MetricSnapshot).where(MetricSnapshot.run_id.in_(run_ids))).all()
+            for metric in metrics:
+                db_session.delete(metric)
+
         for run in runs:
             issues = db_session.exec(select(Issue).where(Issue.run_id == run.id)).all()
             for issue in issues:
+                comments = db_session.exec(select(IssueComment).where(IssueComment.issue_id == issue.id)).all()
+                for comment in comments:
+                    db_session.delete(comment)
                 db_session.delete(issue)
             db_session.delete(run)
         

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 
 from sqlmodel import Field, SQLModel, create_engine, Relationship
-from sqlalchemy import Text
+from sqlalchemy import LargeBinary, Text, UniqueConstraint
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +161,29 @@ class Run(SQLModel, table=True):
     # Relationships
     project: Project = Relationship(back_populates="runs")
     issues: list["Issue"] = Relationship(back_populates="run")
+
+
+class RunReport(SQLModel, table=True):
+    """Raw uploaded PVS-Studio report stored in the database."""
+    __table_args__ = (UniqueConstraint("run_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="run.id", index=True)
+    filename: str
+    content_type: Optional[str] = Field(default=None)
+    content: bytes = Field(sa_type=LargeBinary)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CodeSnapshotFile(SQLModel, table=True):
+    """One source file captured in a run-specific code snapshot."""
+    __table_args__ = (UniqueConstraint("run_id", "file_path"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="run.id", index=True)
+    file_path: str = Field(index=True)
+    content: str = Field(sa_type=Text)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Issue(SQLModel, table=True):
