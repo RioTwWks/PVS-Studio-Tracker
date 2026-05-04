@@ -109,6 +109,15 @@ def _migrate_database() -> None:
                     conn.commit()
                 except Exception:
                     pass  # Column may already exist
+
+                # Add os column to run
+                try:
+                    conn.execute(
+                        text("ALTER TABLE run ADD COLUMN os VARCHAR")
+                    )
+                    conn.commit()
+                except Exception:
+                    pass  # Column may already exist
         except Exception:
             pass  # Migration failed, continue anyway
 
@@ -258,6 +267,7 @@ async def create_project_ui(
     file: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
+    os: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
@@ -287,6 +297,7 @@ async def create_project_ui(
                 code_snapshot=code_snapshot,
                 commit=commit,
                 branch=(branch or project.git_branch or "main").strip() or "main",
+                os=os,
                 session=session,
                 _user=_user,
             )
@@ -307,6 +318,7 @@ async def create_project_ui(
             code_snapshot=code_snapshot,
             commit=commit,
             branch=default_branch,
+            os=os,
             session=session,
             _user=_user,
         )
@@ -319,6 +331,7 @@ async def ui_dashboard(
     project_id: int,
     request: Request,
     branch: str = "",
+    os_filter: str = "",
     session: Session = Depends(get_session),
 ):
     project = session.get(Project, project_id)
@@ -355,15 +368,17 @@ async def ui_dashboard(
 
     # Filter runs by active branch
     run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
-    if active_branch:
-        run_query = run_query.where(Run.branch == active_branch)
-    run_query = run_query.order_by(Run.timestamp.asc()).limit(10)
-    runs = session.exec(run_query).all()
+    if os_filter in ("windows", "linux"):
+        run_query = run_query.where(Run.os == os_filter)
+    elif os_filter == "common":
+        # Для common пока не строим тренд, но можно вернуть пустой список
+        run_query = run_query.where(False)  # или run_query = select(Run).where(1==0)
 
     # Compute cumulative active/fixed counts across runs
     all_fps: set[str] = set()
     fixed_fps: set[str] = set()
     history = []
+    runs = session.exec(run_query.order_by(Run.timestamp.asc()).limit(10)).all()
     for r in runs:
         issues = session.exec(select(Issue).where(Issue.run_id == r.id)).all()
         for i in issues:
@@ -394,6 +409,7 @@ async def ui_dashboard(
             "current_user": get_current_user(request),
             "project": project,
             "history": history,
+            "os_filter": os_filter,
             "branches": branches,
             "active_branch": active_branch,
         },
@@ -412,52 +428,127 @@ async def ui_issues(
     sort_by: str = "file",
     order: str = "asc",
     fragment: bool = False,
+    os_filter: str = "",                         # ⬅️ новый параметр
     session: Session = Depends(get_session),
 ):
     import logging
     logger = logging.getLogger(__name__)
 
-    # Определяем последний успешный прогон
-    if branch:
-        latest_run = session.exec(
-            select(Run)
-            .where(Run.project_id == project_id, Run.status == "done", Run.branch == branch)
-            .order_by(Run.timestamp.desc())
-            .limit(1),
-        ).first()
-    else:
-        latest_run = session.exec(
-            select(Run)
-            .where(Run.project_id == project_id, Run.status == "done")
-            .order_by(Run.timestamp.desc())
-            .limit(1),
+    # --- Определяем последний подходящий прогон в зависимости от os_filter ---
+    latest_run = None
+    common_fps = set()  # для режима common
+
+    if os_filter in ("windows", "linux"):
+        # Ищем последний завершённый прогон с заданной ОС
+        if branch:
+            latest_run = session.exec(
+                select(Run).where(
+                    Run.project_id == project_id,
+                    Run.status == "done",
+                    Run.branch == branch,
+                    Run.os == os_filter,
+                ).order_by(Run.timestamp.desc()).limit(1)
+            ).first()
+        else:
+            latest_run = session.exec(
+                select(Run).where(
+                    Run.project_id == project_id,
+                    Run.status == "done",
+                    Run.os == os_filter,
+                ).order_by(Run.timestamp.desc()).limit(1)
+            ).first()
+    elif os_filter == "common":
+        # Нужны последние Windows и Linux прогоны
+        win_run = session.exec(
+            select(Run).where(
+                Run.project_id == project_id,
+                Run.status == "done",
+                Run.os == "windows",
+                Run.branch == branch if branch else None,
+            ).order_by(Run.timestamp.desc()).limit(1)
+        ).first() if branch else session.exec(
+            select(Run).where(
+                Run.project_id == project_id,
+                Run.status == "done",
+                Run.os == "windows",
+            ).order_by(Run.timestamp.desc()).limit(1)
         ).first()
 
+        lin_run = session.exec(
+            select(Run).where(
+                Run.project_id == project_id,
+                Run.status == "done",
+                Run.os == "linux",
+                Run.branch == branch if branch else None,
+            ).order_by(Run.timestamp.desc()).limit(1)
+        ).first() if branch else session.exec(
+            select(Run).where(
+                Run.project_id == project_id,
+                Run.status == "done",
+                Run.os == "linux",
+            ).order_by(Run.timestamp.desc()).limit(1)
+        ).first()
+
+        if win_run and lin_run:
+            win_fps = set(i.fingerprint for i in session.exec(
+                select(Issue).where(Issue.run_id == win_run.id, Issue.status.in_(["new", "existing"]))
+            ).all())
+            lin_fps = set(i.fingerprint for i in session.exec(
+                select(Issue).where(Issue.run_id == lin_run.id, Issue.status.in_(["new", "existing"]))
+            ).all())
+            common_fps = win_fps & lin_fps
+            # Для отображения используем Win-запуск как основной (можно любой)
+            latest_run = win_run
+        else:
+            latest_run = None
+    else:
+        # os_filter == "" – стандартное поведение (All)
+        if branch:
+            latest_run = session.exec(
+                select(Run).where(
+                    Run.project_id == project_id,
+                    Run.status == "done",
+                    Run.branch == branch,
+                ).order_by(Run.timestamp.desc()).limit(1)
+            ).first()
+        else:
+            latest_run = session.exec(
+                select(Run).where(
+                    Run.project_id == project_id,
+                    Run.status == "done",
+                ).order_by(Run.timestamp.desc()).limit(1)
+            ).first()
+
+    # --- Если подходящего прогона нет – возвращаем пустую таблицу ---
     if not latest_run:
+        empty_vars = {
+            "current_user": get_current_user(request),
+            "issues": [],
+            "total": 0,
+            "page": page,
+            "per_page": 25 if fragment else 50,
+            "project_id": project_id,
+            "branch": branch,
+            "severity": severity,
+            "status_filter": status_filter,
+            "q": q,
+            "run_id": None,
+            "classifier_map": {},
+            "display_paths": {},
+            "sort_by": sort_by,
+            "order": order,
+            "has_next": False,
+            "next_page": 1,
+            "os_filter": os_filter,
+            "run_os_map": {},
+        }
         return templates.TemplateResponse(
             request,
-            "issues_table.html",
-            {
-                "current_user": get_current_user(request),
-                "issues": [],
-                "total": 0,
-                "page": page,
-                "per_page": 25 if fragment else 50,
-                "project_id": project_id,
-                "branch": branch,
-                "severity": severity,
-                "status_filter": status_filter,
-                "q": q,
-                "run_id": None,
-                "classifier_map": {},
-                "display_paths": {},
-                "sort_by": sort_by,
-                "order": order,
-                "has_next": False,
-                "next_page": 1,
-            },
+            "partials/issues_rows.html" if fragment else "issues_table.html",
+            empty_vars,
         )
 
+    # --- С этого места всё почти как раньше, но добавляем фильтр по common_fps если нужно ---
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -466,8 +557,11 @@ async def ui_issues(
     per_page = 25 if fragment else initial_per_page
     offset = initial_per_page + max(page - 2, 0) * per_page if fragment else (page - 1) * per_page
 
-    # Основной запрос на получение issues
     issues_query = select(Issue).where(Issue.run_id == latest_run.id)
+
+    # Common: дополнительный фильтр по пересечению fingerprint
+    if os_filter == "common" and common_fps:
+        issues_query = issues_query.where(Issue.fingerprint.in_(common_fps))
 
     if severity:
         issues_query = issues_query.where(Issue.severity == severity)
@@ -501,8 +595,10 @@ async def ui_issues(
     order_func = asc if order == "asc" else desc
     issues_query = issues_query.order_by(order_func(sort_column), asc(Issue.id))
 
-    # Запрос общего числа (без лимита)
+    # Общее количество с учётом тех же фильтров
     total_query = select(func.count()).select_from(Issue).where(Issue.run_id == latest_run.id)
+    if os_filter == "common" and common_fps:
+        total_query = total_query.where(Issue.fingerprint.in_(common_fps))
     if severity:
         total_query = total_query.where(Issue.severity == severity)
     if status_filter and status_filter.strip():
@@ -518,7 +614,7 @@ async def ui_issues(
         )
     total = session.exec(total_query).one()
 
-    # Пагинация
+    # Получение проблем с пагинацией
     issues = session.exec(
         issues_query.offset(offset).limit(per_page)
     ).all()
@@ -536,9 +632,15 @@ async def ui_issues(
         )
         display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
 
-    # Fetch classifiers
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
+
+    # --- Собираем словарь ОС для каждой проблемы ---
+    run_os_map = {}
+    if latest_run:
+        run_os = latest_run.os or "unknown"
+        for issue in issues:
+            run_os_map[issue.id] = run_os
 
     has_next = offset + per_page < total
     next_page = page + 1
@@ -561,6 +663,8 @@ async def ui_issues(
         "order": order,
         "has_next": has_next,
         "next_page": next_page,
+        "os_filter": os_filter,          # ← передаём фильтр в шаблон
+        "run_os_map": run_os_map,        # ← словарь id → OS
     }
 
     if fragment:
@@ -585,6 +689,7 @@ async def upload_report_ui(
     branch: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
+    os: str = Form(None),
 ):
     """Handle report upload from UI form and redirect to dashboard."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
@@ -624,6 +729,7 @@ async def upload_report_ui(
 
     # 3. Create run record (получаем run.id до сохранения снапшота)
     run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+    run.os = os.strip().lower() if os else None
     session.add(run)
     session.commit()
     session.refresh(run)
@@ -724,6 +830,7 @@ async def upload_report_api(
     branch: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
+    os: str = Form(None),
 ):
     """API endpoint for report upload (returns JSON)."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
@@ -763,6 +870,7 @@ async def upload_report_api(
 
     # 3. Create run record
     run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+    run.os = os.strip().lower() if os and os.strip() else None
     session.add(run)
     session.commit()
     session.refresh(run)

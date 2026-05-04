@@ -23,6 +23,7 @@ def resolve_source_path(
     project_source_root_win: str | None,
     project_source_root_linux: str | None,
     report_file_path: str,
+    os_type: Optional[str] = None,
 ) -> Path:
     """
     Safely convert a path from a PVS report to an absolute server path.
@@ -32,17 +33,17 @@ def resolve_source_path(
     logger = logging.getLogger("pvs_tracker")
     
     # Detect OS and select appropriate source root
-    os_type = get_os_type()
-    if os_type == "windows":
-        source_root = project_source_root_win
+    if os_type:
+        source_root = project_source_root_win if os_type == "windows" else project_source_root_linux
     else:
-        source_root = project_source_root_linux
-    
+        # старое поведение: определяем ОС сервера
+        os_type_detected = get_os_type()
+        source_root = project_source_root_win if os_type_detected == "windows" else project_source_root_linux
+
     if not source_root:
         raise HTTPException(
             400,
-            f"source_root_{os_type} is not configured for this project. "
-            f"Please set it in Project Settings.",
+            f"source_root_{os_type or get_os_type()} is not configured..."
         )
 
     base = Path(source_root).resolve()

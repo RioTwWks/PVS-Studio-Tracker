@@ -157,6 +157,7 @@ class Run(SQLModel, table=True):
     new_issues: int = Field(default=0)
     fixed_issues: int = Field(default=0)
     analysis_time_ms: int = Field(default=0, description="Analysis duration in ms")
+    os: Optional[str] = Field(default=None, description="OS where analysis was run: windows or linux")
 
     # Relationships
     project: Project = Relationship(back_populates="runs")

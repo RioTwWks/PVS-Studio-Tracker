@@ -1,7 +1,13 @@
 {% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
 {% set display_path = display_paths.get(issue.id, issue.file_path) %}
+{% set os_val = run_os_map.get(issue.id, '') %}
 
 <tr class="sq-table-row severity-{{ issue.severity }}">
+    <td>
+        {% if os_val == 'windows' %}<i class="bi bi-windows"></i> Win
+        {% elif os_val == 'linux' %}<i class="bi bi-ubuntu"></i> Linux
+        {% else %}—{% endif %}
+    </td>
     <td>
         <span class="sq-status-badge status-{{ issue.status }}">
             {% if issue.status == 'new' %}NEW
@@ -55,7 +61,7 @@
 
 {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
 <tr class="sq-inline-code-row" id="code-row-{{ issue.id }}" style="display:none;">
-    <td colspan="9" class="sq-inline-code-cell">
+    <td colspan="10" class="sq-inline-code-cell">
         <div class="sq-inline-code-wrapper">
             <div class="sq-inline-code-header">
                 <span>{{ display_path }}:{{ issue.line }}</span>
