@@ -31,7 +31,7 @@ from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
 from pvs_tracker.db import engine
 import pvs_tracker.code_viewer as code_viewer_module
-from pvs_tracker.code_viewer import router as code_viewer_router
+from pvs_tracker.code_viewer import merge_code_snapshot, router as code_viewer_router
 from pvs_tracker.api import router as api_v2_router
 from pvs_tracker.quality_gate import create_default_quality_gate
 from pvs_tracker.security import hash_password
@@ -579,7 +579,7 @@ async def upload_report_ui(
     request: Request,
     project_name: str = Form(...),
     file: UploadFile = Form(...),
-    source_archive: UploadFile = Form(None),  # Optional source archive
+    source_archive: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
     branch: str = Form(None),
@@ -590,13 +590,14 @@ async def upload_report_ui(
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
+    from pvs_tracker.incremental import add_issues_to_existing_run
 
-    # 1. Read report upload. The raw report is stored in DB after run creation.
+    # 1. Read report
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
     report_bytes = await file.read()
 
-    # 1.5. Save source archive if provided
+    # 1.5. Source archive
     source_archive_path = None
     if source_archive and source_archive.filename:
         os.makedirs("source_archives", exist_ok=True)
@@ -605,79 +606,84 @@ async def upload_report_ui(
         with open(source_archive_path, "wb") as f:
             f.write(await source_archive.read())
 
-    # 2. Ensure project exists
+    # 2. Project
     project = session.exec(select(Project).where(Project.name == project_name)).first()
     if not project:
         project = Project(name=project_name)
         session.add(project)
         session.commit()
         session.refresh(project)
-    
-    # Update source archive path if provided
     if source_archive_path:
         project.source_archive_path = source_archive_path
         session.commit()
 
-    # Get user ID for activity logging
     user = session.exec(select(User).where(User.username == _user)).first()
     user_id = user.id if user else None
 
-    # 3. Create run record (получаем run.id до сохранения снапшота)
-    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
-    session.add(run)
-    session.commit()
-    session.refresh(run)
-    store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+    # 3. Find existing Run with same commit+branch (status=done)
+    existing_run = session.exec(
+        select(Run).where(
+            Run.project_id == project.id,
+            Run.commit == commit,
+            Run.branch == branch,
+            Run.status == "done"
+        ).order_by(Run.timestamp.desc())
+    ).first()
 
-    # 🔑 Сохраняем code snapshot, если приложен
-    if code_snapshot and code_snapshot.filename:
-        store_code_snapshot(session, run.id, await code_snapshot.read())
+    is_new_run = False
+    if existing_run:
+        run = existing_run
+        # Сохраняем дополнительный отчёт в БД (уникальное имя)
+        store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
+        # Объединяем snapshot
+        if code_snapshot and code_snapshot.filename:
+            merge_code_snapshot(run.id, await code_snapshot.read())
+        session.commit()
+    else:
+        run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+        if code_snapshot and code_snapshot.filename:
+            store_code_snapshot(session, run.id, await code_snapshot.read())
+        session.commit()
+        is_new_run = True
 
-    session.commit()
-
-    # 4. Parse & classify
+    # 4. Parse and store issues
     try:
         issues = parse_pvs_report_bytes(report_bytes)
-        classify_and_store(session, project.id, run.id, issues)
-        run.status = "done"
-        
-        # Calculate metrics and update run stats
+        if is_new_run:
+            classify_and_store(session, project.id, run.id, issues)
+            run.status = "done"
+        else:
+            add_issues_to_existing_run(session, project.id, run.id, issues)
+
+        # 5. Recalculate metrics and quality gate
         metrics = calculate_run_metrics(session, run.id)
         run.total_issues = metrics["total_issues"]
         run.new_issues = metrics["new_issues"]
         run.fixed_issues = metrics["fixed_issues"]
         session.commit()
-        
-        # Evaluate quality gate
+
         qg_result = evaluate_quality_gate(session, project.id, run.id)
-        
-        # Log activity
-        log_activity(session, "upload", "run", run.id, project.id, user_id, 
-                    f"Uploaded report: {safe_filename}")
+        log_activity(session, "upload", "run", run.id, project.id, user_id,
+                     f"Uploaded report: {safe_filename}")
         session.commit()
-        
-        # Trigger webhook (async, non-blocking)
+
         import asyncio
         asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
-        
-        # Redirect to project dashboard
-        return RedirectResponse(
-            url=f"/ui/projects/{project.id}/dashboard",
-            status_code=303,
-        )
+
+        return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
     except Exception as e:
-        run.status = "failed"
-        session.commit()
-        # Show error on home page
-        return templates.TemplateResponse(
-            request,
-            "home.html",
-            {
-                "current_user": get_current_user(request),
-                "projects": session.exec(select(Project).order_by(Project.name)).all(),
-                "error": f"Failed to parse report: {str(e)}",
-            },
-        )
+        if is_new_run:
+            run.status = "failed"
+            session.commit()
+        return templates.TemplateResponse(request, "home.html", {
+            "current_user": get_current_user(request),
+            "projects": session.exec(select(Project).order_by(Project.name)).all(),
+            "error": f"Failed to parse report: {str(e)}",
+        })
 
 
 @app.get("/ui/settings/global", response_class=HTMLResponse)
@@ -718,8 +724,8 @@ async def global_settings_page(
 async def upload_report_api(
     project_name: str = Form(...),
     file: UploadFile = Form(...),
-    source_archive: UploadFile = Form(None),  # Optional source archive
-    code_snapshot: UploadFile = Form(None),  # 🔑 Новое поле
+    source_archive: UploadFile = Form(None),
+    code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
     branch: str = Form(None),
     session: Session = Depends(get_session),
@@ -729,13 +735,12 @@ async def upload_report_api(
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
+    from pvs_tracker.incremental import add_issues_to_existing_run
 
-    # 1. Read report upload. The raw report is stored in DB after run creation.
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
     report_bytes = await file.read()
 
-    # 1.5. Save source archive if provided
     source_archive_path = None
     if source_archive and source_archive.filename:
         os.makedirs("source_archives", exist_ok=True)
@@ -744,60 +749,69 @@ async def upload_report_api(
         with open(source_archive_path, "wb") as f:
             f.write(await source_archive.read())
 
-    # 2. Ensure project exists
     project = session.exec(select(Project).where(Project.name == project_name)).first()
     if not project:
         project = Project(name=project_name)
         session.add(project)
         session.commit()
         session.refresh(project)
-    
-    # Update source archive path if provided
     if source_archive_path:
         project.source_archive_path = source_archive_path
         session.commit()
 
-    # Get user ID for activity logging
     user = session.exec(select(User).where(User.username == _user)).first()
     user_id = user.id if user else None
 
-    # 3. Create run record
-    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
-    session.add(run)
-    session.commit()
-    session.refresh(run)
-    store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+    # Find existing Run with same commit/branch (status=done)
+    existing_run = session.exec(
+        select(Run).where(
+            Run.project_id == project.id,
+            Run.commit == commit,
+            Run.branch == branch,
+            Run.status == "done"
+        ).order_by(Run.timestamp.desc())
+    ).first()
 
-    # 🔑 Сохраняем snapshot если приложен
-    if code_snapshot and code_snapshot.filename:
-        store_code_snapshot(session, run.id, await code_snapshot.read())
-    session.commit()
+    is_new_run = False
+    if existing_run:
+        run = existing_run
+        store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
+        if code_snapshot and code_snapshot.filename:
+            merge_code_snapshot(run.id, await code_snapshot.read())
+        session.commit()
+    else:
+        run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+        if code_snapshot and code_snapshot.filename:
+            store_code_snapshot(session, run.id, await code_snapshot.read())
+        session.commit()
+        is_new_run = True
 
-    # 4. Parse & classify
     try:
         issues = parse_pvs_report_bytes(report_bytes)
-        classify_and_store(session, project.id, run.id, issues)
-        run.status = "done"
-        
-        # Calculate metrics and update run stats
+        if is_new_run:
+            classify_and_store(session, project.id, run.id, issues)
+            run.status = "done"
+        else:
+            add_issues_to_existing_run(session, project.id, run.id, issues)
+
         metrics = calculate_run_metrics(session, run.id)
         run.total_issues = metrics["total_issues"]
         run.new_issues = metrics["new_issues"]
         run.fixed_issues = metrics["fixed_issues"]
         session.commit()
-        
-        # Evaluate quality gate
+
         qg_result = evaluate_quality_gate(session, project.id, run.id)
-        
-        # Log activity
         log_activity(session, "upload", "run", run.id, project.id, user_id,
-                    f"Uploaded report: {safe_filename}")
+                     f"Uploaded report: {safe_filename}")
         session.commit()
-        
-        # Trigger webhook (async, non-blocking)
+
         import asyncio
         asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
-        
+
         return {
             "status": "success",
             "run_id": run.id,
@@ -805,8 +819,9 @@ async def upload_report_api(
             "quality_gate": qg_result,
         }
     except Exception as e:
-        run.status = "failed"
-        session.commit()
+        if is_new_run:
+            run.status = "failed"
+            session.commit()
         raise HTTPException(status_code=400, detail=str(e))
 
 
