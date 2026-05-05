@@ -2,7 +2,6 @@
 {% if issues is not defined %}{% set issues = [] %}{% endif %}
 {% if classifier_map is not defined %}{% set classifier_map = {} %}{% endif %}
 {% if display_paths is not defined %}{% set display_paths = {} %}{% endif %}
-{% if run_os_map is not defined %}{% set run_os_map = {} %}{% endif %}
 
 {# 🔍 Debug info #}
 {% if issues|length == 0 and total > 0 %}
@@ -14,9 +13,9 @@
 {% macro sort_header(label, key, class_name, i18n_key) -%}
     {% set next_order = 'desc' if sort_by == key and order == 'asc' else 'asc' %}
     <th class="{{ class_name }}">
-        <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&os_filter={{ os_filter|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
+        <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
            class="sq-sort-link"
-           hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&os_filter={{ os_filter|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
+           hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
            hx-target="#issues-table-full"
            hx-swap="innerHTML"
            hx-push-url="false"
@@ -30,7 +29,6 @@
 <table class="sq-table sq-table-fixed">
 <thead>
     <tr>
-        <th class="sq-col-os">OS</th>
         {{ sort_header("Status", "status", "sq-col-status", "status") }}
         {{ sort_header("Severity", "severity", "sq-col-severity", "severity_label") }}
         {{ sort_header("Rule", "rule", "sq-col-rule", "rule") }}
@@ -49,7 +47,7 @@
         {% endfor %}
     {% else %}
         <tr>
-            <td colspan="10" class="sq-empty-row">
+            <td colspan="9" class="sq-empty-row">
                 {% if total > 0 %}
                     <div class="alert alert-warning">…</div>
                 {% else %}
@@ -60,12 +58,12 @@
     {% endif %}
 {% if has_next %}
 <tr id="load-more-sentinel"
-    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&os_filter={{ os_filter|urlencode }}&page={{ next_page }}&per_page=25&fragment=true&sort_by={{ sort_by }}&order={{ order }}"
+    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page={{ next_page }}&per_page=25&fragment=true&sort_by={{ sort_by }}&order={{ order }}"
     hx-trigger="pvs-load-more"
     hx-swap="outerHTML"
     hx-target="this"
     hx-include="none">
-    <td colspan="10" class="text-center py-2">
+    <td colspan="9" class="text-center py-2">
         <div class="sq-loading" data-i18n="loading_data">Loading...</div>
     </td>
 </tr>

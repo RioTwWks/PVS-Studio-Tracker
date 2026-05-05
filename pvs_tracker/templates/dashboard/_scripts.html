@@ -171,12 +171,3 @@
         }
     });
 </script>
-
-<script>
-    function applyTrendOSFilter() {
-        const sel = document.getElementById('trend-os-filter');
-        const url = new URL(window.location);
-        url.searchParams.set('os_filter', sel.value);
-        window.location = url;
-    }
-</script>

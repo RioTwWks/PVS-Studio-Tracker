@@ -17,10 +17,9 @@
             {# Collapsible Filters #}
             <div class="collapse" id="filters-collapse">
                 <div class="sq-filters-bar">
-                    <form hx-get="/ui/issues" hx-target="#issues-table-full" hx-indicator="#issues-table-full" hx-swap="innerHTML" class="sq-filters-form">
+                    <form hx-get="/ui/issues" hx-target="#issues-table-full" hx-trigger="submit" hx-indicator="#issues-table-full" hx-swap="innerHTML" class="sq-filters-form">
                         <input type="hidden" name="project_id" value="{{ project.id }}">
                         <input type="hidden" name="branch" value="{{ active_branch }}">
-                        <input type="hidden" name="os_filter" id="os-filter-input" value="{{ os_filter }}">
 
                         <div class="sq-filter-group">
                             <label class="sq-filter-label" data-i18n="severity_label">Severity</label>
@@ -45,21 +44,6 @@
                         <div class="sq-filter-group sq-filter-search">
                             <label class="sq-filter-label" data-i18n="search_label">Search</label>
                             <input type="text" name="q" class="sq-input" data-i18n-placeholder="search_placeholder" placeholder="File, rule, message...">
-                        </div>
-
-                        <div class="sq-filter-group">
-                            <label class="sq-filter-label">OS</label>
-                            <select name="os_filter" class="sq-select" id="os-filter-select"
-                                    hx-get="/ui/issues"
-                                    hx-target="#issues-table-full"
-                                    hx-include="closest form"
-                                    hx-trigger="change"
-                                    hx-push-url="true">
-                                <option value="" {% if os_filter == "" %}selected{% endif %}>All</option>
-                                <option value="windows" {% if os_filter == "windows" %}selected{% endif %}>Windows</option>
-                                <option value="linux" {% if os_filter == "linux" %}selected{% endif %}>Linux</option>
-                                <option value="common" {% if os_filter == "common" %}selected{% endif %}>Common</option>
-                            </select>
                         </div>
 
                         <div class="sq-filter-actions">

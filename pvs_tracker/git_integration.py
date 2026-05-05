@@ -458,7 +458,6 @@ async def fetch_source_file(
     source_archive_path: Optional[str] = None,
     source_root_win: Optional[str] = None,
     source_root_linux: Optional[str] = None,
-    os_type: Optional[str] = None,
 ) -> SourceFile:
     """
     Fetch source file using fallback strategy:
@@ -502,7 +501,6 @@ async def fetch_source_file(
                 source_root_win,
                 source_root_linux,
                 file_path,  # Передаём сырой путь
-                os_type=os_type,
             )
             logger.debug("Resolved path: %s", abs_path)  # 🔑 Отладочный лог
             content = abs_path.read_text(encoding="utf-8", errors="replace")
