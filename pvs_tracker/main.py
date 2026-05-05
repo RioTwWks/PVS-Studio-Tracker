@@ -31,7 +31,7 @@ from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
 from pvs_tracker.db import engine
 import pvs_tracker.code_viewer as code_viewer_module
-from pvs_tracker.code_viewer import router as code_viewer_router
+from pvs_tracker.code_viewer import merge_code_snapshot, router as code_viewer_router
 from pvs_tracker.api import router as api_v2_router
 from pvs_tracker.quality_gate import create_default_quality_gate
 from pvs_tracker.security import hash_password
@@ -105,15 +105,6 @@ def _migrate_database() -> None:
                         text(
                             "ALTER TABLE project ADD COLUMN description VARCHAR"
                         )
-                    )
-                    conn.commit()
-                except Exception:
-                    pass  # Column may already exist
-
-                # Add os column to run
-                try:
-                    conn.execute(
-                        text("ALTER TABLE run ADD COLUMN os VARCHAR")
                     )
                     conn.commit()
                 except Exception:
@@ -267,7 +258,6 @@ async def create_project_ui(
     file: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
-    os: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
@@ -297,7 +287,6 @@ async def create_project_ui(
                 code_snapshot=code_snapshot,
                 commit=commit,
                 branch=(branch or project.git_branch or "main").strip() or "main",
-                os=os,
                 session=session,
                 _user=_user,
             )
@@ -318,7 +307,6 @@ async def create_project_ui(
             code_snapshot=code_snapshot,
             commit=commit,
             branch=default_branch,
-            os=os,
             session=session,
             _user=_user,
         )
@@ -331,7 +319,6 @@ async def ui_dashboard(
     project_id: int,
     request: Request,
     branch: str = "",
-    os_filter: str = "",
     session: Session = Depends(get_session),
 ):
     project = session.get(Project, project_id)
@@ -368,17 +355,15 @@ async def ui_dashboard(
 
     # Filter runs by active branch
     run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
-    if os_filter in ("windows", "linux"):
-        run_query = run_query.where(Run.os == os_filter)
-    elif os_filter == "common":
-        # Для common пока не строим тренд, но можно вернуть пустой список
-        run_query = run_query.where(False)  # или run_query = select(Run).where(1==0)
+    if active_branch:
+        run_query = run_query.where(Run.branch == active_branch)
+    run_query = run_query.order_by(Run.timestamp.asc()).limit(10)
+    runs = session.exec(run_query).all()
 
     # Compute cumulative active/fixed counts across runs
     all_fps: set[str] = set()
     fixed_fps: set[str] = set()
     history = []
-    runs = session.exec(run_query.order_by(Run.timestamp.asc()).limit(10)).all()
     for r in runs:
         issues = session.exec(select(Issue).where(Issue.run_id == r.id)).all()
         for i in issues:
@@ -409,7 +394,6 @@ async def ui_dashboard(
             "current_user": get_current_user(request),
             "project": project,
             "history": history,
-            "os_filter": os_filter,
             "branches": branches,
             "active_branch": active_branch,
         },
@@ -428,127 +412,52 @@ async def ui_issues(
     sort_by: str = "file",
     order: str = "asc",
     fragment: bool = False,
-    os_filter: str = "",                         # ⬅️ новый параметр
     session: Session = Depends(get_session),
 ):
     import logging
     logger = logging.getLogger(__name__)
 
-    # --- Определяем последний подходящий прогон в зависимости от os_filter ---
-    latest_run = None
-    common_fps = set()  # для режима common
-
-    if os_filter in ("windows", "linux"):
-        # Ищем последний завершённый прогон с заданной ОС
-        if branch:
-            latest_run = session.exec(
-                select(Run).where(
-                    Run.project_id == project_id,
-                    Run.status == "done",
-                    Run.branch == branch,
-                    Run.os == os_filter,
-                ).order_by(Run.timestamp.desc()).limit(1)
-            ).first()
-        else:
-            latest_run = session.exec(
-                select(Run).where(
-                    Run.project_id == project_id,
-                    Run.status == "done",
-                    Run.os == os_filter,
-                ).order_by(Run.timestamp.desc()).limit(1)
-            ).first()
-    elif os_filter == "common":
-        # Нужны последние Windows и Linux прогоны
-        win_run = session.exec(
-            select(Run).where(
-                Run.project_id == project_id,
-                Run.status == "done",
-                Run.os == "windows",
-                Run.branch == branch if branch else None,
-            ).order_by(Run.timestamp.desc()).limit(1)
-        ).first() if branch else session.exec(
-            select(Run).where(
-                Run.project_id == project_id,
-                Run.status == "done",
-                Run.os == "windows",
-            ).order_by(Run.timestamp.desc()).limit(1)
+    # Определяем последний успешный прогон
+    if branch:
+        latest_run = session.exec(
+            select(Run)
+            .where(Run.project_id == project_id, Run.status == "done", Run.branch == branch)
+            .order_by(Run.timestamp.desc())
+            .limit(1),
         ).first()
-
-        lin_run = session.exec(
-            select(Run).where(
-                Run.project_id == project_id,
-                Run.status == "done",
-                Run.os == "linux",
-                Run.branch == branch if branch else None,
-            ).order_by(Run.timestamp.desc()).limit(1)
-        ).first() if branch else session.exec(
-            select(Run).where(
-                Run.project_id == project_id,
-                Run.status == "done",
-                Run.os == "linux",
-            ).order_by(Run.timestamp.desc()).limit(1)
-        ).first()
-
-        if win_run and lin_run:
-            win_fps = set(i.fingerprint for i in session.exec(
-                select(Issue).where(Issue.run_id == win_run.id, Issue.status.in_(["new", "existing"]))
-            ).all())
-            lin_fps = set(i.fingerprint for i in session.exec(
-                select(Issue).where(Issue.run_id == lin_run.id, Issue.status.in_(["new", "existing"]))
-            ).all())
-            common_fps = win_fps & lin_fps
-            # Для отображения используем Win-запуск как основной (можно любой)
-            latest_run = win_run
-        else:
-            latest_run = None
     else:
-        # os_filter == "" – стандартное поведение (All)
-        if branch:
-            latest_run = session.exec(
-                select(Run).where(
-                    Run.project_id == project_id,
-                    Run.status == "done",
-                    Run.branch == branch,
-                ).order_by(Run.timestamp.desc()).limit(1)
-            ).first()
-        else:
-            latest_run = session.exec(
-                select(Run).where(
-                    Run.project_id == project_id,
-                    Run.status == "done",
-                ).order_by(Run.timestamp.desc()).limit(1)
-            ).first()
+        latest_run = session.exec(
+            select(Run)
+            .where(Run.project_id == project_id, Run.status == "done")
+            .order_by(Run.timestamp.desc())
+            .limit(1),
+        ).first()
 
-    # --- Если подходящего прогона нет – возвращаем пустую таблицу ---
     if not latest_run:
-        empty_vars = {
-            "current_user": get_current_user(request),
-            "issues": [],
-            "total": 0,
-            "page": page,
-            "per_page": 25 if fragment else 50,
-            "project_id": project_id,
-            "branch": branch,
-            "severity": severity,
-            "status_filter": status_filter,
-            "q": q,
-            "run_id": None,
-            "classifier_map": {},
-            "display_paths": {},
-            "sort_by": sort_by,
-            "order": order,
-            "has_next": False,
-            "next_page": 1,
-            "os_filter": os_filter,
-            "run_os_map": {},
-        }
         return templates.TemplateResponse(
             request,
-            "partials/issues_rows.html" if fragment else "issues_table.html",
-            empty_vars,
+            "issues_table.html",
+            {
+                "current_user": get_current_user(request),
+                "issues": [],
+                "total": 0,
+                "page": page,
+                "per_page": 25 if fragment else 50,
+                "project_id": project_id,
+                "branch": branch,
+                "severity": severity,
+                "status_filter": status_filter,
+                "q": q,
+                "run_id": None,
+                "classifier_map": {},
+                "display_paths": {},
+                "sort_by": sort_by,
+                "order": order,
+                "has_next": False,
+                "next_page": 1,
+            },
         )
 
-    # --- С этого места всё почти как раньше, но добавляем фильтр по common_fps если нужно ---
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -557,11 +466,8 @@ async def ui_issues(
     per_page = 25 if fragment else initial_per_page
     offset = initial_per_page + max(page - 2, 0) * per_page if fragment else (page - 1) * per_page
 
+    # Основной запрос на получение issues
     issues_query = select(Issue).where(Issue.run_id == latest_run.id)
-
-    # Common: дополнительный фильтр по пересечению fingerprint
-    if os_filter == "common" and common_fps:
-        issues_query = issues_query.where(Issue.fingerprint.in_(common_fps))
 
     if severity:
         issues_query = issues_query.where(Issue.severity == severity)
@@ -595,10 +501,8 @@ async def ui_issues(
     order_func = asc if order == "asc" else desc
     issues_query = issues_query.order_by(order_func(sort_column), asc(Issue.id))
 
-    # Общее количество с учётом тех же фильтров
+    # Запрос общего числа (без лимита)
     total_query = select(func.count()).select_from(Issue).where(Issue.run_id == latest_run.id)
-    if os_filter == "common" and common_fps:
-        total_query = total_query.where(Issue.fingerprint.in_(common_fps))
     if severity:
         total_query = total_query.where(Issue.severity == severity)
     if status_filter and status_filter.strip():
@@ -614,7 +518,7 @@ async def ui_issues(
         )
     total = session.exec(total_query).one()
 
-    # Получение проблем с пагинацией
+    # Пагинация
     issues = session.exec(
         issues_query.offset(offset).limit(per_page)
     ).all()
@@ -632,15 +536,9 @@ async def ui_issues(
         )
         display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
 
+    # Fetch classifiers
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
-
-    # --- Собираем словарь ОС для каждой проблемы ---
-    run_os_map = {}
-    if latest_run:
-        run_os = latest_run.os or "unknown"
-        for issue in issues:
-            run_os_map[issue.id] = run_os
 
     has_next = offset + per_page < total
     next_page = page + 1
@@ -663,8 +561,6 @@ async def ui_issues(
         "order": order,
         "has_next": has_next,
         "next_page": next_page,
-        "os_filter": os_filter,          # ← передаём фильтр в шаблон
-        "run_os_map": run_os_map,        # ← словарь id → OS
     }
 
     if fragment:
@@ -683,25 +579,25 @@ async def upload_report_ui(
     request: Request,
     project_name: str = Form(...),
     file: UploadFile = Form(...),
-    source_archive: UploadFile = Form(None),  # Optional source archive
+    source_archive: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
     branch: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
-    os: str = Form(None),
 ):
     """Handle report upload from UI form and redirect to dashboard."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
+    from pvs_tracker.incremental import add_issues_to_existing_run
 
-    # 1. Read report upload. The raw report is stored in DB after run creation.
+    # 1. Read report
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
     report_bytes = await file.read()
 
-    # 1.5. Save source archive if provided
+    # 1.5. Source archive
     source_archive_path = None
     if source_archive and source_archive.filename:
         os.makedirs("source_archives", exist_ok=True)
@@ -710,80 +606,84 @@ async def upload_report_ui(
         with open(source_archive_path, "wb") as f:
             f.write(await source_archive.read())
 
-    # 2. Ensure project exists
+    # 2. Project
     project = session.exec(select(Project).where(Project.name == project_name)).first()
     if not project:
         project = Project(name=project_name)
         session.add(project)
         session.commit()
         session.refresh(project)
-    
-    # Update source archive path if provided
     if source_archive_path:
         project.source_archive_path = source_archive_path
         session.commit()
 
-    # Get user ID for activity logging
     user = session.exec(select(User).where(User.username == _user)).first()
     user_id = user.id if user else None
 
-    # 3. Create run record (получаем run.id до сохранения снапшота)
-    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
-    run.os = os.strip().lower() if os else None
-    session.add(run)
-    session.commit()
-    session.refresh(run)
-    store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+    # 3. Find existing Run with same commit+branch (status=done)
+    existing_run = session.exec(
+        select(Run).where(
+            Run.project_id == project.id,
+            Run.commit == commit,
+            Run.branch == branch,
+            Run.status == "done"
+        ).order_by(Run.timestamp.desc())
+    ).first()
 
-    # 🔑 Сохраняем code snapshot, если приложен
-    if code_snapshot and code_snapshot.filename:
-        store_code_snapshot(session, run.id, await code_snapshot.read())
+    is_new_run = False
+    if existing_run:
+        run = existing_run
+        # Сохраняем дополнительный отчёт в БД (уникальное имя)
+        store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
+        # Объединяем snapshot
+        if code_snapshot and code_snapshot.filename:
+            merge_code_snapshot(run.id, await code_snapshot.read())
+        session.commit()
+    else:
+        run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+        if code_snapshot and code_snapshot.filename:
+            store_code_snapshot(session, run.id, await code_snapshot.read())
+        session.commit()
+        is_new_run = True
 
-    session.commit()
-
-    # 4. Parse & classify
+    # 4. Parse and store issues
     try:
         issues = parse_pvs_report_bytes(report_bytes)
-        classify_and_store(session, project.id, run.id, issues)
-        run.status = "done"
-        
-        # Calculate metrics and update run stats
+        if is_new_run:
+            classify_and_store(session, project.id, run.id, issues)
+            run.status = "done"
+        else:
+            add_issues_to_existing_run(session, project.id, run.id, issues)
+
+        # 5. Recalculate metrics and quality gate
         metrics = calculate_run_metrics(session, run.id)
         run.total_issues = metrics["total_issues"]
         run.new_issues = metrics["new_issues"]
         run.fixed_issues = metrics["fixed_issues"]
         session.commit()
-        
-        # Evaluate quality gate
+
         qg_result = evaluate_quality_gate(session, project.id, run.id)
-        
-        # Log activity
-        log_activity(session, "upload", "run", run.id, project.id, user_id, 
-                    f"Uploaded report: {safe_filename}")
+        log_activity(session, "upload", "run", run.id, project.id, user_id,
+                     f"Uploaded report: {safe_filename}")
         session.commit()
-        
-        # Trigger webhook (async, non-blocking)
+
         import asyncio
         asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
-        
-        # Redirect to project dashboard
-        return RedirectResponse(
-            url=f"/ui/projects/{project.id}/dashboard",
-            status_code=303,
-        )
+
+        return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
     except Exception as e:
-        run.status = "failed"
-        session.commit()
-        # Show error on home page
-        return templates.TemplateResponse(
-            request,
-            "home.html",
-            {
-                "current_user": get_current_user(request),
-                "projects": session.exec(select(Project).order_by(Project.name)).all(),
-                "error": f"Failed to parse report: {str(e)}",
-            },
-        )
+        if is_new_run:
+            run.status = "failed"
+            session.commit()
+        return templates.TemplateResponse(request, "home.html", {
+            "current_user": get_current_user(request),
+            "projects": session.exec(select(Project).order_by(Project.name)).all(),
+            "error": f"Failed to parse report: {str(e)}",
+        })
 
 
 @app.get("/ui/settings/global", response_class=HTMLResponse)
@@ -824,25 +724,23 @@ async def global_settings_page(
 async def upload_report_api(
     project_name: str = Form(...),
     file: UploadFile = Form(...),
-    source_archive: UploadFile = Form(None),  # Optional source archive
-    code_snapshot: UploadFile = Form(None),  # 🔑 Новое поле
+    source_archive: UploadFile = Form(None),
+    code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
     branch: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
-    os: str = Form(None),
 ):
     """API endpoint for report upload (returns JSON)."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
+    from pvs_tracker.incremental import add_issues_to_existing_run
 
-    # 1. Read report upload. The raw report is stored in DB after run creation.
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
     report_bytes = await file.read()
 
-    # 1.5. Save source archive if provided
     source_archive_path = None
     if source_archive and source_archive.filename:
         os.makedirs("source_archives", exist_ok=True)
@@ -851,61 +749,69 @@ async def upload_report_api(
         with open(source_archive_path, "wb") as f:
             f.write(await source_archive.read())
 
-    # 2. Ensure project exists
     project = session.exec(select(Project).where(Project.name == project_name)).first()
     if not project:
         project = Project(name=project_name)
         session.add(project)
         session.commit()
         session.refresh(project)
-    
-    # Update source archive path if provided
     if source_archive_path:
         project.source_archive_path = source_archive_path
         session.commit()
 
-    # Get user ID for activity logging
     user = session.exec(select(User).where(User.username == _user)).first()
     user_id = user.id if user else None
 
-    # 3. Create run record
-    run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
-    run.os = os.strip().lower() if os and os.strip() else None
-    session.add(run)
-    session.commit()
-    session.refresh(run)
-    store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+    # Find existing Run with same commit/branch (status=done)
+    existing_run = session.exec(
+        select(Run).where(
+            Run.project_id == project.id,
+            Run.commit == commit,
+            Run.branch == branch,
+            Run.status == "done"
+        ).order_by(Run.timestamp.desc())
+    ).first()
 
-    # 🔑 Сохраняем snapshot если приложен
-    if code_snapshot and code_snapshot.filename:
-        store_code_snapshot(session, run.id, await code_snapshot.read())
-    session.commit()
+    is_new_run = False
+    if existing_run:
+        run = existing_run
+        store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
+        if code_snapshot and code_snapshot.filename:
+            merge_code_snapshot(run.id, await code_snapshot.read())
+        session.commit()
+    else:
+        run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        store_run_report(session, run.id, safe_filename, report_bytes, file.content_type)
+        if code_snapshot and code_snapshot.filename:
+            store_code_snapshot(session, run.id, await code_snapshot.read())
+        session.commit()
+        is_new_run = True
 
-    # 4. Parse & classify
     try:
         issues = parse_pvs_report_bytes(report_bytes)
-        classify_and_store(session, project.id, run.id, issues)
-        run.status = "done"
-        
-        # Calculate metrics and update run stats
+        if is_new_run:
+            classify_and_store(session, project.id, run.id, issues)
+            run.status = "done"
+        else:
+            add_issues_to_existing_run(session, project.id, run.id, issues)
+
         metrics = calculate_run_metrics(session, run.id)
         run.total_issues = metrics["total_issues"]
         run.new_issues = metrics["new_issues"]
         run.fixed_issues = metrics["fixed_issues"]
         session.commit()
-        
-        # Evaluate quality gate
+
         qg_result = evaluate_quality_gate(session, project.id, run.id)
-        
-        # Log activity
         log_activity(session, "upload", "run", run.id, project.id, user_id,
-                    f"Uploaded report: {safe_filename}")
+                     f"Uploaded report: {safe_filename}")
         session.commit()
-        
-        # Trigger webhook (async, non-blocking)
+
         import asyncio
         asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
-        
+
         return {
             "status": "success",
             "run_id": run.id,
@@ -913,8 +819,9 @@ async def upload_report_api(
             "quality_gate": qg_result,
         }
     except Exception as e:
-        run.status = "failed"
-        session.commit()
+        if is_new_run:
+            run.status = "failed"
+            session.commit()
         raise HTTPException(status_code=400, detail=str(e))
 
 

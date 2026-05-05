@@ -455,3 +455,31 @@ def flatten_files(files: List[Dict]):
             yield f
         else:
             yield from flatten_files(f.get("children", []))
+
+
+import gzip
+import json
+import os
+from pathlib import Path
+
+def merge_code_snapshot(run_id: int, new_bytes: bytes):
+    """Объединяет новый CI-снапшот с существующим (на диске)."""
+    snapshot_dir = Path(os.path.join(os.path.dirname(__file__), "..", "data", "snapshots"))
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_path = snapshot_dir / f"{run_id}.json.gz"
+
+    # Распаковываем новый снапшот (он пришёл в сжатом виде)
+    new_data = json.loads(gzip.decompress(new_bytes).decode("utf-8"))
+
+    # Загружаем существующий снапшот (тоже хранится как gzip)
+    existing_data = {}
+    if snapshot_path.exists():
+        with gzip.open(snapshot_path, "rt", encoding="utf-8") as f:
+            existing_data = json.load(f)
+
+    # Объединяем: новые данные перезаписывают старые по ключу (пути к файлам)
+    existing_data.update(new_data)
+
+    # Записываем обратно в сжатом виде
+    with gzip.open(snapshot_path, "wt", encoding="utf-8") as f:
+        json.dump(existing_data, f, ensure_ascii=False)
