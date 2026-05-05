@@ -108,6 +108,7 @@ async def view_code(
     source_type = "unavailable"
 
     try:
+        os_type = run.os if run else None
         source_file = await fetch_source_file(
             project_id=project_id,
             file_path=file_path,
@@ -118,6 +119,7 @@ async def view_code(
             source_archive_path=project.source_archive_path,
             source_root_win=project.source_root_win,
             source_root_linux=project.source_root_linux,
+            os_type=os_type,
         )
         lines = source_file.lines
         source_type = source_file.source

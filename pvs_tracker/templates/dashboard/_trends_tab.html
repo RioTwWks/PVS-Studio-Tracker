@@ -1,6 +1,14 @@
     {# === Tab Content: Trends === #}
     <div class="sq-project-tab-content" id="tab-trends" style="display: none;">
         {% if history and history|length > 0 %}
+        <div class="sq-filter-group mb-3">
+            <label class="sq-filter-label">OS</label>
+            <select id="trend-os-filter" class="sq-select" onchange="applyTrendOSFilter()">
+                <option value="" {% if os_filter == "" %}selected{% endif %}>All</option>
+                <option value="windows" {% if os_filter == "windows" %}selected{% endif %}>Windows</option>
+                <option value="linux" {% if os_filter == "linux" %}selected{% endif %}>Linux</option>
+            </select>
+        </div>
         {% set latest = history[-1] %}
         {% set previous = history[-2] if history|length > 1 else None %}
         <div class="sq-trends-summary mb-4">

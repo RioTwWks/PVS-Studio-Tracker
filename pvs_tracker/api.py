@@ -621,6 +621,7 @@ async def list_issues_api(
     q: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
+    os_filter: Optional[str] = Query(None),   # ⬅️ новый параметр
     session: Session = Depends(lambda: None),
 ):
     """List issues with pagination and filters."""
@@ -630,10 +631,43 @@ async def list_issues_api(
         if not can_access_project(user, project_id):
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Determine which run to query
+        # --- Выбор запуска с учётом os_filter ---
+        run = None
+        common_fps = set()
+
         if run_id:
             run = db_session.get(Run, run_id)
+        elif os_filter in ("windows", "linux"):
+            run = db_session.exec(
+                select(Run)
+                .where(Run.project_id == project_id, Run.status == "done", Run.os == os_filter)
+                .order_by(Run.timestamp.desc())
+                .limit(1)
+            ).first()
+        elif os_filter == "common":
+            win_run = db_session.exec(
+                select(Run)
+                .where(Run.project_id == project_id, Run.status == "done", Run.os == "windows")
+                .order_by(Run.timestamp.desc()).limit(1)
+            ).first()
+            lin_run = db_session.exec(
+                select(Run)
+                .where(Run.project_id == project_id, Run.status == "done", Run.os == "linux")
+                .order_by(Run.timestamp.desc()).limit(1)
+            ).first()
+            if win_run and lin_run:
+                win_fps = set(i.fingerprint for i in db_session.exec(
+                    select(Issue).where(Issue.run_id == win_run.id, Issue.status.in_(["new", "existing"]))
+                ).all())
+                lin_fps = set(i.fingerprint for i in db_session.exec(
+                    select(Issue).where(Issue.run_id == lin_run.id, Issue.status.in_(["new", "existing"]))
+                ).all())
+                common_fps = win_fps & lin_fps
+                run = win_run
+            else:
+                run = None
         else:
+            # all (os_filter не задан или пустой)
             run = db_session.exec(
                 select(Run)
                 .where(Run.project_id == project_id, Run.status == "done")
@@ -645,6 +679,8 @@ async def list_issues_api(
             return {"issues": [], "total": 0, "page": page, "per_page": per_page}
         
         query = select(Issue).where(Issue.run_id == run.id)
+        if os_filter == "common" and common_fps:
+            query = query.where(Issue.fingerprint.in_(common_fps))
         
         if severity:
             query = query.where(Issue.severity == severity)
@@ -660,8 +696,10 @@ async def list_issues_api(
                 (Issue.message.ilike(like))
             )
         
-        # Get total count
+        # Total count
         total_query = select(func.count()).select_from(Issue).where(Issue.run_id == run.id)
+        if os_filter == "common" and common_fps:
+            total_query = total_query.where(Issue.fingerprint.in_(common_fps))
         if severity:
             total_query = total_query.where(Issue.severity == severity)
         if status:
@@ -671,7 +709,6 @@ async def list_issues_api(
         
         total = db_session.exec(total_query).one()
         
-        # Get paginated results
         issues = db_session.exec(
             query.offset((page - 1) * per_page).limit(per_page).order_by(Issue.line)
         ).all()
