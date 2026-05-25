@@ -1,0 +1,90 @@
+{
+  "agent_name": "pvs-tracker-dev",
+  "version": "1.3.0",
+  "platform": "cursor",
+  "skill_path": ".cursor/skills/pvs-tracker-dev/SKILL.md",
+  "sub_skills": [
+    ".cursor/skills/fix-parser/SKILL.md",
+    ".cursor/skills/add-htmx-filter/SKILL.md",
+    ".cursor/skills/add-api-route/SKILL.md"
+  ],
+  "project_context": "PVS-Studio Tracker — инкрементальный анализ JSON-отчётов PVS-Studio (FastAPI, SQLModel, HTMX, API v2)",
+  "language": "ru",
+
+  "core_competencies": [
+    "FastAPI async routing (main.py + api.py v2)",
+    "SQLModel modeling, migrate.py, RunReport storage",
+    "PVS-Studio JSON parsing (modern + legacy)",
+    "Incremental fingerprint diff (fixed in current run)",
+    "Jinja2 + HTMX server-driven UI (6 dashboard tabs)",
+    "auth_service JWT/RBAC + MVP UI session login",
+    "Quality gates, webhooks (httpx), git code viewer",
+    "MCP: filesystem, sqlite, fetch"
+  ],
+
+  "preferred_stack": {
+    "python": ">=3.10",
+    "web_framework": "fastapi>=0.110.0",
+    "orm": "sqlmodel>=0.0.14",
+    "validation": "pydantic>=2.0",
+    "templating": "jinja2>=3.1.3",
+    "auth_api": "PyJWT + bcrypt (auth_service.py)",
+    "auth_ui": "SessionMiddleware + MVP login (main.py)",
+    "http_client": "httpx>=0.27.0",
+    "ui_libs": ["htmx", "bootstrap@5.3", "chart.js"],
+    "database_dev": "sqlite3",
+    "database_prod": "postgresql",
+    "banned_in_v1": ["celery", "rq", "redis", "kafka", "docker"]
+  },
+
+  "operational_workflows": {
+    "entrypoint": "uvicorn pvs_tracker.main:app",
+    "documentation": [".cursor/README.md", ".cursor/spec.md", "CURSOR.md"],
+    "mcp_usage": {
+      "filesystem": "Modules under pvs_tracker/, templates/",
+      "sqlite": "Schema and incremental debugging",
+      "fetch": "API and HTMX fragment validation"
+    },
+    "commit_strategy": "Focused commits; run pytest for touched areas"
+  },
+
+  "code_generation_patterns": {
+    "typing": "Strict annotations; no implicit Any",
+    "config": "os.getenv per module — no config.py",
+    "error_handling": "HTTPException (API), RedirectResponse/HTML (UI)",
+    "db_transactions": "Single commit after incremental diff",
+    "fingerprint": "parser.compute_fingerprint — see parser.py",
+    "htmx_target": "#issues-table-full for issues filters",
+    "ignore": "Issue.status=ignored — no IgnoredIssue table",
+    "webhook_events": ["report_uploaded", "quality_gate_evaluated"]
+  },
+
+  "testing_and_validation": {
+    "framework": "pytest + pytest-asyncio + httpx",
+    "smoke_tests": [
+      "POST /api/v1/upload → run done",
+      "GET /ui/issues → HTMX table fragment",
+      "Second upload → new/fixed in current run",
+      "POST /api/v2/auth/login → JWT for v2"
+    ]
+  },
+
+  "interaction_protocol": {
+    "response_style": "Minimal diff, Russian comments when needed",
+    "constraint_handling": "Follow spec.md and rules.md; use sub-skills",
+    "validation_prompt": "✅ Файл готов. Запусти: <cmd>. Ожидаемый результат: <expected>."
+  },
+
+  "references": {
+    "index": ".cursor/README.md",
+    "architecture": ".cursor/spec.md",
+    "constraints": ".cursor/rules.md",
+    "context": ".cursor/context.md",
+    "cursor_guide": "CURSOR.md",
+    "tools": ".cursor/mcp.json",
+    "skill": ".cursor/skills/pvs-tracker-dev/SKILL.md",
+    "fix_parser": ".cursor/skills/fix-parser/SKILL.md",
+    "add_htmx_filter": ".cursor/skills/add-htmx-filter/SKILL.md",
+    "add_api_route": ".cursor/skills/add-api-route/SKILL.md"
+  }
+}

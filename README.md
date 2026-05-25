@@ -2,7 +2,9 @@
 
 Инкрементальный трекер отчётов [PVS-Studio](https://pvs-studio.com/) — веб-приложение для загрузки, классификации и визуализации предупреждений статического анализатора across коммитов и веток.
 
-**Версия 0.2.0** — полнофункциональная платформа уровня SonarQube для работы с отчётами PVS-Studio.
+**Версия 0.2.0** — платформа для работы с отчётами PVS-Studio (`pyproject.toml`).
+
+**Документация для Cursor:** [CURSOR.md](CURSOR.md) · [.cursor/README.md](.cursor/README.md)
 
 ## Возможности
 
@@ -49,7 +51,7 @@
 - **Webhook для CI/CD** — автоматические уведомления при оценке quality gate
 - **CSV экспорт** — выгрузка всех проблем с метаданными (CWE, technical debt, resolution)
 - **RESTful API v2** — полный CRUD для проектов, пользователей, quality gates, проблем
-- **LDAP support** — интеграция с Active Directory (через auth.py)
+- **LDAP (planned)** — заготовка в `auth.py`; UI использует MVP session login, API v2 — JWT/`auth_service.py`
 
 ### 🌐 Интерфейс
 - **i18n (RU/EN)** — клиентский перевод через `translations.json`
@@ -487,30 +489,6 @@ curl -X POST http://localhost:8080/api/v1/issues/<fingerprint>/ignore
 }
 ```
 
-## Структура проекта
-
-```
-pvs_tracker/
-├── __init__.py
-├── main.py           # FastAPI-приложение, маршруты, инициализация БД
-├── models.py         # SQLModel-модели: Project, Run, Issue, ErrorClassifier
-├── parser.py         # Парсер JSON-отчётов PVS-Studio + fingerprinting
-├── incremental.py    # Классификация предупреждений (new/existing/fixed)
-├── code_viewer.py    # Inline Code Viewer: routes для просмотра кода
-├── file_resolver.py  # Безопасное разрешение путей (защита от path traversal)
-├── db.py             # Движок БД и управление сессиями
-├── classifier_parser.py  # Парсер CSV классификатора ошибок
-├── auth.py           # LDAP-аутентификация (заготовка)
-└── templates/
-    ├── base.html         # Базовый шаблон (Bootstrap + HTMX + Chart.js)
-    ├── home.html         # Главная: список проектов + форма загрузки
-    ├── login.html        # Страница входа
-    ├── dashboard.html    # Дашборд с графиком трендов + вкладки (Issues/Code)
-    ├── issues_table.html # Таблица предупреждений с пагинацией
-    ├── code_view.html    # Inline просмотр кода (HTMX partial, без base.html)
-    └── code_viewer_page.html # Полнофункциональная страница Code Viewer
-```
-
 ## Конфигурация
 
 | Переменная окружения | По умолчанию | Описание |
@@ -524,36 +502,21 @@ pvs_tracker/
 Для продакшена замените:
 - `SECRET_KEY` и `JWT_SECRET_KEY` — на случайные криптографические строки
 - БД — на PostgreSQL (`postgresql://user:pass@host/dbname`)
-- Auth — подключите реальный LDAP в `auth.py`
-- Настройте `WEBHOOK_URL` для интеграции с CI/CD (GitLab, Jenkins, etc.)
+- UI Auth — сейчас MVP session; LDAP — подключение через `auth.py` + `main.py`
+- Настройте `WEBHOOK_URL` для CI/CD (`report_uploaded`, `quality_gate_evaluated`)
 
 ## Структура проекта
 
+См. полное дерево в [CURSOR.md](CURSOR.md) и [.cursor/spec.md](.cursor/spec.md). Кратко:
+
 ```
 pvs_tracker/
-├── __init__.py
-├── main.py           # FastAPI-приложение, маршруты, инициализация БД
-├── models.py         # SQLModel-модели: Project, Run, Issue, User, QualityGate, etc.
-├── parser.py         # Парсер JSON-отчётов PVS-Studio + fingerprinting + CWE
-├── incremental.py    # Классификация предупреждений (new/existing/fixed) + тех. долг
-├── api.py            # RESTful API v2: projects, users, quality gates, issues
-├── auth_service.py   # JWT аутентификация и RBAC
-├── quality_gate.py   # Оценка quality gates с настраиваемыми условиями
-├── webhooks.py       # Webhook интеграция для CI/CD
-├── security.py       # Hashing паролей и расчёт технического долга
-├── code_viewer.py    # Inline Code Viewer: routes для просмотра кода
-├── file_resolver.py  # Безопасное разрешение путей (защита от path traversal)
-├── db.py             # Движок БД и управление сессиями
-├── classifier_parser.py  # Парсер CSV классификатора ошибок
-├── auth.py           # LDAP-аутентификация (заготовка)
-└── templates/
-    ├── base.html         # Базовый шаблон (Bootstrap + HTMX + Chart.js + Prism.js)
-    ├── home.html         # Главная: список проектов + форма загрузки
-    ├── login.html        # Страница входа
-    ├── dashboard.html    # Дашборд с графиком трендов + вкладки (Overview/Issues/Code/Settings)
-    ├── issues_table.html # Таблица предупреждений с пагинацией
-    ├── code_view.html    # Inline просмотр кода (HTMX partial, без base.html)
-    └── code_viewer_page.html # Полнофункциональная страница Code Viewer
+├── main.py, api.py          # UI/v1 и REST /api/v2
+├── auth_service.py          # JWT + User (API v2)
+├── auth.py                  # LDAP stub (не в UI login)
+├── models.py, db.py, parser.py, incremental.py
+├── quality_gate.py, webhooks.py, git_integration.py
+└── templates/dashboard/     # Overview, Issues, Code, Trends, Upload, Settings
 ```
 
 ## Разработка
@@ -579,7 +542,7 @@ pytest tests/test_smoke.py -v  # smoke тесты
 - **bcrypt** — безопасное хеширование паролей
 - **Jinja2**, **HTMX**, **Bootstrap 5**, **Chart.js**, **Prism.js**
 - **Inline Code Viewer** — SonarQube-style code inspection с файловым браузером и синтаксической подсветкой
-- **ldap3** (LDAP/AD)
+- **ldap3** (заготовка LDAP в `auth.py`)
 - **httpx** — асинхронные HTTP запросы для webhooks
 - **pytest**, **ruff**, **mypy**
 

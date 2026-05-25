@@ -1,3 +1,5 @@
+> Skill: `@fix-parser` — see [.cursor/skills/fix-parser/SKILL.md](../skills/fix-parser/SKILL.md)
+
 Парсер падает на отчёте PVS-Studio vX.Y.Z. Поля могут отличаться.
 - Используй .get() с fallback'ами
 - Логируй предупреждения при неизвестных ключах

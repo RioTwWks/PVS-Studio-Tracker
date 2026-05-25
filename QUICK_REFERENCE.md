@@ -1,4 +1,7 @@
-# PVS-Studio Tracker v0.2.0 — Быстрая справка
+# PVS-Studio Tracker — Быстрая справка
+
+> Актуальные контракты для агентов: [CURSOR.md](CURSOR.md), [.cursor/spec.md](.cursor/spec.md).  
+> UI login (`/login`) — MVP (любые непустые credentials); API v2 — `admin`/`admin` в БД.
 
 ## 🚀 Быстрый старт
 
