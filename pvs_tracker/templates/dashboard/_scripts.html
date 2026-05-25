@@ -41,7 +41,7 @@
         }
 
         if (tabName === 'issues') {
-            loadIssuesTab();
+            loadIssuesTab(false);
         }
     }
 
@@ -132,20 +132,39 @@
         return tab && tab.style.display !== 'none';
     }
 
-    function loadIssuesTab() {
+    function buildIssuesUrl() {
+        const params = new URLSearchParams({
+            project_id: String(window.PvsDashboard.projectId),
+            platform_filter: window.PvsDashboard.platformFilter,
+        });
+        if (window.PvsDashboard.branch) {
+            params.set('branch', window.PvsDashboard.branch);
+        }
+        return `/ui/issues?${params.toString()}`;
+    }
+
+    function loadIssuesTab(forceReload) {
         const container = document.getElementById('issues-table-full');
-        if (!container || container.dataset.issuesLoaded === 'true') {
-            initIssuesInfiniteScroll();
+        if (!container) {
             return;
         }
 
-        const url = container.dataset.issuesUrl;
-        if (!url) {
+        const url = buildIssuesUrl();
+        container.dataset.issuesUrl = url;
+
+        if (!forceReload && container.dataset.issuesLoaded === 'true') {
+            initIssuesInfiniteScroll();
             return;
         }
 
         container.dataset.issuesLoaded = 'true';
         issuesScrollArmed = false;
+        container.innerHTML = `
+            <div class="sq-loading">
+                <div class="spinner-border text-primary" role="status"></div>
+                <span>${I18n.t('loading_issues')}</span>
+            </div>`;
+
         const request = htmx.ajax('GET', url, {
             target: '#issues-table-full',
             swap: 'innerHTML',
@@ -196,19 +215,236 @@
 </script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const platformFilter = '{{ platform_filter|default('windows') }}';
-        const historyByPlatform = JSON.parse('{{ history_by_platform | tojson | safe }}');
-        if (platformFilter === 'all' && historyByPlatform && Object.keys(historyByPlatform).length > 0) {
-            createMultiPlatformTrendChart('trendChart', historyByPlatform);
-        } else {
-            const historyData = JSON.parse('{{ history | tojson | safe }}');
-            if (historyData && historyData.length > 0) {
-                createTrendChart('trendChart', historyData);
+    window.PvsDashboard = {
+        projectId: {{ project.id }},
+        branch: {{ active_branch|tojson }},
+        platformFilter: {{ platform_filter|default('windows')|tojson }},
+        _fileTreeLoaded: false,
+
+        metricsQuery() {
+            const params = new URLSearchParams({
+                platform_filter: this.platformFilter,
+            });
+            if (this.branch) {
+                params.set('branch', this.branch);
             }
+            return params.toString();
+        },
+
+        codeOsPlatform() {
+            const pf = this.platformFilter;
+            if (pf === 'windows' || pf === 'linux' || pf === 'macos') {
+                return pf;
+            }
+            return 'windows';
+        },
+
+        syncPlatformButtons() {
+            document.querySelectorAll('[data-platform-filter]').forEach((btn) => {
+                const filter = btn.dataset.platformFilter;
+                const osOnly = !!btn.closest('[data-platform-switcher-os-only]');
+                const active = osOnly
+                    ? filter === this.codeOsPlatform()
+                    : filter === this.platformFilter;
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-pressed', String(active));
+            });
+        },
+
+        updateUrl() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('platform_filter', this.platformFilter);
+            if (this.branch) {
+                url.searchParams.set('branch', this.branch);
+            } else {
+                url.searchParams.delete('branch');
+            }
+            history.replaceState({}, '', url);
+        },
+
+        destroyTrendChart() {
+            if (window.__pvsChart) {
+                window.__pvsChart.destroy();
+                window.__pvsChart = null;
+            }
+        },
+
+        refreshTrendChart(metrics) {
+            this.destroyTrendChart();
+            const canvas = document.getElementById('trendChart');
+            if (!canvas) {
+                return;
+            }
+            const pf = metrics.platform_filter;
+            const byPlatform = metrics.history_by_platform || {};
+            if (pf === 'all' && Object.keys(byPlatform).length > 0) {
+                createMultiPlatformTrendChart('trendChart', byPlatform);
+            } else if (metrics.history && metrics.history.length > 0) {
+                createTrendChart('trendChart', metrics.history);
+                if (window.__pvsChart) {
+                    initTrendChartFilters(window.__pvsChart);
+                }
+            }
+            if (window.__pvsChart) {
+                requestAnimationFrame(() => window.__pvsChart.resize());
+            }
+        },
+
+        updateIssueBadges(total) {
+            const headerCount = document.getElementById('issues-header-count');
+            if (headerCount) {
+                const totalLabel = typeof I18n !== 'undefined' ? I18n.t('total_lower') : 'total';
+                headerCount.innerHTML = `${total} <span data-i18n="total_lower">${totalLabel}</span>`;
+            }
+            let badge = document.getElementById('issues-tab-badge');
+            const issuesTabBtn = document.querySelector('.sq-project-tab-btn[data-tab="issues"]');
+            if (issuesTabBtn) {
+                if (total > 0) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.id = 'issues-tab-badge';
+                        badge.className = 'sq-tab-badge';
+                        issuesTabBtn.appendChild(badge);
+                    }
+                    badge.textContent = String(total);
+                    badge.style.display = '';
+                } else if (badge) {
+                    badge.remove();
+                }
+            }
+        },
+
+        async reloadIssues() {
+            const container = document.getElementById('issues-table-full');
+            if (!container) {
+                return;
+            }
+            container.dataset.issuesLoaded = 'false';
+            if (typeof loadIssuesTab === 'function') {
+                loadIssuesTab(true);
+            }
+        },
+
+        async reloadTrends() {
+            const container = document.getElementById('trends-platform-content');
+            if (!container) {
+                return;
+            }
+            const query = this.metricsQuery();
+            const [fragResp, metricsResp] = await Promise.all([
+                fetch(`/ui/projects/${this.projectId}/trends-fragment?${query}`),
+                fetch(`/api/v1/projects/${this.projectId}/platform-metrics?${query}`),
+            ]);
+            if (!fragResp.ok || !metricsResp.ok) {
+                return;
+            }
+            container.innerHTML = await fragResp.text();
+            const metrics = await metricsResp.json();
+            this.refreshTrendChart(metrics);
+        },
+
+        async loadFileTree(force) {
+            if (this._fileTreeLoaded && !force) {
+                return;
+            }
+            const container = document.getElementById('file-tree');
+            if (!container) {
+                return;
+            }
+            container.innerHTML = `<div class="sq-loading">${I18n.t('loading_file_structure')}</div>`;
+
+            const params = new URLSearchParams({ platform: this.codeOsPlatform() });
+            if (this.branch) {
+                params.append('branch', this.branch);
+            }
+            const url = `/api/projects/${this.projectId}/files?${params.toString()}`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                if (typeof renderFileTree === 'function') {
+                    container.innerHTML = renderFileTree(data.files || []);
+                }
+                this._fileTreeLoaded = true;
+                const search = document.getElementById('file-search');
+                if (search && search.value && typeof filterFileTree === 'function') {
+                    filterFileTree(search.value);
+                }
+            } catch (error) {
+                container.innerHTML =
+                    `<div class="sq-alert sq-alert-danger">${I18n.t('error')}: ${error.message}</div>`;
+                this._fileTreeLoaded = false;
+            }
+        },
+
+        reloadCodeTreeIfVisible() {
+            const codeTab = document.getElementById('tab-code');
+            if (!codeTab || codeTab.style.display === 'none') {
+                this._fileTreeLoaded = false;
+                return;
+            }
+            const viewer = document.getElementById('inline-code-viewer');
+            if (viewer) {
+                viewer.style.display = 'none';
+            }
+            this._fileTreeLoaded = false;
+            return this.loadFileTree(true);
+        },
+
+        async setPlatformFilter(platformFilter) {
+            if (platformFilter === this.platformFilter) {
+                return;
+            }
+            this.platformFilter = platformFilter;
+            this.syncPlatformButtons();
+            this.updateUrl();
+
+            document.querySelectorAll('input[name="platform_filter"]').forEach((el) => {
+                el.value = platformFilter;
+            });
+
+            const query = this.metricsQuery();
+            const metricsResp = await fetch(
+                `/api/v1/projects/${this.projectId}/platform-metrics?${query}`,
+            );
+            if (metricsResp.ok) {
+                const metrics = await metricsResp.json();
+                this.updateIssueBadges(metrics.issues_total || 0);
+            }
+
+            await Promise.all([
+                this.reloadIssues(),
+                this.reloadTrends(),
+                this.reloadCodeTreeIfVisible(),
+            ]);
+        },
+    };
+
+    document.addEventListener('click', (event) => {
+        const btn = event.target.closest('[data-platform-filter]');
+        if (!btn || !window.PvsDashboard) {
+            return;
         }
-        if (window.__pvsChart) {
-            window.__pvsChart.resize();
+        event.preventDefault();
+        window.PvsDashboard.setPlatformFilter(btn.dataset.platformFilter);
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.PvsDashboard.syncPlatformButtons();
+
+        const initialMetrics = {
+            platform_filter: window.PvsDashboard.platformFilter,
+            history: JSON.parse('{{ history | tojson | safe }}'),
+            history_by_platform: JSON.parse('{{ history_by_platform | tojson | safe }}'),
+        };
+        window.PvsDashboard.refreshTrendChart(initialMetrics);
+
+        const issuesContainer = document.getElementById('issues-table-full');
+        if (issuesContainer) {
+            issuesContainer.dataset.issuesUrl = buildIssuesUrl();
         }
     });
 </script>

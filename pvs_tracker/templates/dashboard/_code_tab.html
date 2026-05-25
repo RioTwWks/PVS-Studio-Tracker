@@ -1,6 +1,8 @@
     {# === Tab Content: Code === #}
     <div class="sq-project-tab-content" id="tab-code" style="display: none;">
+        {% with platform_switcher_os_only=true %}
         {% include "dashboard/_platform_switcher.html" %}
+        {% endwith %}
         <div class="sq-file-browser-container">
             {# Search #}
             <div class="sq-file-browser-search">
@@ -28,43 +30,10 @@
     <script>
     console.log("рџ”§ Code tab script loaded");
 
-    let fileTreeLoaded = false;
-
-    function loadFileTree() {
-        if (fileTreeLoaded) {
-            console.log("вњ… Tree already loaded, skipping");
-            return;
+    function loadFileTree(force) {
+        if (window.PvsDashboard) {
+            return window.PvsDashboard.loadFileTree(!!force);
         }
-        
-        console.log("рџ“Ў loadFileTree() called");
-        const projectId = '{{ project.id }}';
-        const platform = '{{ platform_filter|default("windows") }}';
-        const branch = '{{ active_branch|default("") }}';
-        const params = new URLSearchParams({ platform });
-        if (branch) params.append('branch', branch);
-        const url = `/api/projects/${projectId}/files?${params.toString()}`;
-        
-        console.log("рџ”— Fetching:", url);
-        
-        fetch(url)
-            .then(response => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.json();
-            })
-            .then(data => {
-                console.log("вњ… Data received, files:", data.files?.length);
-                const container = document.getElementById('file-tree');
-                if (container) {
-                    container.innerHTML = renderFileTree(data.files || []);
-                    fileTreeLoaded = true;
-                    console.log("вњ… Tree rendered");
-                }
-            })
-            .catch(error => {
-                console.error("рџ’Ґ Error:", error);
-                document.getElementById('file-tree').innerHTML = 
-                    `<div class="sq-alert sq-alert-danger">${I18n.t('error')}: ${error.message}<br><small>${I18n.t('check_console_details')}</small></div>`;
-            });
     }
 
     function renderFileTree(items, level = 0) {
@@ -140,8 +109,10 @@
         pathLabel.textContent = filePath;
         
         try {
-            const projectId = '{{ project.id }}';
-            const platform = '{{ platform_filter|default("windows") }}';
+            const projectId = String(window.PvsDashboard?.projectId || '{{ project.id }}');
+            const platform = window.PvsDashboard?.codeOsPlatform?.()
+                || window.PvsDashboard?.platformFilter
+                || 'windows';
 
             const params = new URLSearchParams({
                 project_id: projectId,

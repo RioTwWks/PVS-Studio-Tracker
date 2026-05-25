@@ -7,7 +7,7 @@
                     <i class="bi bi-list-ul"></i> <span data-i18n="tab_issues">Issues</span>
                     {% if history and history|length > 0 %}
                     {% set latest = history[-1] %}
-                    <span class="sq-issues-count">{{ latest.total }} <span data-i18n="total_lower">total</span></span>
+                    <span class="sq-issues-count" id="issues-header-count">{{ latest.total }} <span data-i18n="total_lower">total</span></span>
                     {% endif %}
                 </div>
                 <button class="sq-btn sq-btn-sm sq-btn-outline" type="button" data-bs-toggle="collapse" data-bs-target="#filters-collapse" aria-expanded="false">

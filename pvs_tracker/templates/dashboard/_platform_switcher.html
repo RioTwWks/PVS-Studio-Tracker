@@ -1,22 +1,21 @@
-{# Platform filter — shared across Issues, Trends, Code #}
-<div class="sq-platform-switcher mb-3" role="group" aria-label="Platform filter">
-    {% set pf = platform_filter|default('windows') %}
-    {% set branch_q = '&branch=' ~ (active_branch|urlencode) if active_branch else '' %}
-    <a href="?platform_filter=windows{{ branch_q }}"
-       class="sq-platform-btn {% if pf == 'windows' %}active{% endif %}"
-       data-i18n="platform_windows">Windows</a>
-    <a href="?platform_filter=linux{{ branch_q }}"
-       class="sq-platform-btn {% if pf == 'linux' %}active{% endif %}"
-       data-i18n="platform_linux">Linux</a>
-    <a href="?platform_filter=macos{{ branch_q }}"
-       class="sq-platform-btn {% if pf == 'macos' %}active{% endif %}"
-       data-i18n="platform_macos">macOS</a>
-    <a href="?platform_filter=all{{ branch_q }}"
-       class="sq-platform-btn {% if pf == 'all' %}active{% endif %}"
-       data-i18n="platform_all">All</a>
-    <a href="?platform_filter=common{{ branch_q }}"
-       class="sq-platform-btn {% if pf == 'common' %}active{% endif %}"
-       data-i18n="platform_common">Common</a>
+{# Platform filter — buttons (no full page reload). Set platform_switcher_os_only=true for Code tab. #}
+{% set os_only = platform_switcher_os_only|default(false) %}
+{% set pf = platform_filter|default('windows') %}
+{% set code_pf = pf if pf in ['windows', 'linux', 'macos'] else 'windows' %}
+<div class="sq-platform-switcher mb-3" role="group" aria-label="Platform filter"
+     data-platform-switcher{% if os_only %} data-platform-switcher-os-only{% endif %}>
+    <button type="button" class="sq-platform-btn {% if (code_pf if os_only else pf) == 'windows' %}active{% endif %}"
+            data-platform-filter="windows" data-i18n="platform_windows">Windows</button>
+    <button type="button" class="sq-platform-btn {% if (code_pf if os_only else pf) == 'linux' %}active{% endif %}"
+            data-platform-filter="linux" data-i18n="platform_linux">Linux</button>
+    <button type="button" class="sq-platform-btn {% if (code_pf if os_only else pf) == 'macos' %}active{% endif %}"
+            data-platform-filter="macos" data-i18n="platform_macos">macOS</button>
+    {% if not os_only %}
+    <button type="button" class="sq-platform-btn {% if pf == 'all' %}active{% endif %}"
+            data-platform-filter="all" data-i18n="platform_all">All</button>
+    <button type="button" class="sq-platform-btn {% if pf == 'common' %}active{% endif %}"
+            data-platform-filter="common" data-i18n="platform_common">Common</button>
+    {% endif %}
 </div>
 
 <style>
@@ -29,10 +28,10 @@
     padding: 6px 12px;
     border: 1px solid var(--sq-border);
     border-radius: 6px;
-    text-decoration: none;
     color: var(--sq-text-secondary);
     font-size: 13px;
     background: var(--sq-bg-secondary);
+    cursor: pointer;
 }
 .sq-platform-btn:hover {
     background: var(--sq-bg-hover);

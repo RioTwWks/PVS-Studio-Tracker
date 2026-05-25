@@ -446,6 +446,65 @@ async def ui_dashboard(
     )
 
 
+@app.get("/api/v1/projects/{project_id}/platform-metrics")
+def api_platform_metrics(
+    project_id: int,
+    branch: str = "",
+    platform_filter: str = "windows",
+    session: Session = Depends(get_session),
+):
+    """JSON metrics for in-page OS platform switching."""
+    from pvs_tracker.dashboard_context import build_platform_metrics, resolve_active_branch
+
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    all_runs = session.exec(
+        select(Run)
+        .where(Run.project_id == project_id, Run.status == "done")
+        .order_by(Run.timestamp.desc()),
+    ).all()
+    active_branch = resolve_active_branch(project, all_runs, branch)
+    return build_platform_metrics(session, project_id, active_branch, platform_filter)
+
+
+@app.get("/ui/projects/{project_id}/trends-fragment", response_class=HTMLResponse)
+async def ui_trends_fragment(
+    project_id: int,
+    request: Request,
+    branch: str = "",
+    platform_filter: str = "windows",
+    session: Session = Depends(get_session),
+):
+    """HTMX/HTML fragment: trends KPI + chart area for selected platform."""
+    from pvs_tracker.dashboard_context import build_platform_metrics, resolve_active_branch
+    from pvs_tracker.platforms import normalize_platform_filter
+
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    all_runs = session.exec(
+        select(Run)
+        .where(Run.project_id == project_id, Run.status == "done")
+        .order_by(Run.timestamp.desc()),
+    ).all()
+    active_branch = resolve_active_branch(project, all_runs, branch)
+    pf = normalize_platform_filter(platform_filter)
+    metrics = build_platform_metrics(session, project_id, active_branch, pf)
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard/_trends_content.html",
+        {
+            "history": metrics["history"],
+            "history_by_platform": metrics["history_by_platform"],
+            "platform_filter": pf,
+        },
+    )
+
+
 @app.get("/ui/issues", response_class=HTMLResponse)
 async def ui_issues(
     request: Request,
