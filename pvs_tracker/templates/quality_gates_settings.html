@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block title %}Quality Gates — PVS-Tracker{% endblock %}
+{% block content %}
+
+<div class="sq-page-header mb-4">
+    <h1 class="sq-page-title"><i class="bi bi-shield-check"></i> <span data-i18n="qg_settings_title">Quality Gates</span></h1>
+    <p class="sq-page-subtitle" data-i18n="qg_settings_subtitle">PVS warning catalog and per-project quality gate scopes (admin only)</p>
+</div>
+
+<ul class="nav nav-tabs sq-tabs mb-4" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-catalog" type="button">
+            <i class="bi bi-list-ul"></i> <span data-i18n="qg_tab_catalog">Warnings catalog</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-gates" type="button">
+            <i class="bi bi-sliders"></i> <span data-i18n="qg_tab_gates">Quality Gates</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-catalog">
+        <div class="sq-card">
+            <div class="sq-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="bi bi-database"></i> <span data-i18n="qg_catalog_header">PVS-Studio warnings</span></span>
+                <div class="d-flex gap-2 align-items-center">
+                    <small class="text-muted" id="catalog-sync-info"></small>
+                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="syncWarnings()">
+                        <i class="bi bi-cloud-download"></i> <span data-i18n="qg_sync_btn">Update from pvs-studio.com</span>
+                    </button>
+                </div>
+            </div>
+            <div class="sq-card-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <input type="text" id="catalog-search" class="sq-input" placeholder="Search code or name..."
+                               data-i18n-placeholder="qg_search_placeholder" oninput="debouncedLoadCatalog()">
+                    </div>
+                    <div class="col-md-3">
+                        <select id="catalog-language" class="sq-input" onchange="loadCatalog()">
+                            <option value="" data-i18n="qg_filter_all_langs">All languages</option>
+                            <option value="cpp">C/C++</option>
+                            <option value="csharp">C#</option>
+                            <option value="java">Java</option>
+                            <option value="js">JS/TS</option>
+                            <option value="go">Go</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="catalog-status" class="sq-form-status mb-2"></div>
+                <div class="table-responsive">
+                    <table class="sq-table">
+                        <thead>
+                            <tr>
+                                <th data-i18n="qg_col_code">Code</th>
+                                <th data-i18n="qg_col_name">Name</th>
+                                <th data-i18n="qg_col_category">Category</th>
+                                <th data-i18n="qg_col_lang">Language</th>
+                            </tr>
+                        </thead>
+                        <tbody id="catalog-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <span id="catalog-pager-info" class="text-muted"></span>
+                    <div class="btn-group">
+                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogPrev()">&laquo;</button>
+                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogNext()">&raquo;</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-gates">
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="sq-card">
+                    <div class="sq-card-header d-flex justify-content-between align-items-center">
+                        <span data-i18n="qg_gates_list">Gates</span>
+                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="createGate()">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                    <div class="sq-card-body p-0">
+                        <ul class="list-group list-group-flush" id="gates-list"></ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="sq-card" id="gate-editor" style="display:none;">
+                    <div class="sq-card-header" data-i18n="qg_edit_gate">Edit Quality Gate</div>
+                    <div class="sq-card-body">
+                        <div class="sq-form-group">
+                            <label class="sq-form-label" data-i18n="qg_gate_name">Name</label>
+                            <input type="text" id="gate-name" class="sq-input">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="gate-is-default">
+                            <label class="form-check-label" for="gate-is-default" data-i18n="qg_is_default">Default gate</label>
+                        </div>
+                        <div class="sq-form-group">
+                            <label class="sq-form-label" data-i18n="qg_rules_label">PVS rules in scope</label>
+                            <input type="text" id="gate-rules-search" class="sq-input mb-2" placeholder="Filter rules..."
+                                   oninput="filterGateRules()">
+                            <div id="gate-rules-box" class="qg-rules-box border rounded p-2" style="max-height:320px;overflow-y:auto;"></div>
+                            <small class="text-muted"><span id="gate-rules-selected-count">0</span> <span data-i18n="qg_rules_selected">selected</span></small>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="sq-btn sq-btn-primary" onclick="saveGate()">
+                                <i class="bi bi-check-lg"></i> <span data-i18n="save">Save</span>
+                            </button>
+                            <button type="button" class="sq-btn sq-btn-outline text-danger" onclick="deleteGate()">
+                                <i class="bi bi-trash"></i> <span data-i18n="delete">Delete</span>
+                            </button>
+                        </div>
+                        <span id="gate-editor-status" class="sq-form-status ms-2"></span>
+                    </div>
+                </div>
+                <div class="sq-card" id="gate-editor-empty">
+                    <div class="sq-card-body text-muted text-center py-5" data-i18n="qg_select_gate_hint">
+                        Select a gate or create a new one
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const QG_API = '/api/v2';
+let catalogPage = 1;
+let catalogDebounce = null;
+let selectedGateId = null;
+let allCatalogCodes = [];
+let gateSelectedRules = new Set();
+
+function apiHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('token');
+    if (token) h['Authorization'] = 'Bearer ' + token;
+    return h;
+}
+
+async function apiFetch(url, options = {}) {
+    return fetch(url, {
+        credentials: 'same-origin',
+        ...options,
+        headers: { ...apiHeaders(), ...(options.headers || {}) },
+    });
+}
+
+function debouncedLoadCatalog() {
+    clearTimeout(catalogDebounce);
+    catalogDebounce = setTimeout(() => { catalogPage = 1; loadCatalog(); }, 300);
+}
+
+async function loadCatalog() {
+    const q = document.getElementById('catalog-search').value.trim();
+    const lang = document.getElementById('catalog-language').value;
+    const params = new URLSearchParams({ page: catalogPage, per_page: 50 });
+    if (q) params.set('q', q);
+    if (lang) params.set('language', lang);
+    const status = document.getElementById('catalog-status');
+    try {
+        const resp = await apiFetch(`${QG_API}/warnings?${params}`);
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = await resp.json();
+        const tbody = document.getElementById('catalog-tbody');
+        tbody.innerHTML = data.warnings.map(w => `
+            <tr>
+                <td><span class="sq-rule-code">${w.rule_code}</span></td>
+                <td>${escapeHtml(w.name)}</td>
+                <td class="text-muted small">${escapeHtml(w.category || '—')}</td>
+                <td>${escapeHtml(w.language || '—')}</td>
+            </tr>
+        `).join('');
+        document.getElementById('catalog-pager-info').textContent =
+            `${(data.page - 1) * data.per_page + 1}–${Math.min(data.page * data.per_page, data.total)} / ${data.total}`;
+        if (data.last_synced_at) {
+            document.getElementById('catalog-sync-info').textContent =
+                (I18n.t('qg_last_sync') || 'Last sync') + ': ' + new Date(data.last_synced_at).toLocaleString();
+        }
+        status.textContent = '';
+    } catch (e) {
+        status.textContent = '✗ ' + e.message;
+        status.style.color = '#dc3545';
+    }
+}
+
+function catalogPrev() { if (catalogPage > 1) { catalogPage--; loadCatalog(); } }
+function catalogNext() { catalogPage++; loadCatalog(); }
+
+async function syncWarnings() {
+    const status = document.getElementById('catalog-status');
+    status.textContent = I18n.t('saving') || 'Syncing...';
+    status.style.color = '#6c757d';
+    try {
+        const resp = await apiFetch(`${QG_API}/warnings/sync`, { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || resp.statusText);
+        status.textContent = `✓ imported: ${data.imported}, updated: ${data.updated}, total: ${data.total}`;
+        status.style.color = '#198754';
+        catalogPage = 1;
+        await loadCatalog();
+        await loadAllCodesForGateEditor();
+        await loadGates();
+    } catch (e) {
+        status.textContent = '✗ ' + e.message;
+        status.style.color = '#dc3545';
+    }
+}
+
+async function loadGates() {
+    const resp = await apiFetch(`${QG_API}/quality-gates`);
+    const gates = await resp.json();
+    const list = document.getElementById('gates-list');
+    list.innerHTML = gates.map(g => `
+        <li class="list-group-item list-group-item-action ${g.id === selectedGateId ? 'active' : ''}"
+            onclick="selectGate(${g.id})" style="cursor:pointer;">
+            <div class="fw-semibold">${escapeHtml(g.name)}</div>
+            <small>${g.rules_count} rules · ${g.projects_count} projects${g.is_default ? ' · default' : ''}</small>
+        </li>
+    `).join('');
+}
+
+async function loadAllCodesForGateEditor() {
+    const resp = await apiFetch(`${QG_API}/warnings?per_page=500&page=1`);
+    const data = await resp.json();
+    allCatalogCodes = data.warnings || [];
+    let page = 2;
+    const totalPages = Math.ceil(data.total / data.per_page);
+    while (page <= totalPages && page <= 20) {
+        const r = await apiFetch(`${QG_API}/warnings?per_page=500&page=${page}`);
+        const d = await r.json();
+        allCatalogCodes = allCatalogCodes.concat(d.warnings || []);
+        page++;
+    }
+    renderGateRulesBox();
+}
+
+function renderGateRulesBox() {
+    const q = (document.getElementById('gate-rules-search')?.value || '').toLowerCase();
+    const box = document.getElementById('gate-rules-box');
+    const filtered = allCatalogCodes.filter(w =>
+        !q || w.rule_code.toLowerCase().includes(q) || (w.name || '').toLowerCase().includes(q)
+    );
+    box.innerHTML = filtered.map(w => {
+        const checked = gateSelectedRules.has(w.rule_code) ? 'checked' : '';
+        return `<label class="d-block small mb-1">
+            <input type="checkbox" value="${w.rule_code}" ${checked} onchange="toggleGateRule('${w.rule_code}', this.checked)">
+            <strong>${w.rule_code}</strong> ${escapeHtml((w.name || '').slice(0, 80))}
+        </label>`;
+    }).join('');
+    document.getElementById('gate-rules-selected-count').textContent = gateSelectedRules.size;
+}
+
+function filterGateRules() { renderGateRulesBox(); }
+
+function toggleGateRule(code, on) {
+    if (on) gateSelectedRules.add(code);
+    else gateSelectedRules.delete(code);
+    document.getElementById('gate-rules-selected-count').textContent = gateSelectedRules.size;
+}
+
+async function selectGate(id) {
+    selectedGateId = id;
+    document.getElementById('gate-editor').style.display = '';
+    document.getElementById('gate-editor-empty').style.display = 'none';
+    const resp = await apiFetch(`${QG_API}/quality-gates/${id}`);
+    const g = await resp.json();
+    document.getElementById('gate-name').value = g.name;
+    document.getElementById('gate-is-default').checked = g.is_default;
+    gateSelectedRules = new Set(g.rule_codes || []);
+    renderGateRulesBox();
+    await loadGates();
+}
+
+async function createGate() {
+    const name = prompt(I18n.t('qg_new_gate_name') || 'Gate name');
+    if (!name) return;
+    const resp = await apiFetch(`${QG_API}/quality-gates`, {
+        method: 'POST',
+        body: JSON.stringify({ name, is_default: false, rule_codes: [] }),
+    });
+    if (!resp.ok) { alert(await resp.text()); return; }
+    const g = await resp.json();
+    await loadGates();
+    await selectGate(g.id);
+}
+
+async function saveGate() {
+    if (!selectedGateId) return;
+    const status = document.getElementById('gate-editor-status');
+    const body = {
+        name: document.getElementById('gate-name').value.trim(),
+        is_default: document.getElementById('gate-is-default').checked,
+        rule_codes: Array.from(gateSelectedRules),
+    };
+    const resp = await apiFetch(`${QG_API}/quality-gates/${selectedGateId}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+        status.textContent = '✓ ' + (I18n.t('saved') || 'Saved');
+        status.style.color = '#198754';
+        await loadGates();
+    } else {
+        const err = await resp.json().catch(() => ({}));
+        status.textContent = '✗ ' + (err.detail || resp.statusText);
+        status.style.color = '#dc3545';
+    }
+}
+
+async function deleteGate() {
+    if (!selectedGateId) return;
+    if (!confirm(I18n.t('qg_delete_confirm') || 'Delete this quality gate?')) return;
+    const resp = await apiFetch(`${QG_API}/quality-gates/${selectedGateId}`, { method: 'DELETE' });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert(err.detail || resp.statusText);
+        return;
+    }
+    selectedGateId = null;
+    document.getElementById('gate-editor').style.display = 'none';
+    document.getElementById('gate-editor-empty').style.display = '';
+    await loadGates();
+}
+
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadCatalog();
+    loadGates();
+    loadAllCodesForGateEditor();
+});
+</script>
+
+<style>
+.qg-rules-box { background: var(--sq-bg-secondary, #f8f9fa); }
+[data-theme="dark"] .qg-rules-box { background: var(--sq-bg-tertiary, #21262d); }
+</style>
+
+{% endblock %}
