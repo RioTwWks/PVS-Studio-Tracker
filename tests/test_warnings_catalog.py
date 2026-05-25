@@ -6,6 +6,8 @@ from pvs_tracker.warnings_catalog import (
     WarningEntry,
     _dedupe_entries,
     _language_from_category,
+    infer_language_from_rule_code,
+    resolve_warning_language,
     parse_warnings_html,
     parse_warnings_markdown,
 )
@@ -42,6 +44,19 @@ def test_parse_warnings_html_list_items() -> None:
     entries = parse_warnings_html(html)
     assert len(entries) == 2
     assert entries[0].rule_code == "V777"
+
+
+def test_infer_language_from_rule_code() -> None:
+    assert infer_language_from_rule_code("V501") == "cpp"
+    assert infer_language_from_rule_code("V1001") == "cpp"
+    assert infer_language_from_rule_code("V3041") == "csharp"
+    assert infer_language_from_rule_code("V6011") == "java"
+    assert infer_language_from_rule_code("V010") == "other"
+
+
+def test_resolve_warning_language_prefers_stored() -> None:
+    assert resolve_warning_language("V501", stored_language="java") == "java"
+    assert resolve_warning_language("V3041", category="General Analysis (C++)") == "cpp"
 
 
 def test_dedupe_entries() -> None:

@@ -40,7 +40,7 @@
                                data-i18n-placeholder="qg_search_placeholder" oninput="debouncedLoadCatalog()">
                     </div>
                     <div class="col-md-3">
-                        <select id="catalog-language" class="sq-input" onchange="loadCatalog()">
+                        <select id="catalog-language" class="sq-input" onchange="catalogLanguageChanged()">
                             <option value="" data-i18n="qg_filter_all_langs">Все языки</option>
                             <option value="cpp">C/C++</option>
                             <option value="csharp">C#</option>
@@ -82,7 +82,7 @@
                 <div class="sq-card">
                     <div class="sq-card-header d-flex justify-content-between align-items-center">
                         <span data-i18n="qg_gates_list">Список порогов</span>
-                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="createGate()" title="Создать порог">
+                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="openCreateGateModal()" title="Создать порог">
                             <i class="bi bi-plus-lg"></i>
                         </button>
                     </div>
@@ -105,9 +105,24 @@
                         </div>
                         <div class="sq-form-group">
                             <label class="sq-form-label"><span data-i18n="qg_rules_label">Коды PVS в области проверки</span></label>
-                            <input type="text" id="gate-rules-search" class="sq-input mb-2"
-                                   placeholder="Фильтр по коду или названию"
-                                   data-i18n-placeholder="qg_filter_rules" oninput="filterGateRules()">
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-6">
+                                    <select id="gate-rules-language" class="sq-input" onchange="filterGateRules()">
+                                        <option value="" data-i18n="qg_filter_all_langs">Все языки</option>
+                                        <option value="cpp">C/C++</option>
+                                        <option value="csharp">C#</option>
+                                        <option value="java">Java</option>
+                                        <option value="js">JS/TS</option>
+                                        <option value="go">Go</option>
+                                        <option value="other">Другое</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="text" id="gate-rules-search" class="sq-input"
+                                           placeholder="Фильтр по коду или названию"
+                                           data-i18n-placeholder="qg_filter_rules" oninput="filterGateRules()">
+                                </div>
+                            </div>
                             <div id="gate-rules-box" class="qg-rules-box border rounded p-2" style="max-height:320px;overflow-y:auto;"></div>
                             <small class="text-muted"><span id="gate-rules-selected-count">0</span> <span data-i18n="qg_rules_selected">выбрано</span></small>
                         </div>
@@ -132,6 +147,36 @@
     </div>
 </div>
 
+{# Модальное окно создания порога (Bootstrap, как Global Settings) #}
+<div class="modal fade" id="qgCreateGateModal" tabindex="-1" aria-labelledby="qgCreateGateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qgCreateGateModalLabel">
+                    <i class="bi bi-plus-lg"></i> <span data-i18n="qg_create_gate_title">Новый порог качества</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="sq-form-group mb-0">
+                    <label class="sq-form-label" for="new-gate-name-input"><span data-i18n="qg_gate_name">Название</span></label>
+                    <input type="text" id="new-gate-name-input" class="sq-input" autocomplete="off"
+                           placeholder="Например: Strict C++">
+                </div>
+                <div id="create-gate-error" class="sq-form-status mt-2" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="sq-btn sq-btn-secondary" data-bs-dismiss="modal">
+                    <span data-i18n="cancel">Отмена</span>
+                </button>
+                <button type="button" class="sq-btn sq-btn-primary" onclick="submitCreateGate()">
+                    <i class="bi bi-check-lg"></i> <span data-i18n="qg_create_btn">Создать</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const QG_API = '/api/v2';
 let catalogPage = 1;
@@ -139,6 +184,20 @@ let catalogDebounce = null;
 let selectedGateId = null;
 let allCatalogCodes = [];
 let gateSelectedRules = new Set();
+let createGateModal = null;
+
+const LANG_LABELS = {
+    cpp: 'C/C++',
+    csharp: 'C#',
+    java: 'Java',
+    js: 'JS/TS',
+    go: 'Go',
+    other: 'Другое',
+};
+
+function langLabel(code) {
+    return LANG_LABELS[code] || code || '—';
+}
 
 function tr(key, fallback) {
     if (typeof I18n === 'undefined') return fallback;
@@ -166,6 +225,11 @@ function debouncedLoadCatalog() {
     catalogDebounce = setTimeout(() => { catalogPage = 1; loadCatalog(); }, 300);
 }
 
+function catalogLanguageChanged() {
+    catalogPage = 1;
+    loadCatalog();
+}
+
 async function loadCatalog() {
     const q = document.getElementById('catalog-search').value.trim();
     const lang = document.getElementById('catalog-language').value;
@@ -183,7 +247,7 @@ async function loadCatalog() {
                 <td><span class="sq-rule-code">${w.rule_code}</span></td>
                 <td>${escapeHtml(w.name)}</td>
                 <td class="text-muted small">${escapeHtml(w.category || '—')}</td>
-                <td>${escapeHtml(w.language || '—')}</td>
+                <td>${escapeHtml(langLabel(w.language))}</td>
             </tr>
         `).join('');
         document.getElementById('catalog-pager-info').textContent =
@@ -252,10 +316,13 @@ async function loadAllCodesForGateEditor() {
 
 function renderGateRulesBox() {
     const q = (document.getElementById('gate-rules-search')?.value || '').toLowerCase();
+    const lang = document.getElementById('gate-rules-language')?.value || '';
     const box = document.getElementById('gate-rules-box');
-    const filtered = allCatalogCodes.filter(w =>
-        !q || w.rule_code.toLowerCase().includes(q) || (w.name || '').toLowerCase().includes(q)
-    );
+    const filtered = allCatalogCodes.filter(w => {
+        if (lang && w.language !== lang) return false;
+        if (!q) return true;
+        return w.rule_code.toLowerCase().includes(q) || (w.name || '').toLowerCase().includes(q);
+    });
     box.innerHTML = filtered.map(w => {
         const checked = gateSelectedRules.has(w.rule_code) ? 'checked' : '';
         return `<label class="d-block small mb-1">
@@ -287,15 +354,42 @@ async function selectGate(id) {
     await loadGates();
 }
 
-async function createGate() {
-    const name = prompt(tr('qg_new_gate_name', 'Название порога качества'));
-    if (!name) return;
+function openCreateGateModal() {
+    const input = document.getElementById('new-gate-name-input');
+    const err = document.getElementById('create-gate-error');
+    input.value = '';
+    err.textContent = '';
+    err.style.display = 'none';
+    if (!createGateModal) {
+        createGateModal = new bootstrap.Modal(document.getElementById('qgCreateGateModal'));
+    }
+    createGateModal.show();
+    setTimeout(() => input.focus(), 250);
+}
+
+async function submitCreateGate() {
+    const name = document.getElementById('new-gate-name-input').value.trim();
+    const err = document.getElementById('create-gate-error');
+    if (!name) {
+        err.textContent = tr('qg_name_required', 'Введите название порога');
+        err.style.display = 'block';
+        err.style.color = '#dc3545';
+        return;
+    }
+    err.style.display = 'none';
     const resp = await apiFetch(`${QG_API}/quality-gates`, {
         method: 'POST',
         body: JSON.stringify({ name, is_default: false, rule_codes: [] }),
     });
-    if (!resp.ok) { alert(await resp.text()); return; }
+    if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        err.textContent = body.detail || resp.statusText;
+        err.style.display = 'block';
+        err.style.color = '#dc3545';
+        return;
+    }
     const g = await resp.json();
+    createGateModal.hide();
     await loadGates();
     await selectGate(g.id);
 }
@@ -356,13 +450,24 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllCodesForGateEditor();
     refreshPageI18n();
     setTimeout(refreshPageI18n, 200);
-});
 
-// Fix language filter option: <option> cannot contain <span>
-document.addEventListener('DOMContentLoaded', () => {
     const langSelect = document.getElementById('catalog-language');
     if (langSelect && langSelect.options[0]) {
         langSelect.options[0].textContent = tr('qg_filter_all_langs', 'Все языки');
+    }
+    const gateLangSelect = document.getElementById('gate-rules-language');
+    if (gateLangSelect && gateLangSelect.options[0]) {
+        gateLangSelect.options[0].textContent = tr('qg_filter_all_langs', 'Все языки');
+    }
+
+    const newGateInput = document.getElementById('new-gate-name-input');
+    if (newGateInput) {
+        newGateInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitCreateGate();
+            }
+        });
     }
 });
 </script>

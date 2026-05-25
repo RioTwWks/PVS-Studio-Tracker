@@ -28,7 +28,7 @@ from pvs_tracker.quality_gate import (
     get_gate_rule_codes,
     populate_default_gate_rules,
 )
-from pvs_tracker.warnings_catalog import sync_warnings_catalog
+from pvs_tracker.warnings_catalog import backfill_classifier_languages, sync_warnings_catalog
 from pvs_tracker.db import get_session
 from pvs_tracker.security import hash_password
 
@@ -724,6 +724,16 @@ async def sync_warnings_api(
         result["default_gate_rules"] = len(get_gate_rule_codes(session, default_gate.id))
 
     return result
+
+
+@router.post("/warnings/backfill-languages")
+async def backfill_warning_languages_api(
+    user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Backfill language tags from rule codes (admin only)."""
+    count = backfill_classifier_languages(session)
+    return {"languages_backfilled": count}
 
 
 def _gate_rule_codes(session: Session, gate_id: int) -> list[str]:

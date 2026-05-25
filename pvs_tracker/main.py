@@ -201,14 +201,27 @@ def _load_error_classifiers(session: Session) -> None:
     if not os.path.exists(csv_path):
         return
 
+    from pvs_tracker.warnings_catalog import backfill_classifier_languages, resolve_warning_language
+
     classifiers = parse_classifier_csv(csv_path)
     for clf in classifiers:
+        clf["language"] = resolve_warning_language(
+            clf["rule_code"],
+            clf.get("category"),
+            clf.get("language"),
+        )
         session.add(ErrorClassifier(**clf))
     session.commit()
+    backfill_classifier_languages(session)
 
 
 _migrate_database()
 _initialize_default_data()
+
+with Session(engine) as _lang_session:
+    from pvs_tracker.warnings_catalog import backfill_classifier_languages
+
+    backfill_classifier_languages(_lang_session)
 
 
 # Templates

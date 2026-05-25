@@ -48,6 +48,56 @@ def _language_from_category(category: str) -> str:
     return "other"
 
 
+RULE_CODE_LANG_RE = re.compile(r"^V(\d+)", re.IGNORECASE)
+
+
+def infer_language_from_rule_code(rule_code: str) -> str:
+    """Infer analyzer language from PVS rule code numeric ranges."""
+    match = RULE_CODE_LANG_RE.match(rule_code.strip())
+    if not match:
+        return "other"
+    num = int(match.group(1))
+    if num < 100:
+        return "other"
+    if 3000 <= num <= 4999 or 5600 <= num <= 5699:
+        return "csharp"
+    if 5300 <= num <= 5399 or 6000 <= num <= 6999:
+        return "java"
+    if 5800 <= num <= 5899:
+        return "js"
+    return "cpp"
+
+
+def resolve_warning_language(
+    rule_code: str,
+    category: Optional[str] = None,
+    stored_language: Optional[str] = None,
+) -> str:
+    """Pick the best language tag for a catalog entry."""
+    if stored_language:
+        return stored_language
+    if category:
+        from_cat = _language_from_category(category)
+        if from_cat != "other":
+            return from_cat
+    return infer_language_from_rule_code(rule_code)
+
+
+def backfill_classifier_languages(session: Session) -> int:
+    """Ensure every ErrorClassifier row has a language tag."""
+    rows = session.exec(select(ErrorClassifier)).all()
+    updated = 0
+    for row in rows:
+        resolved = resolve_warning_language(row.rule_code, row.category, row.language)
+        if row.language != resolved:
+            row.language = resolved
+            session.add(row)
+            updated += 1
+    if updated:
+        session.commit()
+    return updated
+
+
 def parse_warnings_markdown(text: str) -> list[WarningEntry]:
     """Parse markdown-style warning list from docs page text."""
     entries: list[WarningEntry] = []
@@ -241,6 +291,7 @@ def sync_warnings_catalog(session: Session) -> dict[str, Any]:
 
     for entry in entries:
         doc_url = f"{DOC_BASE_URL}#{entry.rule_code.lower()}"
+        lang = resolve_warning_language(entry.rule_code, entry.category, entry.language)
         existing = session.exec(
             select(ErrorClassifier).where(ErrorClassifier.rule_code == entry.rule_code)
         ).first()
@@ -253,8 +304,8 @@ def sync_warnings_catalog(session: Session) -> dict[str, Any]:
             if entry.category and existing.category != entry.category:
                 existing.category = entry.category
                 changed = True
-            if entry.language and existing.language != entry.language:
-                existing.language = entry.language
+            if existing.language != lang:
+                existing.language = lang
                 changed = True
             existing.doc_url = doc_url
             existing.synced_at = when
@@ -270,7 +321,7 @@ def sync_warnings_catalog(session: Session) -> dict[str, Any]:
                     name=entry.name,
                     description="",
                     category=entry.category,
-                    language=entry.language,
+                    language=lang,
                     doc_url=doc_url,
                     synced_at=when,
                 )
@@ -278,7 +329,13 @@ def sync_warnings_catalog(session: Session) -> dict[str, Any]:
             imported += 1
 
     session.commit()
+    languages_filled = backfill_classifier_languages(session)
     from sqlalchemy import func as sa_func
 
     total = session.exec(select(sa_func.count()).select_from(ErrorClassifier)).one()
-    return {"imported": imported, "updated": updated, "total": total}
+    return {
+        "imported": imported,
+        "updated": updated,
+        "total": total,
+        "languages_backfilled": languages_filled,
+    }
