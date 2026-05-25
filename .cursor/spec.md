@@ -80,7 +80,9 @@ PVS-Studio-Tracker/
 - **Issue** — `fingerprint`, `file_path`, `line`, `rule_code`, `severity`, `message`, `status` (`new|existing|fixed|ignored`), `resolution`, `classifier_id`, `cwe_id`, `technical_debt_minutes`, …
 - **ErrorClassifier** — из `Actual_warnings.csv` при старте
 - **GlobalSettings** — дефолтные source roots
-- **User**, **ProjectMember**, **QualityGate**, **RunReport**, **IssueComment**, **ActivityLog**, …
+- **User** — `first_name`, `last_name`, `email`, `notify_api_uploads`, …
+- **UserProjectNotification** — подписка user→project на email при `POST /api/v1/upload`
+- **ProjectMember**, **QualityGate**, **RunReport**, **IssueComment**, **ActivityLog**, …
 
 **Ignore:** нет таблицы `IgnoredIssue`. `POST /api/v1/issues/{fingerprint}/ignore` выставляет `Issue.status = "ignored"` по fingerprint.
 
@@ -136,7 +138,8 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 | GET | `/ui/issues` | HTML / partial | — |
 | POST | `/ui/upload` | 303 | session `require_auth` |
 | POST | `/ui/projects` | redirect | session |
-| GET | `/ui/settings/global` | HTML | session |
+| GET | `/ui/settings/profile` | HTML | session |
+| GET | `/ui/settings/global` | HTML | session admin |
 | GET | `/ui/file` | HTML partial | — |
 | GET | `/ui/projects/{id}/code-viewer` | HTML | — |
 | POST | `/api/v1/upload` | JSON | session |
@@ -148,17 +151,18 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 ### API v2 (`api.py`, prefix `/api/v2`)
 
-JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`, `projects`, `issues`, `quality-gates`, `export/csv`, `settings/global`, `activity`.
+JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`, `users/me` (GET/PATCH), `users/me/notifications` (GET/PUT), `projects`, `issues`, `quality-gates`, `export/csv`, `settings/global`, `activity`.
 
 Полный список — grep `@router` в `api.py`.
 
 ---
 
-## 7. Webhooks (`webhooks.py`)
+## 7. Webhooks (`webhooks.py`) и email (`notifications.py`)
 
 - URL: `WEBHOOK_URL`, подпись: `WEBHOOK_SECRET`
 - События: `report_uploaded`, `quality_gate_evaluated` (не `pvs_report_processed`)
 - Отправка: `httpx` async (`send_webhook`)
+- Email: при успешном `POST /api/v1/upload` — `schedule_api_upload_notifications` → SMTP (`SMTP_*`, `APP_BASE_URL`) подписчикам с `notify_api_uploads` и `UserProjectNotification`
 
 ---
 
@@ -172,6 +176,7 @@ JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`,
 | `SECRET_KEY` | `main.py` (sessions) |
 | `JWT_SECRET_KEY` | `auth_service.py` |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | `webhooks.py` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_CACHE_DIR`, `SNAPSHOTS_DIR`, … | `git_integration.py` |
 
 `python-dotenv` загружается в `auth_service.py` при импорте.

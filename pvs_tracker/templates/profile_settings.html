@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Profile — PVS-Tracker{% endblock %}
+{% block content %}
+
+<div class="sq-container">
+    <div class="sq-page-header">
+        <h1 class="sq-page-title"><i class="bi bi-person-gear"></i> <span data-i18n="profile_settings">Profile Settings</span></h1>
+        <p class="sq-page-subtitle" data-i18n="profile_settings_subtitle">Name, email, and API upload notifications</p>
+    </div>
+
+    <div id="profile-auth-warning" class="alert alert-warning d-none" role="alert">
+        <span data-i18n="profile_auth_warning">Sign in with a system account (e.g. admin) to edit profile settings.</span>
+    </div>
+
+    <div class="sq-card" id="profile-form-card">
+        <div class="sq-card-header">
+            <i class="bi bi-person"></i> <span data-i18n="profile_personal">Personal information</span>
+        </div>
+        <div class="sq-card-body">
+            <form id="profile-settings-form">
+                <div class="sq-form-group">
+                    <label class="sq-form-label" for="profile-first-name" data-i18n="first_name">First name</label>
+                    <input type="text" id="profile-first-name" class="sq-input" maxlength="100">
+                </div>
+                <div class="sq-form-group">
+                    <label class="sq-form-label" for="profile-last-name" data-i18n="last_name">Last name</label>
+                    <input type="text" id="profile-last-name" class="sq-input" maxlength="100">
+                </div>
+                <div class="sq-form-group">
+                    <label class="sq-form-label" for="profile-email" data-i18n="email">Email</label>
+                    <input type="email" id="profile-email" class="sq-input" placeholder="user@example.com">
+                    <small class="text-muted" data-i18n="profile_email_hint">Used for API upload notification emails</small>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="sq-card mt-4" id="profile-notify-card">
+        <div class="sq-card-header">
+            <i class="bi bi-bell"></i> <span data-i18n="profile_notifications">API upload notifications</span>
+        </div>
+        <div class="sq-card-body">
+            <p class="text-muted mb-3" data-i18n="profile_notifications_desc">
+                Receive an email when a report is uploaded via POST /api/v1/upload for selected projects.
+            </p>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="profile-notify-enabled">
+                <label class="form-check-label" for="profile-notify-enabled" data-i18n="notify_api_uploads">
+                    Enable email notifications for API uploads
+                </label>
+            </div>
+            <div class="sq-form-group">
+                <label class="sq-form-label" data-i18n="notification_projects">Projects to watch</label>
+                <div id="profile-project-list" class="profile-project-list text-muted" data-i18n="loading">Loading...</div>
+            </div>
+            <div class="sq-form-actions mt-4">
+                <button type="button" class="sq-btn sq-btn-primary" onclick="saveProfileSettings()">
+                    <i class="bi bi-check-lg"></i> <span data-i18n="save_settings">Save Settings</span>
+                </button>
+                <span id="profile-settings-status" class="sq-form-status ms-3"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let profileProjects = [];
+
+async function loadProfileSettings() {
+    const warning = document.getElementById('profile-auth-warning');
+    const formCard = document.getElementById('profile-form-card');
+    const notifyCard = document.getElementById('profile-notify-card');
+    const projectList = document.getElementById('profile-project-list');
+
+    try {
+        const meResp = await fetch('/api/v2/users/me');
+        if (!meResp.ok) {
+            warning.classList.remove('d-none');
+            formCard.classList.add('opacity-50');
+            notifyCard.classList.add('opacity-50');
+            projectList.textContent = '';
+            return;
+        }
+        const me = await meResp.json();
+        document.getElementById('profile-first-name').value = me.first_name || '';
+        document.getElementById('profile-last-name').value = me.last_name || '';
+        document.getElementById('profile-email').value = me.email || '';
+        document.getElementById('profile-notify-enabled').checked = !!me.notify_api_uploads;
+
+        const projectsResp = await fetch('/api/v2/projects');
+        if (!projectsResp.ok) {
+            projectList.textContent = I18n.t('error_loading_settings');
+            return;
+        }
+        profileProjects = await projectsResp.json();
+        const subscribed = new Set(me.notification_project_ids || []);
+        if (profileProjects.length === 0) {
+            projectList.innerHTML = '<p class="text-muted mb-0">' + I18n.t('no_projects') + '</p>';
+            return;
+        }
+        projectList.innerHTML = profileProjects.map((p) => {
+            const checked = subscribed.has(p.id) ? ' checked' : '';
+            return (
+                '<div class="form-check">' +
+                '<input class="form-check-input profile-project-cb" type="checkbox" ' +
+                'id="profile-proj-' + p.id + '" value="' + p.id + '"' + checked + '>' +
+                '<label class="form-check-label" for="profile-proj-' + p.id + '">' +
+                escapeHtml(p.name) + '</label></div>'
+            );
+        }).join('');
+    } catch (e) {
+        projectList.textContent = I18n.t('network_error') + ': ' + e.message;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getSelectedProjectIds() {
+    return Array.from(document.querySelectorAll('.profile-project-cb:checked'))
+        .map((el) => parseInt(el.value, 10))
+        .filter((id) => !Number.isNaN(id));
+}
+
+async function saveProfileSettings() {
+    const status = document.getElementById('profile-settings-status');
+    status.textContent = I18n.t('saving');
+    status.style.color = '#6c757d';
+
+    const profileBody = {
+        first_name: document.getElementById('profile-first-name').value.trim() || null,
+        last_name: document.getElementById('profile-last-name').value.trim() || null,
+        email: document.getElementById('profile-email').value.trim() || null,
+        notify_api_uploads: document.getElementById('profile-notify-enabled').checked,
+    };
+
+    try {
+        const profileResp = await fetch('/api/v2/users/me', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(profileBody),
+        });
+        if (!profileResp.ok) {
+            const err = await profileResp.json();
+            status.textContent = '✗ ' + (err.detail || I18n.t('error_saving_settings'));
+            status.style.color = '#dc3545';
+            return;
+        }
+
+        const notifyResp = await fetch('/api/v2/users/me/notifications', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_ids: getSelectedProjectIds() }),
+        });
+        if (!notifyResp.ok) {
+            const err = await notifyResp.json();
+            status.textContent = '✗ ' + (err.detail || I18n.t('error_saving_settings'));
+            status.style.color = '#dc3545';
+            return;
+        }
+
+        status.textContent = '✓ ' + I18n.t('saved_successfully');
+        status.style.color = '#198754';
+    } catch (e) {
+        status.textContent = '✗ ' + I18n.t('network_error') + ': ' + e.message;
+        status.style.color = '#dc3545';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadProfileSettings);
+</script>
+
+<style>
+.sq-form-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sq-spacing-md);
+}
+.sq-form-status {
+    font-size: 13px;
+    font-weight: 500;
+}
+.profile-project-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+}
+.profile-project-list .form-check {
+    margin-bottom: 0.35rem;
+}
+[data-theme="dark"] .sq-card {
+    background: var(--sq-bg-secondary);
+    border-color: var(--sq-border);
+}
+[data-theme="dark"] .sq-card-header {
+    background: var(--sq-bg-tertiary);
+    border-color: var(--sq-border);
+}
+[data-theme="dark"] .sq-input {
+    background: var(--sq-bg-secondary);
+    border-color: var(--sq-border);
+    color: var(--sq-text-primary);
+}
+</style>
+
+{% endblock %}

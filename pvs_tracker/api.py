@@ -11,9 +11,9 @@ import io
 
 from pvs_tracker.models import (
     Project, Run, Issue, ErrorClassifier, User, UserRole,
-    ProjectMember, QualityGate, QualityGateCondition, GlobalSettings,
+    ProjectMember, QualityGate, QualityGateCondition, QualityGateRule, GlobalSettings,
     IssueComment, ActivityLog, MetricSnapshot, IssueResolution,
-    RunReport, CodeSnapshotFile,
+    RunReport, CodeSnapshotFile, UserProjectNotification,
 )
 from pvs_tracker.auth_service import (
     require_auth, require_admin, require_role, create_user,
@@ -21,9 +21,14 @@ from pvs_tracker.auth_service import (
     can_access_project, can_modify_project
 )
 from pvs_tracker.quality_gate import (
-    evaluate_quality_gate, calculate_run_metrics,
-    create_default_quality_gate
+    evaluate_quality_gate,
+    calculate_run_metrics,
+    create_default_quality_gate,
+    set_gate_rules,
+    get_gate_rule_codes,
+    populate_default_gate_rules,
 )
+from pvs_tracker.warnings_catalog import sync_warnings_catalog
 from pvs_tracker.db import get_session
 from pvs_tracker.security import hash_password
 
@@ -47,6 +52,17 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class ProfileUpdate(BaseModel):
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
+    email: Optional[str] = Field(default=None, max_length=254)
+    notify_api_uploads: Optional[bool] = None
+
+
+class NotificationProjectsUpdate(BaseModel):
+    project_ids: list[int] = Field(default_factory=list)
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -58,6 +74,7 @@ class ProjectCreate(BaseModel):
     description: Optional[str] = None
     source_root_win: Optional[str] = None
     source_root_linux: Optional[str] = None
+    source_root_macos: Optional[str] = None
     git_url: Optional[str] = None
     git_branch: str = "main"
     quality_gate_id: Optional[int] = None
@@ -69,6 +86,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     source_root_win: Optional[str] = None
     source_root_linux: Optional[str] = None
+    source_root_macos: Optional[str] = None
     git_url: Optional[str] = None
     git_branch: Optional[str] = None
     quality_gate_id: Optional[int] = None
@@ -77,6 +95,13 @@ class ProjectUpdate(BaseModel):
 class QualityGateCreate(BaseModel):
     name: str
     is_default: bool = False
+    rule_codes: list[str] = Field(default_factory=list)
+
+
+class QualityGateUpdate(BaseModel):
+    name: Optional[str] = None
+    is_default: Optional[bool] = None
+    rule_codes: Optional[list[str]] = None
 
 
 class QualityGateConditionCreate(BaseModel):
@@ -125,6 +150,29 @@ def log_activity(
     session.add(log)
 
 
+def _serialize_user_profile(session: Session, user: User) -> dict:
+    """Build API response for current user profile."""
+    notification_rows = session.exec(
+        select(UserProjectNotification.project_id).where(
+            UserProjectNotification.user_id == user.id,
+        )
+    ).all()
+    notification_project_ids = [row for row in notification_rows]
+    return {
+        "id": user.id,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "notify_api_uploads": user.notify_api_uploads,
+        "notification_project_ids": notification_project_ids,
+        "role": user.role,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "last_login": user.last_login,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Authentication & User Management API
 # ---------------------------------------------------------------------------
@@ -153,17 +201,97 @@ async def api_login(body: LoginRequest, db: Session = Depends(lambda: None)):
 
 
 @router.get("/users/me")
-async def get_me(user: User = Depends(require_auth)):
+async def get_me(
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
     """Get current user profile."""
-    return {
-        "id": user.id,
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
-        "is_active": user.is_active,
-        "created_at": user.created_at,
-        "last_login": user.last_login,
-    }
+    db_user = session.get(User, user.id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _serialize_user_profile(session, db_user)
+
+
+@router.patch("/users/me")
+async def update_me(
+    body: ProfileUpdate,
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
+    """Update current user profile fields."""
+    db_user = session.get(User, user.id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if body.first_name is not None:
+        db_user.first_name = body.first_name or None
+    if body.last_name is not None:
+        db_user.last_name = body.last_name or None
+    if body.email is not None:
+        db_user.email = body.email.strip() if body.email and body.email.strip() else None
+    if body.notify_api_uploads is not None:
+        db_user.notify_api_uploads = body.notify_api_uploads
+
+    session.add(db_user)
+    session.commit()
+    session.refresh(db_user)
+    return _serialize_user_profile(session, db_user)
+
+
+@router.get("/users/me/notifications")
+async def get_my_notifications(
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
+    """Get API upload notification subscription settings."""
+    rows = session.exec(
+        select(UserProjectNotification.project_id).where(
+            UserProjectNotification.user_id == user.id,
+        )
+    ).all()
+    db_user = session.get(User, user.id)
+    enabled = db_user.notify_api_uploads if db_user else False
+    return {"enabled": enabled, "project_ids": list(rows)}
+
+
+@router.put("/users/me/notifications")
+async def update_my_notifications(
+    body: NotificationProjectsUpdate,
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
+    """Replace project subscriptions for API upload email notifications."""
+    for project_id in body.project_ids:
+        if not session.get(Project, project_id):
+            raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+        members = session.exec(
+            select(ProjectMember).where(ProjectMember.project_id == project_id)
+        ).all()
+        if members:
+            if not any(m.user_id == user.id for m in members):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"No access to project {project_id}",
+                )
+        elif not can_access_project(user, project_id):
+            raise HTTPException(
+                status_code=403,
+                detail=f"No access to project {project_id}",
+            )
+
+    existing = session.exec(
+        select(UserProjectNotification).where(UserProjectNotification.user_id == user.id)
+    ).all()
+    for row in existing:
+        session.delete(row)
+
+    for project_id in body.project_ids:
+        session.add(UserProjectNotification(user_id=user.id, project_id=project_id))
+
+    session.commit()
+    db_user = session.get(User, user.id)
+    enabled = db_user.notify_api_uploads if db_user else False
+    return {"enabled": enabled, "project_ids": body.project_ids}
 
 
 @router.get("/users", dependencies=[Depends(require_admin)])
@@ -283,6 +411,7 @@ async def create_project_api(
             description=body.description,
             source_root_win=body.source_root_win,
             source_root_linux=body.source_root_linux,
+            source_root_macos=body.source_root_macos,
             quality_gate_id=body.quality_gate_id,
         )
         db_session.add(project)
@@ -329,6 +458,7 @@ async def get_project_api(
             "description": project.description,
             "source_root_win": project.source_root_win,
             "source_root_linux": project.source_root_linux,
+            "source_root_macos": project.source_root_macos,
             "git_url": project.git_url,
             "git_branch": project.git_branch,
             "source_archive_path": project.source_archive_path,
@@ -365,6 +495,8 @@ async def update_project_api(
             project.source_root_win = body.source_root_win if body.source_root_win else None
         if body.source_root_linux is not None:
             project.source_root_linux = body.source_root_linux if body.source_root_linux else None
+        if body.source_root_macos is not None:
+            project.source_root_macos = body.source_root_macos if body.source_root_macos else None
         if body.git_url is not None:
             project.git_url = body.git_url if body.git_url else None
         if body.git_branch is not None:
@@ -509,74 +641,266 @@ async def list_project_members_api(
 
 
 # ---------------------------------------------------------------------------
+# PVS Warnings catalog API
+# ---------------------------------------------------------------------------
+
+@router.get("/warnings")
+async def list_warnings_api(
+    user: User = Depends(require_auth),
+    q: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    language: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=500),
+    session: Session = Depends(get_session),
+):
+    """List PVS warning catalog with pagination."""
+    filters = []
+    if q:
+        like = f"%{q}%"
+        filters.append(
+            (ErrorClassifier.rule_code.ilike(like)) | (ErrorClassifier.name.ilike(like))
+        )
+    if category:
+        filters.append(ErrorClassifier.category.ilike(f"%{category}%"))
+    if language:
+        filters.append(ErrorClassifier.language == language)
+
+    count_stmt = select(func.count(ErrorClassifier.id))
+    list_stmt = select(ErrorClassifier)
+    for clause in filters:
+        count_stmt = count_stmt.where(clause)
+        list_stmt = list_stmt.where(clause)
+
+    total = session.exec(count_stmt).one()
+    rows = session.exec(
+        list_stmt.order_by(ErrorClassifier.rule_code)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    ).all()
+
+    last_sync = session.exec(
+        select(func.max(ErrorClassifier.synced_at))
+    ).one()
+
+    return {
+        "warnings": [
+            {
+                "rule_code": w.rule_code,
+                "name": w.name,
+                "type": w.type,
+                "priority": w.priority,
+                "category": w.category,
+                "language": w.language,
+                "doc_url": w.doc_url,
+            }
+            for w in rows
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "last_synced_at": last_sync,
+    }
+
+
+@router.post("/warnings/sync")
+async def sync_warnings_api(
+    user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Import/update warning catalog from pvs-studio.com (admin only)."""
+    try:
+        result = sync_warnings_catalog(session)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Sync failed: {exc}") from exc
+
+    default_gate = session.exec(
+        select(QualityGate).where(QualityGate.is_default == True)  # noqa: E712
+    ).first()
+    if default_gate and default_gate.id is not None:
+        populate_default_gate_rules(session, default_gate.id)
+        result["default_gate_rules"] = len(get_gate_rule_codes(session, default_gate.id))
+
+    return result
+
+
+def _gate_rule_codes(session: Session, gate_id: int) -> list[str]:
+    return sorted(get_gate_rule_codes(session, gate_id))
+
+
+def _clear_default_flag(session: Session, except_gate_id: Optional[int] = None) -> None:
+    gates = session.exec(select(QualityGate).where(QualityGate.is_default == True)).all()  # noqa: E712
+    for gate in gates:
+        if except_gate_id is None or gate.id != except_gate_id:
+            gate.is_default = False
+            session.add(gate)
+    session.commit()
+
+
+# ---------------------------------------------------------------------------
 # Quality Gates API
 # ---------------------------------------------------------------------------
 
 @router.get("/quality-gates")
-async def list_quality_gates_api(user: User = Depends(require_auth), session: Session = Depends(lambda s: None)):
+async def list_quality_gates_api(
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
     """List all quality gates."""
-    from sqlmodel import Session
-    from pvs_tracker.db import engine
-    with Session(engine) as db_session:
-        gates = db_session.exec(select(QualityGate).order_by(QualityGate.name)).all()
-        return [
+    gates = session.exec(select(QualityGate).order_by(QualityGate.name)).all()
+    result = []
+    for g in gates:
+        rules_count = 0
+        if g.id is not None:
+            rules_count = len(get_gate_rule_codes(session, g.id))
+        projects_count = session.exec(
+            select(func.count()).where(Project.quality_gate_id == g.id)
+        ).one()
+        result.append(
             {
                 "id": g.id,
                 "name": g.name,
                 "is_default": g.is_default,
                 "created_at": g.created_at,
-                "conditions_count": len(g.conditions),
+                "rules_count": rules_count,
+                "projects_count": projects_count,
             }
-            for g in gates
-        ]
+        )
+    return result
 
 
 @router.post("/quality-gates")
 async def create_quality_gate_api(
     body: QualityGateCreate,
     user: User = Depends(require_admin),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(get_session),
 ):
     """Create a new quality gate (admin only)."""
-    from sqlmodel import Session
-    from pvs_tracker.db import engine
-    with Session(engine) as db_session:
-        gate = QualityGate(name=body.name, is_default=body.is_default)
-        db_session.add(gate)
-        db_session.commit()
-        db_session.refresh(gate)
-        return {"id": gate.id, "name": gate.name}
+    existing = session.exec(select(QualityGate).where(QualityGate.name == body.name)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Quality gate name already exists")
+
+    if body.is_default:
+        _clear_default_flag(session)
+
+    gate = QualityGate(name=body.name, is_default=body.is_default)
+    session.add(gate)
+    session.commit()
+    session.refresh(gate)
+
+    if gate.id is not None and body.rule_codes:
+        set_gate_rules(session, gate.id, body.rule_codes)
+
+    return {
+        "id": gate.id,
+        "name": gate.name,
+        "rule_codes": _gate_rule_codes(session, gate.id) if gate.id else [],
+    }
 
 
 @router.get("/quality-gates/{gate_id}")
-async def get_quality_gate_api(gate_id: int, user: User = Depends(require_auth), session: Session = Depends(lambda s: None)):
+async def get_quality_gate_api(
+    gate_id: int,
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
     """Get quality gate details."""
-    from sqlmodel import Session
-    from pvs_tracker.db import engine
-    with Session(engine) as db_session:
-        gate = db_session.get(QualityGate, gate_id)
-        if not gate:
-            raise HTTPException(status_code=404, detail="Quality gate not found")
-        
-        conditions = db_session.exec(
-            select(QualityGateCondition).where(QualityGateCondition.quality_gate_id == gate_id)
+    gate = session.get(QualityGate, gate_id)
+    if not gate:
+        raise HTTPException(status_code=404, detail="Quality gate not found")
+
+    return {
+        "id": gate.id,
+        "name": gate.name,
+        "is_default": gate.is_default,
+        "rule_codes": _gate_rule_codes(session, gate_id),
+        "rules_count": len(_gate_rule_codes(session, gate_id)),
+    }
+
+
+@router.put("/quality-gates/{gate_id}")
+async def update_quality_gate_api(
+    gate_id: int,
+    body: QualityGateUpdate,
+    user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Update quality gate (admin only)."""
+    gate = session.get(QualityGate, gate_id)
+    if not gate:
+        raise HTTPException(status_code=404, detail="Quality gate not found")
+
+    if body.name is not None:
+        other = session.exec(
+            select(QualityGate).where(
+                QualityGate.name == body.name,
+                QualityGate.id != gate_id,
+            )
+        ).first()
+        if other:
+            raise HTTPException(status_code=400, detail="Quality gate name already exists")
+        gate.name = body.name
+
+    if body.is_default is True:
+        _clear_default_flag(session, except_gate_id=gate_id)
+        gate.is_default = True
+    elif body.is_default is False and gate.is_default:
+        others = session.exec(
+            select(QualityGate).where(QualityGate.id != gate_id)
         ).all()
-        
-        return {
-            "id": gate.id,
-            "name": gate.name,
-            "is_default": gate.is_default,
-            "conditions": [
-                {
-                    "id": c.id,
-                    "metric": c.metric,
-                    "operator": c.operator,
-                    "threshold": c.threshold,
-                    "error_policy": c.error_policy,
-                }
-                for c in conditions
-            ],
-        }
+        if not others:
+            raise HTTPException(status_code=400, detail="Cannot unset the only default gate")
+        gate.is_default = False
+
+    if body.rule_codes is not None:
+        set_gate_rules(session, gate_id, body.rule_codes)
+
+    gate.updated_at = datetime.utcnow()
+    session.add(gate)
+    session.commit()
+
+    return {
+        "id": gate.id,
+        "name": gate.name,
+        "is_default": gate.is_default,
+        "rule_codes": _gate_rule_codes(session, gate_id),
+    }
+
+
+@router.delete("/quality-gates/{gate_id}")
+async def delete_quality_gate_api(
+    gate_id: int,
+    user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Delete quality gate (admin only)."""
+    gate = session.get(QualityGate, gate_id)
+    if not gate:
+        raise HTTPException(status_code=404, detail="Quality gate not found")
+
+    in_use = session.exec(
+        select(func.count()).where(Project.quality_gate_id == gate_id)
+    ).one()
+    if in_use:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Quality gate is assigned to {in_use} project(s)",
+        )
+
+    if gate.is_default:
+        raise HTTPException(status_code=400, detail="Cannot delete the default quality gate")
+
+    rules = session.exec(
+        select(QualityGateRule).where(QualityGateRule.quality_gate_id == gate_id)
+    ).all()
+    for rule in rules:
+        session.delete(rule)
+
+    session.delete(gate)
+    session.commit()
+    return {"status": "deleted", "id": gate_id}
 
 
 @router.post("/quality-gates/{gate_id}/conditions")
@@ -584,26 +908,23 @@ async def add_quality_gate_condition_api(
     gate_id: int,
     body: QualityGateConditionCreate,
     user: User = Depends(require_admin),
-    session: Session = Depends(lambda s: None),
+    session: Session = Depends(get_session),
 ):
-    """Add a condition to a quality gate (admin only)."""
-    from sqlmodel import Session
-    from pvs_tracker.db import engine
-    with Session(engine) as db_session:
-        gate = db_session.get(QualityGate, gate_id)
-        if not gate:
-            raise HTTPException(status_code=404, detail="Quality gate not found")
-        
-        condition = QualityGateCondition(
-            quality_gate_id=gate_id,
-            metric=body.metric,
-            operator=body.operator,
-            threshold=body.threshold,
-            error_policy=body.error_policy,
-        )
-        db_session.add(condition)
-        db_session.commit()
-        return {"id": condition.id, "metric": body.metric}
+    """Deprecated: metric conditions are not used for gate evaluation."""
+    gate = session.get(QualityGate, gate_id)
+    if not gate:
+        raise HTTPException(status_code=404, detail="Quality gate not found")
+
+    condition = QualityGateCondition(
+        quality_gate_id=gate_id,
+        metric=body.metric,
+        operator=body.operator,
+        threshold=body.threshold,
+        error_policy=body.error_policy,
+    )
+    session.add(condition)
+    session.commit()
+    return {"id": condition.id, "metric": body.metric, "deprecated": True}
 
 
 # ---------------------------------------------------------------------------
@@ -880,6 +1201,7 @@ async def get_global_settings_api(
         "id": settings.id,
         "default_source_root_win": settings.default_source_root_win,
         "default_source_root_linux": settings.default_source_root_linux,
+        "default_source_root_macos": settings.default_source_root_macos,
         "updated_at": settings.updated_at,
     }
 
@@ -899,14 +1221,17 @@ async def update_global_settings_api(
         settings.default_source_root_win = body["default_source_root_win"] or None
     if "default_source_root_linux" in body:
         settings.default_source_root_linux = body["default_source_root_linux"] or None
-    
+    if "default_source_root_macos" in body:
+        settings.default_source_root_macos = body["default_source_root_macos"] or None
+
     settings.updated_at = datetime.utcnow()
     session.commit()
-    
+
     return {
         "id": settings.id,
         "default_source_root_win": settings.default_source_root_win,
         "default_source_root_linux": settings.default_source_root_linux,
+        "default_source_root_macos": settings.default_source_root_macos,
         "updated_at": settings.updated_at,
     }
 

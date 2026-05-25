@@ -14,34 +14,57 @@ logger = logging.getLogger(__name__)
 
 
 def get_os_type() -> str:
-    """Detect current OS type ('windows' or 'linux')."""
+    """Detect current server OS type ('windows', 'linux', or 'macos')."""
     system = platform.system()
-    return "windows" if system == "Windows" else "linux"
+    if system == "Windows":
+        return "windows"
+    if system == "Darwin":
+        return "macos"
+    return "linux"
+
+
+def _root_for_platform(
+    platform_name: str,
+    project_source_root_win: str | None,
+    project_source_root_linux: str | None,
+    project_source_root_macos: str | None = None,
+) -> str | None:
+    """Pick project-level source root for a target platform."""
+    if platform_name == "windows":
+        return project_source_root_win
+    if platform_name == "macos":
+        return project_source_root_macos
+    return project_source_root_linux
 
 
 def resolve_source_path(
     project_source_root_win: str | None,
     project_source_root_linux: str | None,
     report_file_path: str,
+    project_source_root_macos: str | None = None,
+    target_platform: str | None = None,
 ) -> Path:
     """
     Safely convert a path from a PVS report to an absolute server path.
-    Detects OS automatically and uses the corresponding source root.
+    Uses the source root for the report target platform (or server OS if omitted).
     """
     import logging
     logger = logging.getLogger("pvs_tracker")
-    
-    # Detect OS and select appropriate source root
-    os_type = get_os_type()
-    if os_type == "windows":
-        source_root = project_source_root_win
-    else:
-        source_root = project_source_root_linux
-    
+
+    os_type = target_platform or get_os_type()
+    if os_type not in ("windows", "linux", "macos"):
+        os_type = get_os_type()
+    source_root = _root_for_platform(
+        os_type,
+        project_source_root_win,
+        project_source_root_linux,
+        project_source_root_macos,
+    )
+
     if not source_root:
         raise HTTPException(
             400,
-            f"source_root_{os_type} is not configured for this project. "
+            f"source_root for {os_type} is not configured for this project. "
             f"Please set it in Project Settings.",
         )
 
@@ -103,27 +126,36 @@ def get_effective_source_root(
     project_source_root_win: Optional[str],
     project_source_root_linux: Optional[str],
     global_settings: Optional["GlobalSettings"] = None,
+    project_source_root_macos: Optional[str] = None,
+    platform: str | None = None,
 ) -> Optional[str]:
     """
-    Возвращает эффективный source root:
+    Возвращает эффективный source root для целевой платформы отчёта:
     1. Если задан в проекте — используем его
     2. Иначе — используем глобальный дефолт
     3. Иначе — None
     """
-    os_type = get_os_type()
-    project_root = project_source_root_win if os_type == "windows" else project_source_root_linux
-    
+    os_type = platform or get_os_type()
+    if os_type not in ("windows", "linux", "macos"):
+        os_type = get_os_type()
+
+    project_root = _root_for_platform(
+        os_type,
+        project_source_root_win,
+        project_source_root_linux,
+        project_source_root_macos,
+    )
+
     if project_root:
         return project_root
-    
+
     if global_settings:
-        global_root = (
-            global_settings.default_source_root_win 
-            if os_type == "windows" 
-            else global_settings.default_source_root_linux
-        )
-        return global_root
-    
+        if os_type == "windows":
+            return global_settings.default_source_root_win
+        if os_type == "macos":
+            return global_settings.default_source_root_macos
+        return global_settings.default_source_root_linux
+
     return None
 
 def normalize_file_path_for_display(

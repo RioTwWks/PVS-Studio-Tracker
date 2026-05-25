@@ -43,6 +43,9 @@
                 <a href="/ui/settings/global" class="sq-header-btn" title="Global Settings" data-i18n="global_settings" data-i18n-attr="title">
                     <i class="bi bi-globe"></i>
                 </a>
+                <a href="/ui/settings/quality-gates" class="sq-header-btn" title="Quality Gates" data-i18n="qg_settings_title" data-i18n-attr="title">
+                    <i class="bi bi-shield-check"></i>
+                </a>
                 {% endif %}
                 {% if current_user %}
                 <div class="sq-user-menu">
@@ -50,6 +53,9 @@
                         {{ current_user[0]|upper }}
                     </div>
                     <span class="sq-username">{{ current_user }}</span>
+                    <a href="/ui/settings/profile" class="sq-header-btn" title="Profile" data-i18n="profile_settings" data-i18n-attr="title">
+                        <i class="bi bi-person-gear"></i>
+                    </a>
                     <a href="/logout" class="sq-header-btn" title="Logout" data-i18n="logout" data-i18n-attr="title">
                         <i class="bi bi-box-arrow-right"></i>
                     </a>
@@ -106,6 +112,11 @@
                                 placeholder="/home/user/projects/src">
                         </div>
                         <div class="sq-form-group">
+                            <label class="sq-form-label" data-i18n="default_source_root_macos">Default Source Root (macOS)</label>
+                            <input type="text" id="global-root-macos" class="sq-input"
+                                placeholder="/Users/dev/projects/src">
+                        </div>
+                        <div class="sq-form-group">
                             <label class="sq-form-label" data-i18n="default_git_branch">Default Git Branch</label>
                             <input type="text" id="global-git-branch" class="sq-input" 
                                 value="main" placeholder="main">
@@ -138,6 +149,8 @@
                 const data = await resp.json();
                 document.getElementById('global-root-win').value = data.default_source_root_win || '';
                 document.getElementById('global-root-linux').value = data.default_source_root_linux || '';
+                const macosEl = document.getElementById('global-root-macos');
+                if (macosEl) macosEl.value = data.default_source_root_macos || '';
                 document.getElementById('global-git-branch').value = data.default_git_branch || 'main';
             }
             modal.show();
@@ -162,6 +175,7 @@
                 body: JSON.stringify({
                     default_source_root_win: document.getElementById('global-root-win').value || null,
                     default_source_root_linux: document.getElementById('global-root-linux').value || null,
+                    default_source_root_macos: document.getElementById('global-root-macos')?.value || null,
                     default_git_branch: document.getElementById('global-git-branch').value
                 })
             });

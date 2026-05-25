@@ -24,6 +24,7 @@ from pvs_tracker.models import (
     User,
     UserRole,
     GlobalSettings,
+    QualityGate,
 )
 from pvs_tracker.parser import parse_pvs_report_bytes
 from pvs_tracker.artifact_storage import store_code_snapshot, store_run_report
@@ -33,7 +34,7 @@ from pvs_tracker.db import engine
 import pvs_tracker.code_viewer as code_viewer_module
 from pvs_tracker.code_viewer import merge_code_snapshot, router as code_viewer_router
 from pvs_tracker.api import router as api_v2_router
-from pvs_tracker.quality_gate import create_default_quality_gate
+from pvs_tracker.quality_gate import create_default_quality_gate, evaluate_quality_gate
 from pvs_tracker.security import hash_password
 
 # ---------------------------------------------------------------------------
@@ -109,14 +110,69 @@ def _migrate_database() -> None:
                     conn.commit()
                 except Exception:
                     pass  # Column may already exist
+
+                for col_sql in (
+                    "ALTER TABLE user ADD COLUMN first_name VARCHAR",
+                    "ALTER TABLE user ADD COLUMN last_name VARCHAR",
+                    "ALTER TABLE user ADD COLUMN notify_api_uploads BOOLEAN DEFAULT 0",
+                    "ALTER TABLE project ADD COLUMN source_root_macos VARCHAR",
+                    "ALTER TABLE run ADD COLUMN target_platform VARCHAR DEFAULT 'windows'",
+                    "ALTER TABLE issue ADD COLUMN cross_platform_fp VARCHAR",
+                    "ALTER TABLE globalsettings ADD COLUMN default_source_root_macos VARCHAR",
+                    "ALTER TABLE errorclassifier ADD COLUMN category VARCHAR",
+                    "ALTER TABLE errorclassifier ADD COLUMN language VARCHAR",
+                    "ALTER TABLE errorclassifier ADD COLUMN doc_url VARCHAR",
+                    "ALTER TABLE errorclassifier ADD COLUMN synced_at DATETIME",
+                ):
+                    try:
+                        conn.execute(text(col_sql))
+                        conn.commit()
+                    except Exception:
+                        pass
         except Exception:
             pass  # Migration failed, continue anyway
+
+        _backfill_cross_platform_fps(session)
+
+
+def _backfill_cross_platform_fps(session: Session) -> None:
+    """Fill cross_platform_fp for legacy issues after schema migration."""
+    from pvs_tracker.platforms import compute_cross_platform_fp
+
+    missing = session.exec(
+        select(Issue).where(Issue.cross_platform_fp == None)  # noqa: E711
+    ).all()
+    if not missing:
+        return
+
+    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+    updated = 0
+    for issue in missing:
+        run = session.get(Run, issue.run_id)
+        if not run:
+            continue
+        project = session.get(Project, run.project_id)
+        if not project:
+            continue
+        platform = run.target_platform or "windows"
+        issue.cross_platform_fp = compute_cross_platform_fp(
+            issue.file_path,
+            issue.rule_code,
+            issue.message,
+            project=project,
+            global_settings=global_settings,
+            platform=platform,  # type: ignore[arg-type]
+        )
+        session.add(issue)
+        updated += 1
+    if updated:
+        session.commit()
 
 
 def _initialize_default_data() -> None:
     """Initialize default quality gates and admin user if they don't exist."""
     with Session(engine) as session:
-        # Create default quality gate
+        _load_error_classifiers(session)
         create_default_quality_gate(session)
 
         # Create default admin user if no users exist
@@ -131,10 +187,6 @@ def _initialize_default_data() -> None:
             )
             session.add(admin_user)
             session.commit()
-
-
-_migrate_database()
-_initialize_default_data()
 
 
 def _load_error_classifiers(session: Session) -> None:
@@ -155,9 +207,9 @@ def _load_error_classifiers(session: Session) -> None:
     session.commit()
 
 
-# Load classifiers on startup
-with Session(engine) as init_session:
-    _load_error_classifiers(init_session)
+_migrate_database()
+_initialize_default_data()
+
 
 # Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -319,6 +371,7 @@ async def ui_dashboard(
     project_id: int,
     request: Request,
     branch: str = "",
+    platform_filter: str = "windows",
     session: Session = Depends(get_session),
 ):
     project = session.get(Project, project_id)
@@ -353,39 +406,28 @@ async def ui_dashboard(
     else:
         active_branch = ""
 
-    # Filter runs by active branch
-    run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
-    if active_branch:
-        run_query = run_query.where(Run.branch == active_branch)
-    run_query = run_query.order_by(Run.timestamp.asc()).limit(10)
-    runs = session.exec(run_query).all()
+    from pvs_tracker.dashboard_history import build_dashboard_histories
+    from pvs_tracker.platforms import normalize_platform_filter
+    from pvs_tracker.run_queries import get_latest_run
 
-    # Compute cumulative active/fixed counts across runs
-    all_fps: set[str] = set()
-    fixed_fps: set[str] = set()
-    history = []
-    for r in runs:
-        issues = session.exec(select(Issue).where(Issue.run_id == r.id)).all()
-        for i in issues:
-            if i.status in ("new", "existing"):
-                all_fps.add(i.fingerprint)
-            elif i.status == "fixed":
-                fixed_fps.add(i.fingerprint)
+    pf = normalize_platform_filter(platform_filter)
+    history, history_by_platform = build_dashboard_histories(
+        session, project_id, active_branch, pf
+    )
 
-        active_count = len(all_fps - fixed_fps)
-        new_count = len([i for i in issues if i.status == "new"])
-        fixed_count = len([i for i in issues if i.status == "fixed"])
+    qg_result: dict = {"status": "passed", "conditions": [], "summary": {"new_in_gate": 0}}
+    latest_for_qg = None
+    if pf in ("windows", "linux", "macos"):
+        latest_for_qg = get_latest_run(session, project_id, active_branch, pf)
+    elif history:
+        run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
+        if active_branch:
+            run_query = run_query.where(Run.branch == active_branch)
+        latest_for_qg = session.exec(run_query.order_by(Run.timestamp.desc()).limit(1)).first()
+    if latest_for_qg and latest_for_qg.id is not None:
+        qg_result = evaluate_quality_gate(session, project_id, latest_for_qg.id)
 
-        history.append(
-            {
-                "timestamp": r.timestamp.isoformat(),
-                "commit": r.commit or "—",
-                "branch": r.branch or "—",
-                "total": active_count,
-                "new": new_count,
-                "fixed": fixed_count,
-            }
-        )
+    quality_gates = session.exec(select(QualityGate).order_by(QualityGate.name)).all()
 
     return templates.TemplateResponse(
         request,
@@ -394,8 +436,12 @@ async def ui_dashboard(
             "current_user": get_current_user(request),
             "project": project,
             "history": history,
+            "history_by_platform": history_by_platform,
             "branches": branches,
             "active_branch": active_branch,
+            "platform_filter": pf,
+            "qg_result": qg_result,
+            "quality_gates": quality_gates,
         },
     )
 
@@ -405,6 +451,7 @@ async def ui_issues(
     request: Request,
     project_id: int,
     branch: str = "",
+    platform_filter: str = "windows",
     severity: str = "",
     status_filter: str = "",
     q: str = "",
@@ -414,131 +461,86 @@ async def ui_issues(
     fragment: bool = False,
     session: Session = Depends(get_session),
 ):
-    import logging
-    logger = logging.getLogger(__name__)
+    from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
+    from pvs_tracker.issues_query import resolve_issues_for_filter
+    from pvs_tracker.platforms import normalize_platform_filter
 
-    # Определяем последний успешный прогон
-    if branch:
-        latest_run = session.exec(
-            select(Run)
-            .where(Run.project_id == project_id, Run.status == "done", Run.branch == branch)
-            .order_by(Run.timestamp.desc())
-            .limit(1),
-        ).first()
-    else:
-        latest_run = session.exec(
-            select(Run)
-            .where(Run.project_id == project_id, Run.status == "done")
-            .order_by(Run.timestamp.desc())
-            .limit(1),
-        ).first()
-
-    if not latest_run:
-        return templates.TemplateResponse(
-            request,
-            "issues_table.html",
-            {
-                "current_user": get_current_user(request),
-                "issues": [],
-                "total": 0,
-                "page": page,
-                "per_page": 25 if fragment else 50,
-                "project_id": project_id,
-                "branch": branch,
-                "severity": severity,
-                "status_filter": status_filter,
-                "q": q,
-                "run_id": None,
-                "classifier_map": {},
-                "display_paths": {},
-                "sort_by": sort_by,
-                "order": order,
-                "has_next": False,
-                "next_page": 1,
-            },
-        )
-
+    pf = normalize_platform_filter(platform_filter)
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
+    classifiers = session.exec(select(ErrorClassifier)).all()
+    classifier_map = {c.id: c for c in classifiers}
+
+    empty_vars = {
+        "current_user": get_current_user(request),
+        "issues": [],
+        "total": 0,
+        "page": page,
+        "per_page": 25 if fragment else 50,
+        "project_id": project_id,
+        "branch": branch,
+        "platform_filter": pf,
+        "severity": severity,
+        "status_filter": status_filter,
+        "q": q,
+        "run_id": None,
+        "classifier_map": classifier_map,
+        "display_paths": {},
+        "issue_platforms": {},
+        "issue_run_ids": {},
+        "show_platform_badge": False,
+        "sort_by": sort_by,
+        "order": order,
+        "has_next": False,
+        "next_page": 1,
+    }
+
+    all_issues, run_id, issue_platforms, issue_run_ids, show_platform = (
+        resolve_issues_for_filter(
+            session,
+            project,
+            branch,
+            pf,
+            severity=severity,
+            status_filter=status_filter,
+            q=q,
+            sort_by=sort_by,
+            order=order,
+            classifier_map=classifier_map,
+        )
+    )
+
+    if not all_issues and run_id is None:
+        return templates.TemplateResponse(
+            request,
+            "issues_table.html" if not fragment else "partials/issues_rows.html",
+            empty_vars,
+        )
+
     initial_per_page = 50
     per_page = 25 if fragment else initial_per_page
     offset = initial_per_page + max(page - 2, 0) * per_page if fragment else (page - 1) * per_page
+    total = len(all_issues)
+    issues = all_issues[offset : offset + per_page]
 
-    # Основной запрос на получение issues
-    issues_query = select(Issue).where(Issue.run_id == latest_run.id)
-
-    if severity:
-        issues_query = issues_query.where(Issue.severity == severity)
-
-    if status_filter and status_filter.strip():
-        issues_query = issues_query.where(Issue.status == status_filter)
-    else:
-        issues_query = issues_query.where(Issue.status.in_(["new", "existing"]))
-
-    if q:
-        like = f"%{q}%"
-        issues_query = issues_query.where(
-            (Issue.file_path.ilike(like)) |
-            (Issue.rule_code.ilike(like)) |
-            (Issue.message.ilike(like))
-        )
-
-    # Сортировка
-    from sqlalchemy import asc, desc
-    if sort_by in {"type", "priority"}:
-        issues_query = issues_query.outerjoin(ErrorClassifier, Issue.classifier_id == ErrorClassifier.id)
-    sort_map = {
-        "status": Issue.status,
-        "severity": Issue.severity,
-        "rule": Issue.rule_code,
-        "type": ErrorClassifier.type,
-        "priority": ErrorClassifier.priority,
-        "file": Issue.file_path,
-    }
-    sort_column = sort_map.get(sort_by, Issue.file_path)
-    order_func = asc if order == "asc" else desc
-    issues_query = issues_query.order_by(order_func(sort_column), asc(Issue.id))
-
-    # Запрос общего числа (без лимита)
-    total_query = select(func.count()).select_from(Issue).where(Issue.run_id == latest_run.id)
-    if severity:
-        total_query = total_query.where(Issue.severity == severity)
-    if status_filter and status_filter.strip():
-        total_query = total_query.where(Issue.status == status_filter)
-    else:
-        total_query = total_query.where(Issue.status.in_(["new", "existing"]))
-    if q:
-        like = f"%{q}%"
-        total_query = total_query.where(
-            (Issue.file_path.ilike(like)) |
-            (Issue.rule_code.ilike(like)) |
-            (Issue.message.ilike(like))
-        )
-    total = session.exec(total_query).one()
-
-    # Пагинация
-    issues = session.exec(
-        issues_query.offset(offset).limit(per_page)
-    ).all()
-
-    # Нормализация путей
-    from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
     global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
-
-    display_paths = {}
+    display_paths: dict[int, str] = {}
     for issue in issues:
+        from pvs_tracker.platforms import PLATFORMS
+
+        plat = issue_platforms.get(issue.id)
+        if not plat:
+            plat = pf if pf in PLATFORMS else "windows"
         effective_root = get_effective_source_root(
             project.source_root_win,
             project.source_root_linux,
             global_settings,
+            project.source_root_macos,
+            platform=plat,
         )
         display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
-
-    # Fetch classifiers
-    classifiers = session.exec(select(ErrorClassifier)).all()
-    classifier_map = {c.id: c for c in classifiers}
 
     has_next = offset + per_page < total
     next_page = page + 1
@@ -551,12 +553,16 @@ async def ui_issues(
         "per_page": per_page,
         "project_id": project_id,
         "branch": branch,
+        "platform_filter": pf,
         "severity": severity,
         "status_filter": status_filter,
         "q": q,
-        "run_id": latest_run.id,
+        "run_id": run_id,
         "classifier_map": classifier_map,
         "display_paths": display_paths,
+        "issue_platforms": issue_platforms,
+        "issue_run_ids": issue_run_ids,
+        "show_platform_badge": show_platform,
         "sort_by": sort_by,
         "order": order,
         "has_next": has_next,
@@ -565,8 +571,7 @@ async def ui_issues(
 
     if fragment:
         return templates.TemplateResponse(request, "partials/issues_rows.html", template_vars)
-    else:
-        return templates.TemplateResponse(request, "issues_table.html", template_vars)
+    return templates.TemplateResponse(request, "issues_table.html", template_vars)
 
 
 # ---------------------------------------------------------------------------
@@ -583,6 +588,7 @@ async def upload_report_ui(
     code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
     branch: str = Form(None),
+    target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
@@ -591,6 +597,9 @@ async def upload_report_ui(
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
     from pvs_tracker.incremental import add_issues_to_existing_run
+    from pvs_tracker.platforms import normalize_target_platform
+
+    platform = normalize_target_platform(target_platform)
 
     # 1. Read report
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -620,27 +629,32 @@ async def upload_report_ui(
     user = session.exec(select(User).where(User.username == _user)).first()
     user_id = user.id if user else None
 
-    # 3. Find existing Run with same commit+branch (status=done)
+    # 3. Find existing Run with same commit+branch+platform (status=done)
     existing_run = session.exec(
         select(Run).where(
             Run.project_id == project.id,
             Run.commit == commit,
             Run.branch == branch,
-            Run.status == "done"
+            Run.target_platform == platform,
+            Run.status == "done",
         ).order_by(Run.timestamp.desc())
     ).first()
 
     is_new_run = False
     if existing_run:
         run = existing_run
-        # Сохраняем дополнительный отчёт в БД (уникальное имя)
         store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
-        # Объединяем snapshot
         if code_snapshot and code_snapshot.filename:
             merge_code_snapshot(run.id, await code_snapshot.read())
         session.commit()
     else:
-        run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+        run = Run(
+            project_id=project.id,
+            commit=commit,
+            branch=branch,
+            target_platform=platform,
+            report_file=f"db:{safe_filename}",
+        )
         session.add(run)
         session.commit()
         session.refresh(run)
@@ -659,7 +673,6 @@ async def upload_report_ui(
         else:
             add_issues_to_existing_run(session, project.id, run.id, issues)
 
-        # 5. Recalculate metrics and quality gate
         metrics = calculate_run_metrics(session, run.id)
         run.total_issues = metrics["total_issues"]
         run.new_issues = metrics["new_issues"]
@@ -667,14 +680,24 @@ async def upload_report_ui(
         session.commit()
 
         qg_result = evaluate_quality_gate(session, project.id, run.id)
-        log_activity(session, "upload", "run", run.id, project.id, user_id,
-                     f"Uploaded report: {safe_filename}")
+        log_activity(
+            session,
+            "upload",
+            "run",
+            run.id,
+            project.id,
+            user_id,
+            f"Uploaded report ({platform}): {safe_filename}",
+        )
         session.commit()
 
         import asyncio
         asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
 
-        return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
+        return RedirectResponse(
+            url=f"/ui/projects/{project.id}/dashboard?platform_filter={platform}",
+            status_code=303,
+        )
     except Exception as e:
         if is_new_run:
             run.status = "failed"
@@ -684,6 +707,32 @@ async def upload_report_ui(
             "projects": session.exec(select(Project).order_by(Project.name)).all(),
             "error": f"Failed to parse report: {str(e)}",
         })
+
+
+@app.get("/ui/settings/profile", response_class=HTMLResponse)
+async def profile_settings_page(
+    request: Request,
+    _user: str = Depends(require_auth),
+):
+    """User profile and notification settings."""
+    return templates.TemplateResponse(
+        request,
+        "profile_settings.html",
+        {"current_user": get_current_user(request)},
+    )
+
+
+@app.get("/ui/settings/quality-gates", response_class=HTMLResponse)
+async def quality_gates_settings_page(
+    request: Request,
+    _admin: str = Depends(require_admin_user),
+):
+    """Quality gates and PVS warnings catalog (admin only)."""
+    return templates.TemplateResponse(
+        request,
+        "quality_gates_settings.html",
+        {"current_user": get_current_user(request)},
+    )
 
 
 @app.get("/ui/settings/global", response_class=HTMLResponse)
@@ -728,6 +777,7 @@ async def upload_report_api(
     code_snapshot: UploadFile = Form(None),
     commit: str = Form(None),
     branch: str = Form(None),
+    target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
@@ -736,6 +786,9 @@ async def upload_report_api(
     from pvs_tracker.api import log_activity
     from pvs_tracker.webhooks import trigger_quality_gate_webhook
     from pvs_tracker.incremental import add_issues_to_existing_run
+    from pvs_tracker.platforms import normalize_target_platform
+
+    platform = normalize_target_platform(target_platform)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
@@ -762,13 +815,13 @@ async def upload_report_api(
     user = session.exec(select(User).where(User.username == _user)).first()
     user_id = user.id if user else None
 
-    # Find existing Run with same commit/branch (status=done)
     existing_run = session.exec(
         select(Run).where(
             Run.project_id == project.id,
             Run.commit == commit,
             Run.branch == branch,
-            Run.status == "done"
+            Run.target_platform == platform,
+            Run.status == "done",
         ).order_by(Run.timestamp.desc())
     ).first()
 
@@ -780,7 +833,13 @@ async def upload_report_api(
             merge_code_snapshot(run.id, await code_snapshot.read())
         session.commit()
     else:
-        run = Run(project_id=project.id, commit=commit, branch=branch, report_file=f"db:{safe_filename}")
+        run = Run(
+            project_id=project.id,
+            commit=commit,
+            branch=branch,
+            target_platform=platform,
+            report_file=f"db:{safe_filename}",
+        )
         session.add(run)
         session.commit()
         session.refresh(run)
@@ -805,16 +864,29 @@ async def upload_report_api(
         session.commit()
 
         qg_result = evaluate_quality_gate(session, project.id, run.id)
-        log_activity(session, "upload", "run", run.id, project.id, user_id,
-                     f"Uploaded report: {safe_filename}")
+        log_activity(
+            session,
+            "upload",
+            "run",
+            run.id,
+            project.id,
+            user_id,
+            f"Uploaded report ({platform}): {safe_filename}",
+        )
         session.commit()
 
         import asyncio
+        from pvs_tracker.notifications import schedule_api_upload_notifications
+
         asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
+        asyncio.create_task(
+            schedule_api_upload_notifications(project.id, run.id, qg_result)
+        )
 
         return {
             "status": "success",
             "run_id": run.id,
+            "target_platform": platform,
             "total_issues": len(issues),
             "quality_gate": qg_result,
         }
@@ -936,7 +1008,7 @@ async def update_source_roots(
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
 ):
-    """Update project source root directories (Windows and Linux)."""
+    """Update project source root directories (Windows, Linux, macOS)."""
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -944,18 +1016,21 @@ async def update_source_roots(
     body = await request.json()
     source_root_win = body.get("source_root_win")
     source_root_linux = body.get("source_root_linux")
+    source_root_macos = body.get("source_root_macos")
 
-    # Update fields if provided
     if source_root_win is not None:
         project.source_root_win = source_root_win if source_root_win else None
     if source_root_linux is not None:
         project.source_root_linux = source_root_linux if source_root_linux else None
+    if source_root_macos is not None:
+        project.source_root_macos = source_root_macos if source_root_macos else None
 
     session.commit()
     return {
         "status": "success",
         "source_root_win": project.source_root_win,
         "source_root_linux": project.source_root_linux,
+        "source_root_macos": project.source_root_macos,
     }
 
 
@@ -1034,6 +1109,8 @@ async def get_issue_snippet(issue_id: int, session: Session = Depends(get_sessio
             project.source_root_win if project else None,
             project.source_root_linux if project else None,
             issue.file_path,
+            project.source_root_macos if project else None,
+            target_platform=run.target_platform if run else None,
         )
         content = abs_path.read_text(encoding="utf-8", errors="replace")
         lines = content.splitlines()

@@ -1,125 +1,152 @@
-"""Quality gate evaluation engine."""
+"""Quality gate evaluation engine (rule-code sets)."""
 
-from typing import Any
-from sqlmodel import Session, select
-
-from pvs_tracker.models import Issue, QualityGate, QualityGateCondition, Run
+from __future__ import annotations
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("pvs_tracker.qa")
+from collections import Counter
+from datetime import datetime
+from typing import Any
 
-# ---------------------------------------------------------------------------
-# Quality gate evaluation
-# ---------------------------------------------------------------------------
+from sqlmodel import Session, select
 
-OPERATORS = {
-    "gt": lambda a, b: a > b,
-    "gte": lambda a, b: a >= b,
-    "lt": lambda a, b: a < b,
-    "lte": lambda a, b: a <= b,
-    "eq": lambda a, b: a == b,
-    "ne": lambda a, b: a != b,
-}
+from pvs_tracker.models import (
+    ErrorClassifier,
+    Issue,
+    Project,
+    QualityGate,
+    QualityGateRule,
+    Run,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_project_quality_gate(session: Session, project: Project) -> QualityGate | None:
+    """Return gate assigned to project or the default gate."""
+    if project.quality_gate_id:
+        gate = session.get(QualityGate, project.quality_gate_id)
+        if gate:
+            return gate
+    return session.exec(
+        select(QualityGate).where(QualityGate.is_default == True)  # noqa: E712
+    ).first()
+
+
+def get_gate_rule_codes(session: Session, gate_id: int) -> set[str]:
+    rows = session.exec(
+        select(QualityGateRule.rule_code).where(QualityGateRule.quality_gate_id == gate_id)
+    ).all()
+    return set(rows)
+
+
+def set_gate_rules(session: Session, gate_id: int, rule_codes: list[str]) -> None:
+    """Replace all rules for a gate."""
+    existing = session.exec(
+        select(QualityGateRule).where(QualityGateRule.quality_gate_id == gate_id)
+    ).all()
+    for row in existing:
+        session.delete(row)
+    session.flush()
+    for code in sorted(set(rule_codes)):
+        session.add(QualityGateRule(quality_gate_id=gate_id, rule_code=code))
+    gate = session.get(QualityGate, gate_id)
+    if gate:
+        gate.updated_at = datetime.utcnow()
+        session.add(gate)
+    session.commit()
+
+
+def populate_default_gate_rules(session: Session, gate_id: int) -> int:
+    """Assign all catalog rule codes to the default gate."""
+    codes = session.exec(select(ErrorClassifier.rule_code)).all()
+    if not codes:
+        return 0
+    set_gate_rules(session, gate_id, list(codes))
+    return len(codes)
 
 
 def evaluate_quality_gate(session: Session, project_id: int, run_id: int) -> dict[str, Any]:
-    """Evaluate quality gate conditions for a specific run.
-
-    Returns:
-        {
-            "status": "passed" | "failed",
-            "conditions": [
-                {"metric": "...", "operator": "...", "threshold": N, "actual": M, "status": "passed" | "failed"},
-                ...
-            ],
-            "summary": {"passed": N, "failed": M, "total": K}
-        }
-    """
-    # Get the project's quality gate (or default)
-    from pvs_tracker.models import Project
+    """Evaluate quality gate: failed if any NEW issue has rule_code in gate scope."""
     project = session.get(Project, project_id)
     if not project:
-        return {"status": "failed", "error": "Project not found", "conditions": [], "summary": {}}
+        return {
+            "status": "failed",
+            "error": "Project not found",
+            "conditions": [],
+            "summary": {},
+        }
 
-    quality_gate = None
-    if project.quality_gate_id:
-        quality_gate = session.get(QualityGate, project.quality_gate_id)
-    if not quality_gate:
-        # Use default gate
-        quality_gate = session.exec(
-            select(QualityGate).where(QualityGate.is_default == True)
-        ).first()
-    if not quality_gate:
-        # No gate configured - pass by default
-        return {"status": "passed", "conditions": [], "summary": {"passed": 0, "failed": 0, "total": 0}}
+    quality_gate = resolve_project_quality_gate(session, project)
+    if not quality_gate or quality_gate.id is None:
+        return {
+            "status": "passed",
+            "conditions": [],
+            "summary": {"passed": 0, "failed": 0, "total": 0, "new_in_gate": 0},
+        }
 
-    # Get conditions
-    conditions = session.exec(
-        select(QualityGateCondition).where(QualityGateCondition.quality_gate_id == quality_gate.id)
-    ).all()
+    gate_rules = get_gate_rule_codes(session, quality_gate.id)
+    if not gate_rules:
+        return {
+            "status": "passed",
+            "gate_id": quality_gate.id,
+            "gate_name": quality_gate.name,
+            "conditions": [],
+            "summary": {
+                "passed": 0,
+                "failed": 0,
+                "total": 0,
+                "new_in_gate": 0,
+                "total_rules_in_gate": 0,
+            },
+        }
 
-    # Calculate metrics for this run
-    metrics = calculate_run_metrics(session, run_id)
+    issues = session.exec(select(Issue).where(Issue.run_id == run_id)).all()
+    scoped_new = [i for i in issues if i.status == "new" and i.rule_code in gate_rules]
 
-    # Evaluate each condition
-    evaluated_conditions = []
-    for condition in conditions:
-        actual_value = metrics.get(condition.metric, 0)
-        operator_func = OPERATORS.get(condition.operator)
-        if not operator_func:
-            continue
+    counts = Counter(i.rule_code for i in scoped_new)
+    evaluated_conditions = [
+        {
+            "rule_code": code,
+            "new_count": count,
+            "status": "failed",
+        }
+        for code, count in sorted(counts.items())
+    ]
 
-        # Check if condition passes (condition passes when operator(actual, threshold) is False for error conditions)
-        # For quality gates, we want: if actual violates threshold, it fails
-        # For example: "new_issues gt 0" means fail if new_issues > 0
-        # 🔒 Явное приведение типов перед сравнением
-        try:
-            actual_val = int(actual_value) if isinstance(actual_value, (int, float)) else 0
-            threshold_val = int(condition.threshold) if isinstance(condition.threshold, (int, float)) else 0
-            condition_failed = operator_func(actual_val, threshold_val)
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Quality gate comparison failed for {condition.metric}: {e}")
-            condition_failed = False
-
-        evaluated_conditions.append({
-            "metric": condition.metric,
-            "operator": condition.operator,
-            "threshold": threshold_val,
-            "actual": actual_val,
-            "status": "failed" if condition_failed else "passed",
-            "error_policy": condition.error_policy,
-        })
-
-    # Determine overall status
-    failed_conditions = [c for c in evaluated_conditions if c["status"] == "failed" and c["error_policy"] == "error"]
-    overall_status = "failed" if failed_conditions else "passed"
+    overall_status = "failed" if scoped_new else "passed"
+    if overall_status == "passed":
+        evaluated_conditions = []
 
     return {
         "status": overall_status,
+        "gate_id": quality_gate.id,
+        "gate_name": quality_gate.name,
         "conditions": evaluated_conditions,
         "summary": {
-            "passed": len([c for c in evaluated_conditions if c["status"] == "passed"]),
-            "failed": len([c for c in evaluated_conditions if c["status"] == "failed"]),
-            "total": len(evaluated_conditions),
+            "passed": 0 if scoped_new else 1,
+            "failed": 1 if scoped_new else 0,
+            "total": 1,
+            "new_in_gate": len(scoped_new),
+            "failed_rules": len(counts),
+            "total_rules_in_gate": len(gate_rules),
         },
     }
 
 
 def calculate_run_metrics(session: Session, run_id: int) -> dict[str, Any]:
-    """Calculate all metrics for a specific run."""
+    """Calculate all metrics for a specific run (dashboard ratings)."""
     issues = session.exec(select(Issue).where(Issue.run_id == run_id)).all()
 
-    # Count issues by status and severity
     new_issues = [i for i in issues if i.status == "new"]
     fixed_issues = [i for i in issues if i.status == "fixed"]
     active_issues = [i for i in issues if i.status in ("new", "existing")]
     ignored_issues = [i for i in issues if i.status == "ignored"]
 
     high_issues = [i for i in active_issues if i.severity == "High"]
-    critical_issues = [i for i in active_issues if i.severity == "High" and i.rule_code.startswith(("V",))]
+    critical_issues = [
+        i for i in active_issues if i.severity == "High" and i.rule_code.startswith("V")
+    ]
 
-    # Calculate reliability rating (based on active issues)
     active_count = len(active_issues)
     if active_count == 0:
         reliability_rating = "A"
@@ -132,8 +159,9 @@ def calculate_run_metrics(session: Session, run_id: int) -> dict[str, Any]:
     else:
         reliability_rating = "E"
 
-    # Calculate security rating (based on SECURITY type issues)
-    security_issues = [i for i in active_issues if i.classifier and i.classifier.type == "SECURITY"]
+    security_issues = [
+        i for i in active_issues if i.classifier and i.classifier.type == "SECURITY"
+    ]
     security_count = len(security_issues)
     if security_count == 0:
         security_rating = "A"
@@ -146,7 +174,6 @@ def calculate_run_metrics(session: Session, run_id: int) -> dict[str, Any]:
     else:
         security_rating = "E"
 
-    # Calculate maintainability rating (all active issues)
     if active_count == 0:
         maintainability_rating = "A"
     elif active_count <= 10:
@@ -158,7 +185,6 @@ def calculate_run_metrics(session: Session, run_id: int) -> dict[str, Any]:
     else:
         maintainability_rating = "E"
 
-    # Calculate technical debt
     total_debt_minutes = sum(i.technical_debt_minutes for i in active_issues)
 
     return {
@@ -178,12 +204,15 @@ def calculate_run_metrics(session: Session, run_id: int) -> dict[str, Any]:
 
 
 def create_default_quality_gate(session: Session) -> QualityGate:
-    """Create a default quality gate with standard conditions."""
-    # Check if default gate already exists
+    """Create default quality gate with all catalog rule codes."""
     existing = session.exec(
-        select(QualityGate).where(QualityGate.is_default == True)
+        select(QualityGate).where(QualityGate.is_default == True)  # noqa: E712
     ).first()
     if existing:
+        if existing.id is not None:
+            rule_count = len(get_gate_rule_codes(session, existing.id))
+            if rule_count == 0:
+                populate_default_gate_rules(session, existing.id)
         return existing
 
     gate = QualityGate(name="Default Quality Gate", is_default=True)
@@ -191,26 +220,7 @@ def create_default_quality_gate(session: Session) -> QualityGate:
     session.commit()
     session.refresh(gate)
 
-    # Add standard conditions
-    default_conditions = [
-        QualityGateCondition(
-            quality_gate_id=gate.id,
-            metric="new_issues",
-            operator="gt",
-            threshold=0,
-            error_policy="error",
-        ),
-        QualityGateCondition(
-            quality_gate_id=gate.id,
-            metric="reliability_rating",
-            operator="lt",
-            threshold=3,  # C or worse fails
-            error_policy="warn",
-        ),
-    ]
-
-    for condition in default_conditions:
-        session.add(condition)
-    session.commit()
+    if gate.id is not None:
+        populate_default_gate_rules(session, gate.id)
 
     return gate

@@ -2,10 +2,13 @@
 
 import os
 import json
+import logging
 from typing import Optional
 from datetime import datetime
 from sqlmodel import Session, select
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from pvs_tracker.models import Run, Project, QualityGate
 
@@ -103,8 +106,8 @@ async def send_webhook(url: str, payload: dict, secret: Optional[str] = None) ->
             response = await client.post(url, json=payload, headers=headers, timeout=10.0)
             response.raise_for_status()
             return True
-    except Exception as e:
-        print(f"Webhook failed: {e}")
+    except Exception:
+        logger.exception("Webhook failed for url=%s", url)
         return False
 
 

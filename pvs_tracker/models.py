@@ -43,7 +43,11 @@ class Project(SQLModel, table=True):
         default=None,
         description="Root directory for source files on Linux server (e.g., /home/user/src)",
     )
-    
+    source_root_macos: Optional[str] = Field(
+        default=None,
+        description="Root directory for source files on macOS (e.g., /Users/dev/src)",
+    )
+
     # Git repository configuration (SonarQube-style)
     git_url: Optional[str] = Field(
         default=None,
@@ -72,14 +76,18 @@ class Project(SQLModel, table=True):
     # Relationships
     runs: list["Run"] = Relationship(back_populates="project")
     members: list["ProjectMember"] = Relationship(back_populates="project")
-    quality_gate: Optional["QualityGate"] = Relationship(back_populates="project")
+    quality_gate: Optional["QualityGate"] = Relationship(back_populates="projects")
+    notification_subscribers: list["UserProjectNotification"] = Relationship(back_populates="project")
 
 
 class User(SQLModel, table=True):
     """User model for authentication and authorization."""
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
     email: Optional[str] = Field(default=None)
+    notify_api_uploads: bool = Field(default=False)
     password_hash: str = Field(description="Hashed password (bcrypt)")
     role: UserRole = Field(default=UserRole.VIEWER)
     is_active: bool = Field(default=True)
@@ -89,6 +97,7 @@ class User(SQLModel, table=True):
     # Relationships
     comments: list["IssueComment"] = Relationship(back_populates="user")
     project_memberships: list["ProjectMember"] = Relationship(back_populates="user")
+    project_notifications: list["UserProjectNotification"] = Relationship(back_populates="user")
 
 
 class ProjectMember(SQLModel, table=True):
@@ -104,23 +113,40 @@ class ProjectMember(SQLModel, table=True):
     user: User = Relationship(back_populates="project_memberships")
 
 
+class UserProjectNotification(SQLModel, table=True):
+    """Per-user subscription to API upload email notifications for a project."""
+    __table_args__ = (UniqueConstraint("user_id", "project_id", name="uq_user_project_notification"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    project_id: int = Field(foreign_key="project.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user: User = Relationship(back_populates="project_notifications")
+    project: Project = Relationship(back_populates="notification_subscribers")
+
+
 class ErrorClassifier(SQLModel, table=True):
     """Reference classifier for PVS-Studio warning codes."""
     id: Optional[int] = Field(default=None, primary_key=True)
     rule_code: str = Field(unique=True, index=True)  # V1001, V1002, etc.
-    type: str  # BUG, SECURITY, etc.
-    priority: str  # CRITICAL, MAJOR, MINOR, etc.
+    type: str = Field(default="BUG")  # BUG, SECURITY, etc.
+    priority: str = Field(default="MAJOR")  # CRITICAL, MAJOR, MINOR, etc.
     name: str  # Short description
     description: str = ""  # Optional detailed description
     cwe_id: Optional[int] = Field(default=None, description="CWE identifier")
     remediation_effort: int = Field(default=5, description="Estimated minutes to fix")
+    category: Optional[str] = Field(default=None, description="Doc section, e.g. General Analysis (C++)")
+    language: Optional[str] = Field(default=None, description="cpp, csharp, java, js, go, other")
+    doc_url: Optional[str] = Field(default=None, description="Link to PVS documentation")
+    synced_at: Optional[datetime] = Field(default=None, description="Last import from pvs-studio.com")
 
     # Relationships
     issues: list["Issue"] = Relationship(back_populates="classifier")
 
 
 class QualityGate(SQLModel, table=True):
-    """Configurable quality gate with conditions."""
+    """Configurable quality gate: set of PVS rule codes in scope for evaluation."""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True, index=True)
     is_default: bool = Field(default=False, description="Default gate for new projects")
@@ -129,7 +155,19 @@ class QualityGate(SQLModel, table=True):
 
     # Relationships
     conditions: list["QualityGateCondition"] = Relationship(back_populates="quality_gate")
-    project: Optional["Project"] = Relationship(back_populates="quality_gate")
+    rules: list["QualityGateRule"] = Relationship(back_populates="quality_gate")
+    projects: list["Project"] = Relationship(back_populates="quality_gate")
+
+
+class QualityGateRule(SQLModel, table=True):
+    """PVS rule_code included in a quality gate scope."""
+    __table_args__ = (UniqueConstraint("quality_gate_id", "rule_code"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    quality_gate_id: int = Field(foreign_key="qualitygate.id", index=True)
+    rule_code: str = Field(index=True)
+
+    quality_gate: QualityGate = Relationship(back_populates="rules")
 
 
 class QualityGateCondition(SQLModel, table=True):
@@ -157,6 +195,11 @@ class Run(SQLModel, table=True):
     new_issues: int = Field(default=0)
     fixed_issues: int = Field(default=0)
     analysis_time_ms: int = Field(default=0, description="Analysis duration in ms")
+    target_platform: str = Field(
+        default="windows",
+        index=True,
+        description="Analysis target OS: windows, linux, macos",
+    )
 
     # Relationships
     project: Project = Relationship(back_populates="runs")
@@ -191,6 +234,11 @@ class Issue(SQLModel, table=True):
     run_id: int = Field(foreign_key="run.id")
     classifier_id: Optional[int] = Field(default=None, foreign_key="errorclassifier.id")
     fingerprint: str = Field(index=True)  # stable ID for tracking
+    cross_platform_fp: Optional[str] = Field(
+        default=None,
+        index=True,
+        description="Cross-OS match key: rule_code + relative path + message",
+    )
     file_path: str
     line: int
     column: Optional[int] = Field(default=None, description="Column number")
@@ -258,5 +306,9 @@ class GlobalSettings(SQLModel, table=True):
     default_source_root_linux: Optional[str] = Field(
         default=None,
         description="Глобальный корень исходников для Linux (используется, если не задан в проекте)"
+    )
+    default_source_root_macos: Optional[str] = Field(
+        default=None,
+        description="Глобальный корень исходников для macOS (используется, если не задан в проекте)",
     )
     updated_at: datetime = Field(default_factory=datetime.utcnow)
