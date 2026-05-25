@@ -1,5 +1,7 @@
 # PVS-Studio Tracker v0.2.0 — SonarQube-like Platform Transformation
 
+> **Примечание (2026):** часть этого документа устарела. Актуальные контракты — [CURSOR.md](CURSOR.md) и [.cursor/spec.md](.cursor/spec.md). В частности: quality gates теперь по **наборам `rule_code`** (`QualityGateRule`), а не только по metric conditions; добавлены профиль/email (`notifications.py`), переключение платформы на дашборде (`target_platform`, `cross_platform_fp`).
+
 ## Overview
 
 PVS-Studio Tracker has been transformed from a basic incremental static analysis report tracker into a **comprehensive SonarQube-like platform** specifically designed for PVS-Studio reports. This document summarizes all the enhancements made.

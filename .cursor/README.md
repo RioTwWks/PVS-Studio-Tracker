@@ -40,3 +40,5 @@ uvicorn pvs_tracker.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
 API v2 login: `POST /api/v2/auth/login` (пользователь `admin` создаётся при старте, пароль из БД). UI login (`POST /login`) пока принимает любые непустые credentials (MVP).
+
+Профиль: `/ui/settings/profile`, `PATCH /api/v2/users/me`. Email после API upload: `notifications.py` + `SMTP_*` в `.env`.

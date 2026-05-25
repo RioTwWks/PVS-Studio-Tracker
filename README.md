@@ -20,12 +20,14 @@
 - **Role-based access control (RBAC)** — три роли: Admin, User, Viewer
 - **Project-level permissions** — назначение прав доступа на уровне отдельных проектов
 - **Session-based auth** — для веб-интерфейса
+- **Профиль пользователя** — имя, фамилия, email (`/ui/settings/profile`, `PATCH /api/v2/users/me`)
+- **Email-уведомления** — подписка на проекты при загрузке отчёта через `POST /api/v1/upload` (SMTP)
 
 ### 🎯 Quality Gates
-- **Настраиваемые пороги качества** — создание пользовательских quality gates с условиями
-- **Автоматическая оценка** — проверка качества после каждой загрузки отчёта
-- **Default quality gate** — предустановленные условия (0 new issues)
-- **Quality gate history** — отслеживание прохождения порогов по запускам
+- **Наборы правил PVS** — quality gate как список `rule_code` (`QualityGateRule`)
+- **Автоматическая оценка** — gate не пройден, если в текущем run есть **new** issues с кодом из scope
+- **UI настроек** — `/ui/settings/quality-gates` (admin)
+- **API v2** — CRUD gates и обновление списка rule codes
 
 ### 👥 Командная работа
 - **Комментарии к проблемам** — обсуждение и документирование решений
@@ -39,6 +41,8 @@
 - **Сравнение New Code vs Overall Code** — отдельные метрики для новых и всех проблем
 - **Severity distribution** — визуальное распределение по уровням серьёзности
 - **Branch filtering** — фильтрация данных по веткам
+- **Переключение платформы (OS)** — Windows / Linux / macOS на дашборде без полной перезагрузки (KPI + тренд)
+- **Инкрементальный diff по платформе** — сравнение run с тем же `target_platform`; `cross_platform_fp` для путей между ОС
 
 ### 📁 Inline Code Viewer
 - **Просмотр кода из дашборда** — переключение между вкладками «Предупреждения» и «Код»
@@ -49,6 +53,7 @@
 
 ### 🔌 Интеграции
 - **Webhook для CI/CD** — автоматические уведомления при оценке quality gate
+- **Email (SMTP)** — письма подписчикам после успешной API-загрузки (`notifications.py`, см. `.env.example`)
 - **CSV экспорт** — выгрузка всех проблем с метаданными (CWE, technical debt, resolution)
 - **RESTful API v2** — полный CRUD для проектов, пользователей, quality gates, проблем
 - **LDAP (planned)** — заготовка в `auth.py`; UI использует MVP session login, API v2 — JWT/`auth_service.py`
@@ -498,6 +503,8 @@ curl -X POST http://localhost:8080/api/v1/issues/<fingerprint>/ignore
 | `JWT_SECRET_KEY` | значение SECRET_KEY | Ключ для подписи JWT токенов |
 | `WEBHOOK_URL` | `` | URL для webhook уведомлений (CI/CD) |
 | `WEBHOOK_SECRET` | `` | Секрет для подписи webhook запросов |
+| `SMTP_HOST`, `SMTP_PORT`, … | см. `.env.example` | Email подписчикам после `POST /api/v1/upload` |
+| `APP_BASE_URL` | `http://localhost:8080` | Ссылка на дашборд в письме |
 
 Для продакшена замените:
 - `SECRET_KEY` и `JWT_SECRET_KEY` — на случайные криптографические строки
@@ -511,12 +518,12 @@ curl -X POST http://localhost:8080/api/v1/issues/<fingerprint>/ignore
 
 ```
 pvs_tracker/
-├── main.py, api.py          # UI/v1 и REST /api/v2
-├── auth_service.py          # JWT + User (API v2)
-├── auth.py                  # LDAP stub (не в UI login)
-├── models.py, db.py, parser.py, incremental.py
-├── quality_gate.py, webhooks.py, git_integration.py
-└── templates/dashboard/     # Overview, Issues, Code, Trends, Upload, Settings
+├── main.py, api.py             # UI/v1 и REST /api/v2
+├── auth_service.py             # JWT + User (API v2)
+├── incremental.py, platforms.py
+├── dashboard_context.py, notifications.py
+├── quality_gate.py, webhooks.py, warnings_catalog.py
+└── templates/                  # dashboard/, profile_settings.html, quality_gates_settings.html
 ```
 
 ## Разработка
@@ -558,5 +565,8 @@ pytest tests/test_smoke.py -v  # smoke тесты
 - ✅ CWE и column information tracking
 - ✅ CSV export для issues
 - ✅ Webhook интеграция для CI/CD
+- ✅ Профиль и email-уведомления по API-загрузке
+- ✅ Дашборд с переключением платформы (Windows/Linux/macOS)
+- ✅ Quality gates по наборам rule_code
 - ✅ Prism.js syntax highlighting для кода
 - ✅ Полный RESTful API v2 для всех ресурсов

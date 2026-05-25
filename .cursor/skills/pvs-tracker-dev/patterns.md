@@ -47,6 +47,8 @@ Return JSON only under `/api/*`.
 ```bash
 pytest tests/test_parser.py -v
 pytest tests/test_smoke.py -v
+pytest tests/test_profile_notifications.py -v
+pytest tests/test_platforms.py -v
 pytest tests/test_classifier.py tests/test_code_viewer.py -v
 ```
 

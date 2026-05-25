@@ -4,13 +4,15 @@
 
 | Module | Responsibility |
 |--------|----------------|
-| `main.py` | v1 UI/API, dashboard history, startup |
-| `api.py` | `/api/v2` REST |
+| `main.py` | v1 UI/API, dashboard, platform fragments |
+| `api.py` | `/api/v2` REST, profile, QG rules, warnings catalog |
 | `auth_service.py` | JWT, User, RBAC |
-| `auth.py` | LDAP stub (future UI login) |
-| `incremental.py` | new / existing / fixed |
+| `incremental.py` | new / existing / fixed (per `target_platform`) |
+| `platforms.py` | OS normalization, `cross_platform_fp` |
+| `dashboard_context.py` | Platform metrics for dashboard |
+| `notifications.py` | SMTP email on API upload |
 | `webhooks.py` | `report_uploaded`, `quality_gate_evaluated` |
-| `quality_gate.py` | Gate evaluation after upload |
+| `quality_gate.py` | Rule-code gate evaluation after upload |
 | `git_integration.py` | Clone/cache for code viewer |
 
 ## Preferred stack
@@ -37,6 +39,7 @@ From `.env.example` + code:
 | `SECRET_KEY` | `main.py` sessions |
 | `JWT_SECRET_KEY` | `auth_service.py` |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | `webhooks.py` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_CACHE_DIR`, `SNAPSHOTS_DIR`, `GIT_CACHE_TTL_MINUTES`, `GIT_TIMEOUT_SECONDS` | `git_integration.py` |
 
 `JWT_ALGORITHM` / `ACCESS_TOKEN_EXPIRE_MINUTES` in `.env.example` — token TTL hardcoded 24h in `auth_service.py` unless code updated.

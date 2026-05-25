@@ -27,16 +27,17 @@ uvicorn pvs_tracker.main:app --reload --host 0.0.0.0 --port 8080
 
 ```
 pvs_tracker/
-├── main.py           # v1 routes, dashboard, upload, ui_issues
-├── api.py            # /api/v2 REST (JWT, RBAC, quality gates)
-├── auth_service.py   # Users, JWT, session → User
-├── auth.py           # LDAP stub (not wired to main login)
-├── models.py         # SQLModel tables
-├── parser.py         # PVS JSON modern + legacy
-├── incremental.py    # new / existing / fixed
-├── code_viewer.py    # /ui/file, code-viewer page
-├── quality_gate.py, webhooks.py, git_integration.py, ...
-└── templates/dashboard/   # 6 tabs + partials
+├── main.py              # v1 routes, dashboard, upload
+├── api.py               # /api/v2 REST (JWT, RBAC, profile, QG rules)
+├── auth_service.py      # Users, JWT, session → User
+├── incremental.py       # diff per target_platform
+├── platforms.py         # OS + cross_platform_fp
+├── dashboard_context.py # platform-scoped dashboard metrics
+├── notifications.py     # SMTP on API upload
+├── quality_gate.py      # rule-code quality gates
+├── warnings_catalog.py  # PVS catalog sync (api v2)
+├── code_viewer.py, webhooks.py, git_integration.py, ...
+└── templates/dashboard/ # tabs + _platform_switcher, _trends_content
 ```
 
 ## Core behavior
@@ -52,7 +53,8 @@ pvs_tracker/
 - **new** / **existing**: new `Issue` rows in the **current** run.
 - **fixed**: disappeared fingerprints → new `Issue` in **current** run with `status=fixed` (previous run rows unchanged).
 - `prev_fps` excludes `ignored` and `fixed` from the previous run.
-- Prev run selection: latest `done` for project (**not** filtered by UI branch).
+- Prev run: latest `done` for same `target_platform` (**not** by UI branch).
+- Upload form accepts `target_platform` (`windows` / `linux` / `macos`).
 
 ### Ignore
 
@@ -62,7 +64,19 @@ pvs_tracker/
 
 - Tabs: Overview, Issues, Code, Trends, Upload, Settings.
 - Branch switcher: `?branch=` filters chart + issues table.
-- Trend `total` in history: cumulative active count logic in `main.py` (see `spec.md`).
+- **Platform switcher** (Windows/Linux/macOS): updates KPIs/chart via `platform-metrics` + `trends-fragment` without full reload.
+- Trend `total` in history: cumulative active count (`dashboard_history.py`, see `spec.md`).
+
+### Profile & email
+
+- UI: `/ui/settings/profile` — name, email, API upload notification projects.
+- API: `PATCH /api/v2/users/me`, `PUT /api/v2/users/me/notifications`.
+- Email: after successful `POST /api/v1/upload` only (`notifications.py`, `SMTP_*` in `.env`).
+
+### Quality gates (current)
+
+- Gate = set of PVS `rule_code` (`QualityGateRule`); fails if any **new** issue in scope.
+- UI admin: `/ui/settings/quality-gates`; API: `/api/v2/quality-gates` (+ `PUT` rules on gate).
 
 ### Code viewer
 
@@ -92,6 +106,7 @@ Full route tables: `.cursor/spec.md`.
 | `SECRET_KEY` | Session middleware |
 | `JWT_SECRET_KEY` | `auth_service.py` |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | `webhooks.py` |
+| `SMTP_*`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_*`, `SNAPSHOTS_DIR` | `git_integration.py` |
 
 See `.env.example`.
@@ -114,3 +129,4 @@ pytest tests/test_smoke.py tests/test_parser.py -v
 
 - UI routes for dashboard/issues are open without login; tighten when LDAP lands.
 - Incremental diff ignores branch; UI branch filter is display-only for history.
+- UI `POST /login` is MVP (any credentials); profile API needs a matching `User` row in DB.

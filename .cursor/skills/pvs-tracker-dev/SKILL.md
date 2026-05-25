@@ -29,7 +29,7 @@ description: >-
 
 - Package: `pvs_tracker/` (not root `main.py`)
 - Run: `uvicorn pvs_tracker.main:app --reload`
-- No `config.py` — env in `db.py`, `main.py`, `auth_service.py`, `webhooks.py`
+- No `config.py` — env in `db.py`, `main.py`, `auth_service.py`, `webhooks.py`, `notifications.py`
 - Reports stored in DB (`RunReport`), not `reports/` folder
 
 ## Auth (do not assume LDAP is active)
@@ -37,7 +37,7 @@ description: >-
 | Layer | Behavior |
 |-------|----------|
 | UI `POST /login` | MVP: non-empty credentials → `session["user"]` = username string |
-| UI protected | upload, create project, global settings — `require_auth` |
+| UI protected | upload, create project, profile, global/QG settings — `require_auth` |
 | UI open | dashboard, `/ui/issues`, code viewer (current code) |
 | API v2 | JWT + `User` table via `auth_service.py` |
 | `auth.py` | LDAP stub, **not** used by `main.py` |
@@ -49,18 +49,30 @@ In `incremental.classify_and_store`:
 - Fixed → **new** `Issue` rows in **current** `run_id`, `status="fixed"`
 - Do **not** update previous run issues
 - `prev_fps` excludes `ignored` and `fixed`
-- Prev run: last `done` for project (no branch filter in diff yet)
+- Prev run: last `done` for same `project_id` + `target_platform` (no branch filter in diff yet)
+- `cross_platform_fp` in `platforms.py` for path matching across OS
 
 ## Upload
 
-- UI: `POST /ui/upload` → 303 dashboard
-- API: `POST /api/v1/upload` → JSON
+- UI: `POST /ui/upload` → 303 dashboard (`target_platform` form field)
+- API: `POST /api/v1/upload` → JSON; triggers `schedule_api_upload_notifications`
+
+## Profile & notifications
+
+- `GET/PATCH /api/v2/users/me`, `GET/PUT /api/v2/users/me/notifications`
+- UI `/ui/settings/profile`; model `UserProjectNotification`
+- SMTP: `SMTP_HOST`, … — see `notifications.py`
 
 ## Webhooks
 
 - `WEBHOOK_URL` / `WEBHOOK_SECRET`
 - Events: `report_uploaded`, `quality_gate_evaluated`
 - `httpx` async in `webhooks.py`
+
+## Quality gates
+
+- Rule-code sets (`QualityGateRule`), not metric thresholds only
+- `evaluate_quality_gate` — fail if new issue `rule_code` in gate scope
 
 ## MCP
 

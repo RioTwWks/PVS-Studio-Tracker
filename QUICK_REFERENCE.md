@@ -173,7 +173,9 @@ curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F
 
 ---
 
-## 🎯 Quality Gates
+## 🎯 Quality Gates (rule codes)
+
+Gate = набор PVS `rule_code`. **Failed**, если в текущем run есть **new** issues с кодом из scope.
 
 ### Список Quality Gates
 
@@ -182,36 +184,46 @@ curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F
 curl http://localhost:8080/api/v2/quality-gates -H "Authorization: Bearer %TOKEN%"
 ```
 
-### Создание Quality Gate (Admin)
-
-**Windows (cmd):**
-```cmd
-curl -X POST http://localhost:8080/api/v2/quality-gates -H "Authorization: Bearer %TOKEN%" -H "Content-Type: application/json" -d "{\"name\": \"Strict Gate\", \"is_default\": false}"
-```
+### Создание gate с правилами (Admin)
 
 **Windows (PowerShell):**
 ```powershell
-Invoke-RestMethod -Uri http://localhost:8080/api/v2/quality-gates -Method POST -Headers @{Authorization="Bearer $TOKEN"} -ContentType "application/json" -Body '{"name": "Strict Gate", "is_default": false}'
+Invoke-RestMethod -Uri http://localhost:8080/api/v2/quality-gates -Method POST -Headers @{Authorization="Bearer $TOKEN"} -ContentType "application/json" -Body '{"name": "Core C++", "is_default": false, "rule_codes": ["V501", "V522"]}'
 ```
 
-### Добавление условия (Admin)
-
-**Windows (cmd):**
-```cmd
-curl -X POST http://localhost:8080/api/v2/quality-gates/1/conditions -H "Authorization: Bearer %TOKEN%" -H "Content-Type: application/json" -d "{\"metric\": \"new_issues\", \"operator\": \"gt\", \"threshold\": 0, \"error_policy\": \"error\"}"
-```
+### Обновление rule codes (Admin)
 
 **Windows (PowerShell):**
 ```powershell
-Invoke-RestMethod -Uri http://localhost:8080/api/v2/quality-gates/1/conditions -Method POST -Headers @{Authorization="Bearer $TOKEN"} -ContentType "application/json" -Body '{"metric": "new_issues", "operator": "gt", "threshold": 0, "error_policy": "error"}'
+Invoke-RestMethod -Uri http://localhost:8080/api/v2/quality-gates/1 -Method PUT -Headers @{Authorization="Bearer $TOKEN"} -ContentType "application/json" -Body '{"rule_codes": ["V501", "V522", "V773"]}'
 ```
 
-**Доступные метрики:**
-- `new_issues`, `fixed_issues`, `active_issues`, `total_issues`
-- `reliability_rating`, `security_rating`, `maintainability_rating`
-- `technical_debt_minutes`, `security_issues`
+UI: `/ui/settings/quality-gates` (admin).
 
-**Операторы:** `gt`, `gte`, `lt`, `lte`, `eq`, `ne`
+---
+
+## 👤 Профиль и уведомления
+
+### Текущий профиль
+
+```cmd
+curl http://localhost:8080/api/v2/users/me -H "Authorization: Bearer %TOKEN%"
+```
+
+### Обновление профиля
+
+**Windows (PowerShell):**
+```powershell
+Invoke-RestMethod -Uri http://localhost:8080/api/v2/users/me -Method PATCH -Headers @{Authorization="Bearer $TOKEN"} -ContentType "application/json" -Body '{"first_name":"Ivan","last_name":"Petrov","email":"ivan@example.com","notify_api_uploads":true}'
+```
+
+### Подписки на проекты (email после API upload)
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:8080/api/v2/users/me/notifications -Method PUT -Headers @{Authorization="Bearer $TOKEN"} -ContentType "application/json" -Body '{"project_ids":[1,2]}'
+```
+
+UI: `/ui/settings/profile`. Письма только после `POST /api/v1/upload` (нужен `SMTP_HOST` в `.env`).
 
 ---
 
@@ -364,6 +376,26 @@ $env:WEBHOOK_URL="https://your-ci.example.com/webhook/pvs"
 $env:WEBHOOK_SECRET="your-hmac-secret"
 ```
 
+События: `quality_gate_evaluated`, `report_uploaded`.
+
+---
+
+## 📧 Email (SMTP)
+
+Подписчики с `notify_api_uploads` и выбранными проектами получают письмо после успешного `POST /api/v1/upload`.
+
+**Windows (PowerShell):**
+```powershell
+$env:SMTP_HOST="smtp.example.com"
+$env:SMTP_PORT="587"
+$env:SMTP_USER="user"
+$env:SMTP_PASSWORD="secret"
+$env:SMTP_FROM="pvs-tracker@example.com"
+$env:APP_BASE_URL="http://localhost:8080"
+```
+
+См. `.env.example`.
+
 ---
 
 ## 📊 Система рейтинлей
@@ -394,7 +426,10 @@ $env:WEBHOOK_SECRET="your-hmac-secret"
 - `POST /api/v2/auth/login` — Вход
 
 ### Пользователи
-- `GET /api/v2/users/me` — Текущий пользователь
+- `GET /api/v2/users/me` — Профиль (+ `notification_project_ids`)
+- `PATCH /api/v2/users/me` — Обновить имя, email, флаг уведомлений
+- `GET /api/v2/users/me/notifications` — Подписки на проекты
+- `PUT /api/v2/users/me/notifications` — Заменить список `project_ids`
 - `GET /api/v2/users` — Список (admin)
 - `POST /api/v2/users` — Создать (admin)
 - `PATCH /api/v2/users/{id}` — Обновить (admin)
@@ -411,9 +446,14 @@ $env:WEBHOOK_SECRET="your-hmac-secret"
 
 ### Quality Gates
 - `GET /api/v2/quality-gates` — Список
-- `POST /api/v2/quality-gates` — Создать (admin)
-- `GET /api/v2/quality-gates/{id}` — Получить
-- `POST /api/v2/quality-gates/{id}/conditions` — Добавить условие (admin)
+- `POST /api/v2/quality-gates` — Создать + `rule_codes` (admin)
+- `GET /api/v2/quality-gates/{id}` — Получить + `rule_codes`
+- `PUT /api/v2/quality-gates/{id}` — Обновить имя / default / `rule_codes` (admin)
+- `DELETE /api/v2/quality-gates/{id}` — Удалить (admin)
+
+### Warnings catalog
+- `GET /api/v2/warnings` — Каталог правил
+- `POST /api/v2/warnings/sync` — Синхронизация с pvs-studio.com (admin)
 
 ### Проблемы
 - `GET /api/v2/projects/{id}/issues` — Список
@@ -423,8 +463,14 @@ $env:WEBHOOK_SECRET="your-hmac-secret"
 - `GET /api/v2/projects/{id}/export/csv` — Экспорт CSV
 
 ### Legacy (v1)
-- `POST /api/v1/upload` — Загрузка отчёта
-- `GET /api/v1/projects/{id}/dashboard` — Дашборд
+- `POST /api/v1/upload` — Загрузка отчёта (`target_platform`: windows|linux|macos)
+- `GET /api/v1/projects/{id}/dashboard` — Дашборд JSON
+- `GET /api/v1/projects/{id}/platform-metrics` — KPI/тренд для OS switcher
+
+### UI (фрагменты)
+- `GET /ui/settings/profile` — Настройки профиля
+- `GET /ui/settings/quality-gates` — Quality gates (admin)
+- `GET /ui/projects/{id}/trends-fragment` — HTML KPI + chart по платформе
 
 ---
 
@@ -475,8 +521,9 @@ curl -X POST http://localhost:8080/api/v2/projects/1/members -H "Authorization: 
 ## 📚 Документация
 
 - **Полное руководство**: README.md
-- **Детали трансформации**: SONARQUBE_TRANSFORMATION.md
+- **Агенты / контракты**: CURSOR.md, `.cursor/spec.md`
 - **Inline Code Viewer**: INLINE_CODE_GUIDE.md
+- **Историческая v0.2 заметка**: SONARQUBE_TRANSFORMATION.md (часть QG устарела — см. rule codes выше)
 
 ---
 

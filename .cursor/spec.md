@@ -30,19 +30,25 @@
 ```text
 PVS-Studio-Tracker/
 ├── pvs_tracker/
-│   ├── main.py              # v1 UI/API, startup, dashboard history
+│   ├── main.py              # v1 UI/API, startup, dashboard
 │   ├── api.py               # /api/v2/* REST
 │   ├── models.py
 │   ├── db.py
 │   ├── parser.py
-│   ├── incremental.py
+│   ├── incremental.py       # diff по target_platform
+│   ├── platforms.py         # windows/linux/macos, cross_platform_fp
+│   ├── dashboard_context.py # метрики дашборда по платформе
+│   ├── dashboard_history.py # history / history_by_platform
+│   ├── run_queries.py, issues_query.py
 │   ├── classifier_parser.py
 │   ├── code_viewer.py
 │   ├── file_resolver.py
 │   ├── auth.py              # LDAP stub (не используется main)
 │   ├── auth_service.py      # JWT, User, RBAC
 │   ├── security.py          # technical debt
-│   ├── quality_gate.py
+│   ├── quality_gate.py      # gate = набор rule_code (QualityGateRule)
+│   ├── notifications.py     # SMTP после POST /api/v1/upload
+│   ├── warnings_catalog.py  # sync каталога PVS с api v2
 │   ├── webhooks.py
 │   ├── git_integration.py
 │   ├── artifact_storage.py
@@ -52,9 +58,14 @@ PVS-Studio-Tracker/
 │       ├── dashboard/_issues_tab.html
 │       ├── dashboard/_code_tab.html
 │       ├── dashboard/_trends_tab.html
+│       ├── dashboard/_trends_content.html   # fragment для OS switcher
+│       ├── dashboard/_platform_switcher.html
 │       ├── dashboard/_upload_tab.html
 │       ├── dashboard/_settings_tab.html
 │       ├── dashboard/_scripts.html
+│       ├── profile_settings.html
+│       ├── quality_gates_settings.html
+│       ├── global_settings.html
 │       ├── issues_table.html
 │       ├── partials/issues_rows.html, issue_row.html
 │       ├── code_view.html          # HTMX partial, без base.html
@@ -75,9 +86,10 @@ PVS-Studio-Tracker/
 
 См. `pvs_tracker/models.py`. Кратко:
 
-- **Project** — `name`, `language`, `source_root_*`, `git_*`, `quality_gate_id`, …
-- **Run** — `project_id`, `commit`, `branch`, `status`, `total_issues`, `new_issues`, `fixed_issues`, …
-- **Issue** — `fingerprint`, `file_path`, `line`, `rule_code`, `severity`, `message`, `status` (`new|existing|fixed|ignored`), `resolution`, `classifier_id`, `cwe_id`, `technical_debt_minutes`, …
+- **Project** — `name`, `language`, `source_root_*` (win/linux/macos), `git_*`, `quality_gate_id`, …
+- **Run** — `project_id`, `commit`, `branch`, `target_platform` (`windows|linux|macos`), `status`, метрики …
+- **Issue** — `fingerprint`, `cross_platform_fp`, `file_path`, `line`, `rule_code`, `status` (`new|existing|fixed|ignored`), …
+- **QualityGate** + **QualityGateRule** — scope оценки: набор `rule_code`; fail при `new` в scope
 - **ErrorClassifier** — из `Actual_warnings.csv` при старте
 - **GlobalSettings** — дефолтные source roots
 - **User** — `first_name`, `last_name`, `email`, `notify_api_uploads`, …
@@ -111,17 +123,21 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 ## 5. Инкрементальный diff (`incremental.classify_and_store`)
 
-1. **prev_run** — последний `Run` с `status == "done"` для `project_id` (**без фильтра по branch**).
-2. **prev_fps** — fingerprints из prev run, где `status not in ("ignored", "fixed")`.
-3. Для каждого warning в новом отчёте — новая строка `Issue` в **текущем** `run_id`:
-   - нет в `prev_fps` → `new`
-   - есть в `prev_fps` → `existing`
-4. **fixed:** `prev_fps - current_fps` → **новые** строки `Issue` в **текущем** run со `status="fixed"` (копия метаданных из prev). Старые строки prev run **не обновляются**.
-5. Один `session.commit()` в конце.
+1. **prev_run** — последний `Run` с `status == "done"` для `project_id` и **того же** `target_platform`, кроме текущего run.
+2. **Сопоставление:** `cross_platform_fp` (нормализация путей через `platforms.compute_cross_platform_fp` + source roots); `fingerprint` — per-report SHA-256[:16] из `parser.compute_fingerprint`.
+3. **prev_fps** — fingerprints из prev run, где `status not in ("ignored", "fixed")`.
+4. Для каждого warning — новая строка `Issue` в **текущем** `run_id`: нет в `prev_fps` → `new`, есть → `existing`.
+5. **fixed:** исчезнувшие FP → новые `Issue` в **текущем** run со `status="fixed"`. Старые строки prev run **не обновляются**.
+6. Один `session.commit()` в конце.
 
-### Тренд на дашборде (`main.py`)
+**Ветка UI:** фильтр `?branch=` для графика и таблицы; diff **не** сравнивает по branch (только platform).
 
-Для графика по ветке: **кумулятивный** активный набор fingerprints; `total` в history — не просто `new+existing` одного run. Per-run поля `new`/`fixed` — счётчики issues **внутри** этого run.
+### Дашборд и платформы
+
+- Переключатель ОС: `windows` / `linux` / `macos` (`dashboard/_platform_switcher.html`).
+- Без полной перезагрузки: `GET /api/v1/projects/{id}/platform-metrics`, `GET /ui/projects/{id}/trends-fragment?platform_filter=`.
+- Логика метрик: `dashboard_context.build_platform_metrics` + `dashboard_history.build_dashboard_histories`.
+- Тренд: **кумулятивный** активный набор; `total` в history — не `new+existing` одного run.
 
 ---
 
@@ -135,15 +151,18 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 | POST | `/login` | 303 session | MVP любой login |
 | GET | `/logout` | 303 | — |
 | GET | `/ui/projects/{id}/dashboard` | HTML | — |
+| GET | `/ui/projects/{id}/trends-fragment` | HTML partial (KPI + chart) | — |
 | GET | `/ui/issues` | HTML / partial | — |
 | POST | `/ui/upload` | 303 | session `require_auth` |
 | POST | `/ui/projects` | redirect | session |
 | GET | `/ui/settings/profile` | HTML | session |
+| GET | `/ui/settings/quality-gates` | HTML | session admin |
 | GET | `/ui/settings/global` | HTML | session admin |
 | GET | `/ui/file` | HTML partial | — |
 | GET | `/ui/projects/{id}/code-viewer` | HTML | — |
-| POST | `/api/v1/upload` | JSON | session |
+| POST | `/api/v1/upload` | JSON | session (+ email подписчикам) |
 | GET | `/api/v1/projects/{id}/dashboard` | JSON | — |
+| GET | `/api/v1/projects/{id}/platform-metrics` | JSON | — |
 | POST | `/api/v1/issues/{fp}/ignore` | JSON | session |
 | PUT | `/api/v1/projects/{id}/source-roots` | JSON | session |
 
@@ -151,7 +170,7 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 ### API v2 (`api.py`, prefix `/api/v2`)
 
-JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`, `users/me` (GET/PATCH), `users/me/notifications` (GET/PUT), `projects`, `issues`, `quality-gates`, `export/csv`, `settings/global`, `activity`.
+JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`, `users/me` (GET/PATCH), `users/me/notifications` (GET/PUT), `projects`, `issues`, `quality-gates` (CRUD + `PUT` rule codes), `warnings` (+ sync), `export/csv`, `settings/global`, `activity`.
 
 Полный список — grep `@router` в `api.py`.
 
@@ -199,6 +218,8 @@ EnvironmentFile=/opt/pvs-tracker/.env
 | HTMX filters | Таблица обновляется без перезагрузки графика |
 | API v2 auth | `POST /api/v2/auth/login` → JWT |
 | Webhook | При `WEBHOOK_URL` — POST с `event` из §7 |
+| Email | `notify_api_uploads` + подписка + `SMTP_HOST` → письмо после `/api/v1/upload` |
+| Platform dashboard | Переключатель ОС обновляет trends без reload |
 | Tests | `pytest` зелёный |
 
 ---
@@ -206,8 +227,8 @@ EnvironmentFile=/opt/pvs-tracker/.env
 ## 10. Cursor Agent
 
 1. Читать `.cursor/rules.md` + этот файл.
-2. Минимальный diff; type hints; без `print()` в production (в `webhooks.py` есть legacy `print` — при правке заменить на `logger`).
+2. Минимальный diff; type hints; без `print()` в production (`logging`).
 3. Под-скиллы: `fix-parser`, `add-htmx-filter`, `add-api-route`.
-4. После изменений: `uvicorn pvs_tracker.main:app --reload` и целевой `pytest`.
+4. После изменений: `uvicorn pvs_tracker.main:app --reload` и целевой `pytest` (в т.ч. `tests/test_profile_notifications.py`, `tests/test_platforms.py`).
 
 Фазы 1–6 из старого плана — **исторический** roadmap; проект уже реализован. Новые фичи — по `rules.md` и без banned stack (§1).
