@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -28,6 +29,7 @@ from pvs_tracker.models import (
 )
 from pvs_tracker.parser import parse_pvs_report_bytes
 from pvs_tracker.artifact_storage import store_code_snapshot, store_run_report
+from pvs_tracker.upload_metadata import merge_commit_upload_fields, parse_commit_metadata_bytes
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
 from pvs_tracker.db import engine
@@ -45,6 +47,42 @@ app = FastAPI(title="PVS-Studio Tracker")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "dev-change-me"))
 
 BASE_DIR = os.path.dirname(__file__)
+
+
+def _optional_form(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _run_commit_fields(
+    commit: Optional[str],
+    commit_author_name: Optional[str],
+    commit_author_email: Optional[str],
+) -> dict[str, Optional[str]]:
+    return {
+        "commit": _optional_form(commit),
+        "commit_author_name": _optional_form(commit_author_name),
+        "commit_author_email": _optional_form(commit_author_email),
+    }
+
+
+def _apply_run_commit_fields(
+    run: Run,
+    *,
+    commit: Optional[str] = None,
+    commit_author_name: Optional[str] = None,
+    commit_author_email: Optional[str] = None,
+) -> None:
+    """Update run commit/author when re-uploading to an existing run."""
+    fields = _run_commit_fields(commit, commit_author_name, commit_author_email)
+    if fields["commit"] is not None:
+        run.commit = fields["commit"]
+    if fields["commit_author_name"] is not None:
+        run.commit_author_name = fields["commit_author_name"]
+    if fields["commit_author_email"] is not None:
+        run.commit_author_email = fields["commit_author_email"]
 
 
 def _migrate_database() -> None:
@@ -123,6 +161,8 @@ def _migrate_database() -> None:
                     "ALTER TABLE errorclassifier ADD COLUMN language VARCHAR",
                     "ALTER TABLE errorclassifier ADD COLUMN doc_url VARCHAR",
                     "ALTER TABLE errorclassifier ADD COLUMN synced_at DATETIME",
+                    "ALTER TABLE run ADD COLUMN commit_author_name VARCHAR",
+                    "ALTER TABLE run ADD COLUMN commit_author_email VARCHAR",
                 ):
                     try:
                         conn.execute(text(col_sql))
@@ -322,6 +362,7 @@ async def create_project_ui(
     language: str = Form("c++"),
     file: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
+    commit_metadata: UploadFile = Form(None),
     commit: str = Form(None),
     session: Session = Depends(get_session),
     _user: str = Depends(require_auth),
@@ -350,6 +391,7 @@ async def create_project_ui(
                 file=file,
                 source_archive=None,
                 code_snapshot=code_snapshot,
+                commit_metadata=commit_metadata,
                 commit=commit,
                 branch=(branch or project.git_branch or "main").strip() or "main",
                 session=session,
@@ -370,6 +412,7 @@ async def create_project_ui(
             file=file,
             source_archive=None,
             code_snapshot=code_snapshot,
+            commit_metadata=commit_metadata,
             commit=commit,
             branch=default_branch,
             session=session,
@@ -385,6 +428,7 @@ async def ui_dashboard(
     request: Request,
     branch: str = "",
     platform_filter: str = "windows",
+    upload_error: str = "",
     session: Session = Depends(get_session),
 ):
     project = session.get(Project, project_id)
@@ -455,6 +499,7 @@ async def ui_dashboard(
             "platform_filter": pf,
             "qg_result": qg_result,
             "quality_gates": quality_gates,
+            "upload_error": upload_error.strip() or None,
         },
     )
 
@@ -658,7 +703,10 @@ async def upload_report_ui(
     file: UploadFile = Form(...),
     source_archive: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
+    commit_metadata: UploadFile = Form(None),
     commit: str = Form(None),
+    commit_author_name: str = Form(None),
+    commit_author_email: str = Form(None),
     branch: str = Form(None),
     target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
@@ -672,6 +720,44 @@ async def upload_report_ui(
     from pvs_tracker.platforms import normalize_target_platform
 
     platform = normalize_target_platform(target_platform)
+
+    metadata_from_file: dict[str, str] | None = None
+    if commit_metadata and commit_metadata.filename:
+        try:
+            metadata_from_file = parse_commit_metadata_bytes(await commit_metadata.read())
+        except ValueError as exc:
+            project = session.exec(
+                select(Project).where(Project.name == project_name)
+            ).first()
+            if project:
+                return RedirectResponse(
+                    url=(
+                        f"/ui/projects/{project.id}/dashboard"
+                        f"?platform_filter={platform}&upload_error={quote(str(exc))}"
+                    ),
+                    status_code=303,
+                )
+            return templates.TemplateResponse(
+                request,
+                "home.html",
+                {
+                    "current_user": get_current_user(request),
+                    "projects": session.exec(select(Project).order_by(Project.name)).all(),
+                    "error": str(exc),
+                },
+                status_code=400,
+            )
+
+    commit_fields = merge_commit_upload_fields(
+        commit=commit,
+        commit_author_name=commit_author_name,
+        commit_author_email=commit_author_email,
+        metadata=metadata_from_file,
+        optional_form=_optional_form,
+    )
+    commit = commit_fields["commit"]
+    commit_author_name = commit_fields["commit_author_name"]
+    commit_author_email = commit_fields["commit_author_email"]
 
     # 1. Read report
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -715,6 +801,12 @@ async def upload_report_ui(
     is_new_run = False
     if existing_run:
         run = existing_run
+        _apply_run_commit_fields(
+            run,
+            commit=commit,
+            commit_author_name=commit_author_name,
+            commit_author_email=commit_author_email,
+        )
         store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
         if code_snapshot and code_snapshot.filename:
             merge_code_snapshot(run.id, await code_snapshot.read())
@@ -722,10 +814,10 @@ async def upload_report_ui(
     else:
         run = Run(
             project_id=project.id,
-            commit=commit,
             branch=branch,
             target_platform=platform,
             report_file=f"db:{safe_filename}",
+            **_run_commit_fields(commit, commit_author_name, commit_author_email),
         )
         session.add(run)
         session.commit()
@@ -847,7 +939,10 @@ async def upload_report_api(
     file: UploadFile = Form(...),
     source_archive: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
+    commit_metadata: UploadFile = Form(None),
     commit: str = Form(None),
+    commit_author_name: str = Form(None),
+    commit_author_email: str = Form(None),
     branch: str = Form(None),
     target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
@@ -861,6 +956,24 @@ async def upload_report_api(
     from pvs_tracker.platforms import normalize_target_platform
 
     platform = normalize_target_platform(target_platform)
+
+    metadata_from_file: dict[str, str] | None = None
+    if commit_metadata and commit_metadata.filename:
+        try:
+            metadata_from_file = parse_commit_metadata_bytes(await commit_metadata.read())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    commit_fields = merge_commit_upload_fields(
+        commit=commit,
+        commit_author_name=commit_author_name,
+        commit_author_email=commit_author_email,
+        metadata=metadata_from_file,
+        optional_form=_optional_form,
+    )
+    commit = commit_fields["commit"]
+    commit_author_name = commit_fields["commit_author_name"]
+    commit_author_email = commit_fields["commit_author_email"]
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
@@ -900,6 +1013,12 @@ async def upload_report_api(
     is_new_run = False
     if existing_run:
         run = existing_run
+        _apply_run_commit_fields(
+            run,
+            commit=commit,
+            commit_author_name=commit_author_name,
+            commit_author_email=commit_author_email,
+        )
         store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
         if code_snapshot and code_snapshot.filename:
             merge_code_snapshot(run.id, await code_snapshot.read())
@@ -907,10 +1026,10 @@ async def upload_report_api(
     else:
         run = Run(
             project_id=project.id,
-            commit=commit,
             branch=branch,
             target_platform=platform,
             report_file=f"db:{safe_filename}",
+            **_run_commit_fields(commit, commit_author_name, commit_author_email),
         )
         session.add(run)
         session.commit()
@@ -958,6 +1077,9 @@ async def upload_report_api(
         return {
             "status": "success",
             "run_id": run.id,
+            "commit": run.commit,
+            "commit_author_name": run.commit_author_name,
+            "commit_author_email": run.commit_author_email,
             "target_platform": platform,
             "total_issues": len(issues),
             "quality_gate": qg_result,
@@ -1031,6 +1153,8 @@ def api_dashboard(project_id: int, branch: str = "", session: Session = Depends(
                 "timestamp": r.timestamp.isoformat(),
                 "commit": r.commit,
                 "branch": r.branch,
+                "commit_author_name": r.commit_author_name,
+                "commit_author_email": r.commit_author_email,
                 "total": active_count,
                 "new": new_count,
                 "fixed": fixed_count,

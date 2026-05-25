@@ -75,6 +75,12 @@
                         <small class="text-muted" data-i18n="code_snapshot_hint">Optional: CI-generated snapshot for exact code viewing</small>
                     </div>
 
+                    <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="commit_metadata_label">Commit Metadata (.json)</label>
+                        <input type="file" name="commit_metadata" class="sq-input sq-file-input" accept=".json,application/json">
+                        <small class="text-muted" data-i18n="commit_metadata_hint">Optional: snapshot.meta.json from pvs_snapshot.py (commit and author)</small>
+                    </div>
+
                     <div class="row g-2 mb-3">
                         <div class="col-sm-6">
                             <label class="sq-form-label" data-i18n="branch_label">Default Branch</label>

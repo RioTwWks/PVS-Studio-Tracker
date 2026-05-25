@@ -72,6 +72,7 @@ def build_upload_notification_email(
         f"Run ID: {run.id}",
         f"Branch: {run.branch or '-'}",
         f"Commit: {run.commit or '-'}",
+        f"Author: {run.commit_author_name or '-'} <{run.commit_author_email or '-'}>",
         f"Total issues: {run.total_issues}",
         f"New: {run.new_issues}",
         f"Fixed: {run.fixed_issues}",

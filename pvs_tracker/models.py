@@ -189,6 +189,14 @@ class Run(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     commit: Optional[str] = None
     branch: Optional[str] = None
+    commit_author_name: Optional[str] = Field(
+        default=None,
+        description="Author display name from Git commit (CI / pvs_snapshot)",
+    )
+    commit_author_email: Optional[str] = Field(
+        default=None,
+        description="Author email from Git commit (CI / pvs_snapshot)",
+    )
     report_file: str
     status: str = "processing"  # processing | done | failed
     total_issues: int = Field(default=0)
