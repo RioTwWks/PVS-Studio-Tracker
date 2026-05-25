@@ -147,36 +147,6 @@
     </div>
 </div>
 
-{# Модальное окно создания порога (Bootstrap, как Global Settings) #}
-<div class="modal fade" id="qgCreateGateModal" tabindex="-1" aria-labelledby="qgCreateGateModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="qgCreateGateModalLabel">
-                    <i class="bi bi-plus-lg"></i> <span data-i18n="qg_create_gate_title">Новый порог качества</span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="sq-form-group mb-0">
-                    <label class="sq-form-label" for="new-gate-name-input"><span data-i18n="qg_gate_name">Название</span></label>
-                    <input type="text" id="new-gate-name-input" class="sq-input" autocomplete="off"
-                           placeholder="Например: Strict C++">
-                </div>
-                <div id="create-gate-error" class="sq-form-status mt-2" style="display:none;"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="sq-btn sq-btn-secondary" data-bs-dismiss="modal">
-                    <span data-i18n="cancel">Отмена</span>
-                </button>
-                <button type="button" class="sq-btn sq-btn-primary" onclick="submitCreateGate()">
-                    <i class="bi bi-check-lg"></i> <span data-i18n="qg_create_btn">Создать</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 const QG_API = '/api/v2';
 let catalogPage = 1;
@@ -184,8 +154,6 @@ let catalogDebounce = null;
 let selectedGateId = null;
 let allCatalogCodes = [];
 let gateSelectedRules = new Set();
-let createGateModal = null;
-
 const LANG_LABELS = {
     cpp: 'C/C++',
     csharp: 'C#',
@@ -355,43 +323,27 @@ async function selectGate(id) {
 }
 
 function openCreateGateModal() {
-    const input = document.getElementById('new-gate-name-input');
-    const err = document.getElementById('create-gate-error');
-    input.value = '';
-    err.textContent = '';
-    err.style.display = 'none';
-    if (!createGateModal) {
-        createGateModal = new bootstrap.Modal(document.getElementById('qgCreateGateModal'));
-    }
-    createGateModal.show();
-    setTimeout(() => input.focus(), 250);
-}
-
-async function submitCreateGate() {
-    const name = document.getElementById('new-gate-name-input').value.trim();
-    const err = document.getElementById('create-gate-error');
-    if (!name) {
-        err.textContent = tr('qg_name_required', 'Введите название порога');
-        err.style.display = 'block';
-        err.style.color = '#dc3545';
-        return;
-    }
-    err.style.display = 'none';
-    const resp = await apiFetch(`${QG_API}/quality-gates`, {
-        method: 'POST',
-        body: JSON.stringify({ name, is_default: false, rule_codes: [] }),
+    SqDialog.prompt({
+        title: tr('qg_create_gate_title', 'Новый порог качества'),
+        icon: 'plus-lg',
+        inputLabel: tr('qg_gate_name', 'Название'),
+        placeholder: 'Например: Strict C++',
+        confirmText: tr('qg_create_btn', 'Создать'),
+        validate: (value) => (value.trim() ? null : tr('qg_name_required', 'Введите название порога')),
+        onSubmit: async (name) => {
+            const resp = await apiFetch(`${QG_API}/quality-gates`, {
+                method: 'POST',
+                body: JSON.stringify({ name, is_default: false, rule_codes: [] }),
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                throw new Error(body.detail || resp.statusText);
+            }
+            const g = await resp.json();
+            await loadGates();
+            await selectGate(g.id);
+        },
     });
-    if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        err.textContent = body.detail || resp.statusText;
-        err.style.display = 'block';
-        err.style.color = '#dc3545';
-        return;
-    }
-    const g = await resp.json();
-    createGateModal.hide();
-    await loadGates();
-    await selectGate(g.id);
 }
 
 async function saveGate() {
@@ -419,11 +371,22 @@ async function saveGate() {
 
 async function deleteGate() {
     if (!selectedGateId) return;
-    if (!confirm(tr('qg_delete_confirm', 'Удалить этот порог качества?'))) return;
+    const ok = await SqDialog.confirm({
+        title: tr('qg_delete_btn', 'Удалить'),
+        message: tr('qg_delete_confirm', 'Удалить этот порог качества?'),
+        icon: 'trash',
+        danger: true,
+        confirmText: tr('qg_delete_btn', 'Удалить'),
+    });
+    if (!ok) return;
     const resp = await apiFetch(`${QG_API}/quality-gates/${selectedGateId}`, { method: 'DELETE' });
     if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        alert(err.detail || resp.statusText);
+        await SqDialog.alert({
+            title: tr('error', 'Ошибка'),
+            message: err.detail || resp.statusText,
+            icon: 'exclamation-triangle',
+        });
         return;
     }
     selectedGateId = null;

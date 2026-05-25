@@ -2902,3 +2902,31 @@ Code Viewer (SonarQube-style)
 [data-theme="dark"] .sq-tree-item {
   color: var(--sq-text-primary);
 }
+
+/* ============================================================
+   SqDialog (site-styled modals)
+   ============================================================ */
+
+.sq-dialog-message {
+  color: var(--sq-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#sqDialogModal .modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#sqDialogModal .modal-title .bi {
+  color: var(--sq-brand);
+}
+
+#sqDialogModal.sq-dialog-danger .modal-title .bi {
+  color: var(--sq-status-new);
+}
+
+#sqDialogError {
+  color: var(--sq-status-new);
+}

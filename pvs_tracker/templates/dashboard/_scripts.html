@@ -82,6 +82,21 @@
         }
     }
 
+    async function confirmDeleteProject() {
+        const name = {{ project.name|tojson }};
+        const message = I18n.t('delete_project_confirm').replace('{name}', name);
+        const ok = await SqDialog.confirm({
+            title: I18n.t('delete_project'),
+            message,
+            icon: 'trash',
+            danger: true,
+            confirmText: I18n.t('delete_project'),
+        });
+        if (ok) {
+            document.getElementById('delete-project-form').submit();
+        }
+    }
+
     async function saveSourceRoots() {
         const winInput = document.getElementById('source-root-win');
         const linuxInput = document.getElementById('source-root-linux');

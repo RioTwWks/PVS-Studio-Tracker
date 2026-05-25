@@ -95,6 +95,30 @@
     <script src="/static/prism/prism-java.min.js"></script>
     <script src="/static/prism/prism-python.min.js"></script>
     <script src="/static/prism/prism-javascript.min.js"></script>
+    {# === Site-styled confirm / alert / prompt (replaces window.confirm & alert) === #}
+    <div class="modal fade" id="sqDialogModal" tabindex="-1" aria-labelledby="sqDialogTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sqDialogTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="sqDialogMessage" class="sq-dialog-message mb-0"></p>
+                    <div id="sqDialogInputWrap" class="sq-form-group mb-0 mt-3" hidden>
+                        <label class="sq-form-label" id="sqDialogInputLabel" for="sqDialogInput"></label>
+                        <input type="text" id="sqDialogInput" class="sq-input" autocomplete="off">
+                    </div>
+                    <div id="sqDialogError" class="sq-form-status mt-2" hidden></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="sq-btn sq-btn-secondary" id="sqDialogCancelBtn" data-bs-dismiss="modal"></button>
+                    <button type="button" class="sq-btn sq-btn-primary" id="sqDialogConfirmBtn"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- App JS -->
     <script src="/static/app.js"></script>
 

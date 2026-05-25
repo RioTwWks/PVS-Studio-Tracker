@@ -493,6 +493,244 @@ function updateChartLegend(chart) {
 }
 
 /* ============================================================
+   SqDialog — site-styled confirm / alert / prompt
+   ============================================================ */
+
+const SqDialog = (() => {
+    let bsModal = null;
+    let pending = null;
+    let bound = false;
+
+    function dlgT(key, fallback) {
+        if (typeof I18n !== 'undefined') {
+            const v = I18n.t(key);
+            if (v && v !== key) return v;
+        }
+        return fallback;
+    }
+
+    function normalizeOpts(opts, defaults) {
+        if (typeof opts === 'string') {
+            return { message: opts, ...defaults };
+        }
+        return { ...defaults, ...opts };
+    }
+
+    function getModalEl() {
+        return document.getElementById('sqDialogModal');
+    }
+
+    function bindOnce() {
+        if (bound) return;
+        const el = getModalEl();
+        if (!el) return;
+        bound = true;
+
+        el.addEventListener('hidden.bs.modal', () => {
+            if (!pending) return;
+            const p = pending;
+            pending = null;
+            p.resolve(p.cancelValue);
+        });
+
+        document.getElementById('sqDialogConfirmBtn').addEventListener('click', () => {
+            void handleConfirm();
+        });
+
+        const input = document.getElementById('sqDialogInput');
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleConfirm();
+            }
+        });
+
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && pending && pending.mode !== 'alert') {
+                const tag = e.target.tagName;
+                if (tag !== 'TEXTAREA' && tag !== 'BUTTON') {
+                    e.preventDefault();
+                    void handleConfirm();
+                }
+            }
+        });
+    }
+
+    function getBsModal() {
+        const el = getModalEl();
+        if (!el) return null;
+        bindOnce();
+        if (!bsModal) {
+            bsModal = new bootstrap.Modal(el, { backdrop: 'static', keyboard: true });
+        }
+        return bsModal;
+    }
+
+    function setError(message) {
+        const err = document.getElementById('sqDialogError');
+        if (!message) {
+            err.hidden = true;
+            err.textContent = '';
+            return;
+        }
+        err.textContent = message;
+        err.hidden = false;
+    }
+
+    function finish(value) {
+        if (!pending) return;
+        const p = pending;
+        pending = null;
+        p.resolve(value);
+        getBsModal()?.hide();
+    }
+
+    async function handleConfirm() {
+        if (!pending) return;
+        const { opts, mode } = pending;
+        setError('');
+
+        if (mode === 'alert') {
+            finish(true);
+            return;
+        }
+
+        const inputEl = document.getElementById('sqDialogInput');
+        const value = mode === 'prompt' ? inputEl.value : true;
+
+        if (mode === 'prompt' && typeof opts.validate === 'function') {
+            const validationError = opts.validate(value);
+            if (validationError) {
+                setError(validationError);
+                inputEl.focus();
+                return;
+            }
+        }
+
+        if (mode === 'prompt' && typeof opts.onSubmit === 'function') {
+            try {
+                await opts.onSubmit(value.trim());
+                finish(value.trim());
+            } catch (e) {
+                setError(e?.message || String(e));
+                inputEl.focus();
+            }
+            return;
+        }
+
+        if (mode === 'prompt') {
+            finish(value.trim());
+            return;
+        }
+
+        finish(true);
+    }
+
+    function show(mode, opts) {
+        const modal = getBsModal();
+        if (!modal) {
+            return nativeFallback(mode, opts);
+        }
+
+        const el = getModalEl();
+        const titleEl = document.getElementById('sqDialogTitle');
+        const messageEl = document.getElementById('sqDialogMessage');
+        const inputWrap = document.getElementById('sqDialogInputWrap');
+        const inputLabel = document.getElementById('sqDialogInputLabel');
+        const inputEl = document.getElementById('sqDialogInput');
+        const cancelBtn = document.getElementById('sqDialogCancelBtn');
+        const confirmBtn = document.getElementById('sqDialogConfirmBtn');
+
+        const icon = opts.icon ? `bi-${opts.icon.replace(/^bi-/, '')}` : null;
+        const titleText = opts.title || (mode === 'alert' ? dlgT('error', 'Error') : '');
+        titleEl.innerHTML = icon
+            ? `<i class="bi ${icon}"></i> <span>${titleText}</span>`
+            : `<span>${titleText}</span>`;
+
+        el.classList.toggle('sq-dialog-danger', Boolean(opts.danger));
+
+        if (opts.message) {
+            messageEl.textContent = opts.message;
+            messageEl.hidden = false;
+        } else {
+            messageEl.textContent = '';
+            messageEl.hidden = true;
+        }
+
+        const isPrompt = mode === 'prompt';
+        inputWrap.hidden = !isPrompt;
+        if (isPrompt) {
+            inputLabel.textContent = opts.inputLabel || opts.label || '';
+            inputLabel.hidden = !inputLabel.textContent;
+            inputEl.placeholder = opts.placeholder || '';
+            inputEl.value = opts.defaultValue ?? '';
+        }
+
+        setError('');
+
+        const isAlert = mode === 'alert';
+        cancelBtn.hidden = isAlert;
+        cancelBtn.textContent = opts.cancelText || dlgT('cancel', 'Cancel');
+
+        confirmBtn.className = 'sq-btn ' + (
+            opts.danger && !isAlert
+                ? 'sq-btn-outline text-danger'
+                : 'sq-btn-primary'
+        );
+        confirmBtn.innerHTML = opts.confirmText || (
+            isAlert
+                ? dlgT('dialog_ok', 'OK')
+                : isPrompt
+                    ? dlgT('save', 'Save')
+                    : dlgT('dialog_confirm', 'Confirm')
+        );
+
+        return new Promise((resolve) => {
+            pending = {
+                resolve,
+                opts,
+                mode,
+                cancelValue: mode === 'prompt' ? null : false,
+            };
+            modal.show();
+            if (isPrompt) {
+                setTimeout(() => {
+                    inputEl.focus();
+                    inputEl.select();
+                }, 200);
+            }
+        });
+    }
+
+    function nativeFallback(mode, opts) {
+        const message = opts.message || opts.title || '';
+        if (mode === 'alert') {
+            window.alert(message);
+            return Promise.resolve();
+        }
+        if (mode === 'confirm') {
+            return Promise.resolve(window.confirm(message));
+        }
+        const value = window.prompt(message, opts.defaultValue ?? '');
+        return Promise.resolve(value === null ? null : value);
+    }
+
+    return {
+        alert(opts) {
+            return show('alert', normalizeOpts(opts, { icon: 'info-circle' }));
+        },
+        confirm(opts) {
+            return show('confirm', normalizeOpts(opts, { icon: 'question-circle' }));
+        },
+        prompt(opts) {
+            return show('prompt', normalizeOpts(opts, { icon: 'pencil' }));
+        },
+    };
+})();
+
+window.SqDialog = SqDialog;
+
+/* ============================================================
    UI Helpers
    ============================================================ */
 
