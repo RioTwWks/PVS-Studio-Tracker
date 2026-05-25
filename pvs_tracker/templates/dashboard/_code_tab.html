@@ -54,7 +54,7 @@
                         <div class="sq-tree-item sq-folder" data-search-text="${item.name.replace(/"/g, '&quot;')}" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="toggleFolder(this)">
                             <i class="bi bi-folder" style="color:#e6872a;"></i>
                             <span>${item.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
-                            <span class="sq-badge" style="margin-left:auto;background:#f0f0f0;color:#666;font-size:11px;">${item.total_warnings || 0}</span>
+                            <span class="sq-badge sq-tree-count-badge" style="margin-left:auto;font-size:11px;">${item.total_warnings || 0}</span>
                         </div>
                         <div class="sq-folder-children" style="display:none;">
                             ${renderFileTree(item.children || [], level + 1)}
@@ -71,7 +71,7 @@
                 html += `
                     <li style="margin-left:${indent}px;">
                         <div class="sq-tree-item sq-file" data-search-text="${displayPath.replace(/"/g, '&quot;')}" style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;" onclick="loadFileCode('${encodedPath}')">
-                            <i class="bi bi-file-code" style="color:#6c757d;"></i>
+                            <i class="bi bi-file-code sq-tree-file-icon"></i>
                             <span title="${displayPath.replace(/</g, '&lt;').replace(/>/g, '&gt;')}">${fileNameSafe}</span>
                             <span class="sq-badge ${severityClass}" style="margin-left:auto;font-size:11px;">${item.warnings || 0}</span>
                         </div>
@@ -215,9 +215,11 @@
     <style>
     .sq-file-tree { background:var(--sq-bg-secondary); border:1px solid var(--sq-border); border-radius:6px; padding:12px; max-height:500px; overflow-y:auto; }
     .sq-tree-item:hover { background:var(--sq-bg-hover); border-radius:4px; }
-    .sq-sev-high { background:#fde8ec; color:#d4324f; }
-    .sq-sev-medium { background:#fff3e0; color:#e6872a; }
-    .sq-sev-low { background:#e8f5e9; color:#3fa950; }
+    .sq-tree-count-badge { background: var(--sq-bg-tertiary); color: var(--sq-text-secondary); }
+    .sq-tree-file-icon { color: var(--sq-text-muted); }
+    .sq-sev-high { background: var(--sq-severity-high-bg); color: var(--sq-severity-high); }
+    .sq-sev-medium { background: var(--sq-severity-medium-bg); color: var(--sq-severity-medium); }
+    .sq-sev-low { background: var(--sq-severity-low-bg); color: var(--sq-severity-low); }
     .sq-inline-code-viewer { border:1px solid var(--sq-border); border-radius:6px; margin-top:16px; background:var(--sq-bg-secondary); }
     .sq-code-viewer-header { display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--sq-border); background:var(--sq-bg-tertiary); }
     </style>

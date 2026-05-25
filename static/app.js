@@ -16,6 +16,7 @@
 const ThemeManager = (() => {
     const STORAGE_KEY = 'pvs-tracker-theme';
     const ATTR = 'data-theme';
+    const BS_ATTR = 'data-bs-theme';
 
     function getPreferredTheme() {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -25,6 +26,7 @@ const ThemeManager = (() => {
 
     function applyTheme(theme) {
         document.documentElement.setAttribute(ATTR, theme);
+        document.documentElement.setAttribute(BS_ATTR, theme);
         localStorage.setItem(STORAGE_KEY, theme);
         if (window.__pvsChart) {
             updateChartTheme(window.__pvsChart, theme);

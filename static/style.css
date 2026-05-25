@@ -2822,3 +2822,83 @@ Code Viewer (SonarQube-style)
   border-color: var(--sq-border-focus);
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
 }
+
+/* Bootstrap utility classes (light palette bleeds without data-bs-theme) */
+[data-theme="dark"] .text-muted,
+[data-theme="dark"] .text-muted.small,
+[data-theme="dark"] small.text-muted {
+  color: var(--sq-text-muted) !important;
+}
+
+[data-theme="dark"] .text-secondary {
+  color: var(--sq-text-secondary) !important;
+}
+
+[data-theme="dark"] .text-body {
+  color: var(--sq-text-primary) !important;
+}
+
+[data-theme="dark"] .text-dark {
+  color: var(--sq-text-primary) !important;
+}
+
+[data-theme="dark"] .text-muted strong,
+[data-theme="dark"] .text-muted .fw-bold {
+  color: var(--sq-text-primary);
+}
+
+[data-theme="dark"] .sq-sort-link {
+  color: var(--sq-text-primary);
+}
+
+[data-theme="dark"] .sq-sort-link:hover {
+  color: var(--sq-text-link);
+}
+
+[data-theme="dark"] .alert-info {
+  background: var(--sq-brand-soft);
+  border-color: var(--sq-border);
+  color: var(--sq-text-primary);
+}
+
+[data-theme="dark"] .alert-warning {
+  background: var(--sq-severity-medium-bg);
+  border-color: var(--sq-severity-medium);
+  color: var(--sq-text-primary);
+}
+
+[data-theme="dark"] .modal-content {
+  background: var(--sq-bg-secondary);
+  border-color: var(--sq-border);
+  color: var(--sq-text-primary);
+}
+
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-footer {
+  border-color: var(--sq-border);
+}
+
+[data-theme="dark"] .modal-title {
+  color: var(--sq-text-primary);
+}
+
+[data-theme="dark"] .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+[data-theme="dark"] .sq-code-line-code {
+  color: var(--sq-text-primary);
+}
+
+.sq-tree-count-badge {
+  background: var(--sq-bg-tertiary);
+  color: var(--sq-text-secondary);
+}
+
+.sq-tree-file-icon {
+  color: var(--sq-text-muted);
+}
+
+[data-theme="dark"] .sq-tree-item {
+  color: var(--sq-text-primary);
+}
