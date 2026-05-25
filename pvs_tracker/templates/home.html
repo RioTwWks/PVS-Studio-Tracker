@@ -64,6 +64,16 @@
                     </div>
 
                     <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="target_platform_label">Target Platform</label>
+                        <select name="target_platform" class="sq-select">
+                            <option value="windows" selected data-i18n="platform_windows">Windows</option>
+                            <option value="linux" data-i18n="platform_linux">Linux</option>
+                            <option value="macos" data-i18n="platform_macos">macOS</option>
+                        </select>
+                        <small class="text-muted" data-i18n="target_platform_hint">Used when uploading the initial PVS-Studio report</small>
+                    </div>
+
+                    <div class="sq-form-group">
                         <label class="sq-form-label" data-i18n="report_file_label">Report File (JSON)</label>
                         <input type="file" name="file" class="sq-input sq-file-input" accept=".json">
                         <small class="text-muted" data-i18n="report_file_hint">Optional: leave empty to create a project without analysis data</small>

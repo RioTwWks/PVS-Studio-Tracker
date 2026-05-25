@@ -360,6 +360,7 @@ async def create_project_ui(
     project_name: str = Form(...),
     branch: str = Form("main"),
     language: str = Form("c++"),
+    target_platform: str = Form("windows"),
     file: UploadFile = Form(None),
     code_snapshot: UploadFile = Form(None),
     commit_metadata: UploadFile = Form(None),
@@ -368,6 +369,9 @@ async def create_project_ui(
     _user: str = Depends(require_auth),
 ):
     """Create a project from the web UI, optionally with an initial report."""
+    from pvs_tracker.platforms import normalize_target_platform
+
+    platform = normalize_target_platform(target_platform)
     name = project_name.strip()
     if not name:
         projects = session.exec(select(Project).order_by(Project.name)).all()
@@ -394,10 +398,14 @@ async def create_project_ui(
                 commit_metadata=commit_metadata,
                 commit=commit,
                 branch=(branch or project.git_branch or "main").strip() or "main",
+                target_platform=platform,
                 session=session,
                 _user=_user,
             )
-        return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
+        return RedirectResponse(
+            url=f"/ui/projects/{project.id}/dashboard?platform_filter={platform}",
+            status_code=303,
+        )
 
     default_branch = (branch or "main").strip() or "main"
     project = Project(name=name, language=language or "c++", git_branch=default_branch)
@@ -415,11 +423,15 @@ async def create_project_ui(
             commit_metadata=commit_metadata,
             commit=commit,
             branch=default_branch,
+            target_platform=platform,
             session=session,
             _user=_user,
         )
 
-    return RedirectResponse(url=f"/ui/projects/{project.id}/dashboard", status_code=303)
+    return RedirectResponse(
+        url=f"/ui/projects/{project.id}/dashboard?platform_filter={platform}",
+        status_code=303,
+    )
 
 
 @app.get("/ui/projects/{project_id}/dashboard", response_class=HTMLResponse)
