@@ -1,0 +1,16 @@
+{% if ci_toast_key %}
+<div id="ci-toast-payload" hidden
+     data-ci-toast-key="{{ ci_toast_key }}"
+     data-ci-toast-type="{{ ci_toast_type|default('success') }}"></div>
+{% endif %}
+<div class="sq-card">
+    <div class="sq-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-gear-wide-connected"></i> <span data-i18n="ci_management_title">Analysis management</span></span>
+        {% if project.last_jenkins_build_id %}
+        <span class="sq-badge bg-primary">build #{{ project.last_jenkins_build_id }}</span>
+        {% endif %}
+    </div>
+    <div class="sq-card-body">
+        {% include "dashboard/_ci_actions.html" %}
+    </div>
+</div>

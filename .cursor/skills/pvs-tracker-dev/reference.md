@@ -12,6 +12,9 @@
 | `dashboard_context.py` | Platform metrics for dashboard |
 | `notifications.py` | SMTP email on API upload |
 | `webhooks.py` | `report_uploaded`, `quality_gate_evaluated` |
+| `inbound_webhooks.py` | TFS/Git → Jenkins |
+| `jenkins_service.py`, `project_ci.py`, `project_manage.py` | CI UI + orchestration |
+| `jira_sync.py`, `jira_service.py` | Jira after upload |
 | `quality_gate.py` | Rule-code gate evaluation after upload |
 | `git_integration.py` | Clone/cache for code viewer |
 
@@ -39,6 +42,9 @@ From `.env.example` + code:
 | `SECRET_KEY` | `main.py` sessions |
 | `JWT_SECRET_KEY` | `auth_service.py` |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | `webhooks.py` |
+| `WEBHOOK_USERNAME`, `WEBHOOK_PASSWORD` | `inbound_webhooks.py` |
+| `JENKINS_URL`, `JENKINS_JOB_NAME`, … | `jenkins_service.py` |
+| `JIRA_URL`, `JIRA_*` | `jira_service.py` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_CACHE_DIR`, `SNAPSHOTS_DIR`, `GIT_CACHE_TTL_MINUTES`, `GIT_TIMEOUT_SECONDS` | `git_integration.py` |
 

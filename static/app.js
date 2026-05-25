@@ -741,32 +741,200 @@ function initFadeIn() {
     });
 }
 
-// Show a Bootstrap toast programmatically
-function showToast(message, type = 'info') {
+function sqPrefersReducedMotion() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const SQ_MOTION_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const SQ_MOTION_MS = 450;
+
+function sqDismissToast(toastEl) {
+    if (!toastEl || toastEl.classList.contains('sq-toast-hiding')) {
+        return;
+    }
+    toastEl.classList.remove('sq-toast-visible');
+    toastEl.classList.add('sq-toast-hiding');
+    const remove = () => toastEl.remove();
+    toastEl.addEventListener('transitionend', (e) => {
+        if (e.target === toastEl && e.propertyName === 'opacity') {
+            remove();
+        }
+    }, { once: true });
+    setTimeout(remove, SQ_MOTION_MS + 80);
+}
+
+// Toast справа сверху (без класса bootstrap .toast — иначе display:none без .show)
+function showToast(message, type = 'info', durationMs = 5000) {
     const toastEl = document.createElement('div');
-    toastEl.className = `toast align-items-center text-bg-${type} border-0 show`;
+    toastEl.className = `sq-toast sq-toast-${type}`;
     toastEl.setAttribute('role', 'alert');
-    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-live', 'polite');
     toastEl.setAttribute('aria-atomic', 'true');
     toastEl.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">${message}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>`;
+        <span class="sq-toast-body">${message}</span>
+        <button type="button" class="sq-toast-close" data-sq-toast-close aria-label="Close">
+            <i class="bi bi-x-lg"></i>
+        </button>`;
 
     let container = document.getElementById('toast-container');
     if (!container) {
         container = document.createElement('div');
         container.id = 'toast-container';
-        container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;';
+        container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;';
         document.body.appendChild(container);
     }
     container.appendChild(toastEl);
 
-    setTimeout(() => {
-        toastEl.remove();
-    }, 4000);
+    const closeBtn = toastEl.querySelector('[data-sq-toast-close]');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => sqDismissToast(toastEl));
+    }
+
+    if (sqPrefersReducedMotion()) {
+        toastEl.classList.add('sq-toast-visible');
+        setTimeout(() => sqDismissToast(toastEl), durationMs);
+        return;
+    }
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => toastEl.classList.add('sq-toast-visible'));
+    });
+    setTimeout(() => sqDismissToast(toastEl), durationMs);
 }
+
+const CI_TOAST_FALLBACK = {
+    ci_toast_enabled: { ru: 'Проект включён', en: 'Project enabled' },
+    ci_toast_disabled: { ru: 'Проект отключён', en: 'Project disabled' },
+    ci_toast_jira_on: { ru: 'Интеграция с Jira включена', en: 'Jira integration enabled' },
+    ci_toast_jira_paused: { ru: 'Интеграция с Jira приостановлена', en: 'Jira integration paused' },
+    ci_toast_analysis_started: { ru: 'Анализ запущен в Jenkins', en: 'Analysis started in Jenkins' },
+};
+
+function resolveToastMessage(detail) {
+    if (!detail) {
+        return '';
+    }
+    if (detail.message) {
+        return detail.message;
+    }
+    if (!detail.key) {
+        return '';
+    }
+    if (typeof I18n !== 'undefined') {
+        const translated = I18n.t(detail.key);
+        if (translated && translated !== detail.key) {
+            return translated;
+        }
+        const lang = I18n.getPreferredLang();
+        const fb = CI_TOAST_FALLBACK[detail.key];
+        if (fb) {
+            return fb[lang] || fb.ru;
+        }
+    }
+    const fb = CI_TOAST_FALLBACK[detail.key];
+    return fb ? (fb.ru) : detail.key;
+}
+
+let _lastCiToastMessage = '';
+let _lastCiToastAt = 0;
+
+function fireCiToast(detail) {
+    const message = resolveToastMessage(detail);
+    if (!message || typeof showToast !== 'function') {
+        return;
+    }
+    const now = Date.now();
+    if (message === _lastCiToastMessage && now - _lastCiToastAt < 400) {
+        return;
+    }
+    _lastCiToastMessage = message;
+    _lastCiToastAt = now;
+    showToast(message, detail?.type || 'success', detail?.durationMs || 5000);
+}
+
+function consumeCiToastPayload(root) {
+    if (!root || !root.querySelector) {
+        return;
+    }
+    const el = root.querySelector('#ci-toast-payload');
+    if (!el) {
+        return;
+    }
+    fireCiToast({
+        key: el.getAttribute('data-ci-toast-key') || '',
+        type: el.getAttribute('data-ci-toast-type') || 'success',
+    });
+    el.remove();
+}
+
+function handleCiToastFromResponseText(html) {
+    if (!html || !html.includes('ci-toast-payload')) {
+        return false;
+    }
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const el = doc.getElementById('ci-toast-payload');
+    if (!el) {
+        return false;
+    }
+    fireCiToast({
+        key: el.getAttribute('data-ci-toast-key') || '',
+        type: el.getAttribute('data-ci-toast-type') || 'success',
+    });
+    return true;
+}
+
+function handleCiToastFromXhr(xhr) {
+    if (!xhr) {
+        return false;
+    }
+    if (xhr.responseText && handleCiToastFromResponseText(xhr.responseText)) {
+        return true;
+    }
+    const raw = xhr.getResponseHeader('HX-Trigger')
+        || xhr.getResponseHeader('hx-trigger');
+    if (!raw) {
+        return false;
+    }
+    try {
+        const triggers = JSON.parse(raw);
+        if (triggers.ciToast) {
+            fireCiToast(triggers.ciToast);
+            return true;
+        }
+    } catch (e) {
+        console.warn('Failed to parse HX-Trigger:', e);
+    }
+    return false;
+}
+
+function processHtmxCiToast(evt) {
+    const xhr = evt.detail?.xhr;
+    if (xhr && handleCiToastFromXhr(xhr)) {
+        return;
+    }
+    const target = evt.detail?.target;
+    if (target) {
+        consumeCiToastPayload(target);
+    }
+}
+
+/** Прямой вызов с кнопок CI (hx-on::after-request). */
+function sqCiPanelAfterRequest(event) {
+    if (!event?.detail?.successful) {
+        return;
+    }
+    const xhr = event.detail.xhr;
+    if (xhr?.responseText) {
+        handleCiToastFromResponseText(xhr.responseText);
+    }
+}
+
+document.body.addEventListener('ciToast', (event) => {
+    const detail = event.detail;
+    if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+        fireCiToast(detail);
+    }
+});
 
 // Format a number with locale separators
 function formatNumber(n) {
@@ -809,22 +977,30 @@ function initAnimatedCounters() {
    ============================================================ */
 
 document.addEventListener('htmx:afterOnLoad', (evt) => {
-    // Re-init fade-in on HTMX swaps
     initFadeIn();
     initAnimatedCounters();
+    processHtmxCiToast(evt);
 });
 
-document.addEventListener('htmx:beforeRequest', (evt) => {
-    // Could add global loading spinner here
+document.addEventListener('htmx:afterSwap', (evt) => {
+    processHtmxCiToast(evt);
 });
 
-document.addEventListener('htmx:afterRequest', (evt) => {
-    if (evt.detail.successful) {
-        const response = evt.detail.xhr.responseText;
-        if (response && response.includes('"ignored"')) {
-            showToast(I18n.t('toast_ignored'), 'success');
-        }
+document.body.addEventListener('htmx:afterRequest', (evt) => {
+    if (!evt.detail.successful) {
+        return;
     }
+    const response = evt.detail.xhr?.responseText || '';
+    if (response.includes('ci-toast-payload')) {
+        handleCiToastFromResponseText(response);
+    }
+    if (response.includes('"ignored"')) {
+        showToast(I18n.t('toast_ignored'), 'success');
+    }
+});
+
+document.addEventListener('htmx:beforeRequest', () => {
+    // hook for global loading indicator
 });
 
 /* ============================================================
@@ -956,29 +1132,12 @@ document.addEventListener('htmx:afterSwap', (e) => {
 // 🔑 Делаем CodeViewer доступным для других скриптов
 window.CodeViewer = CodeViewer;
 
-async function toggleInlineCode(btn, issueId) {
-    const row = document.getElementById('code-row-' + issueId);
-    if (!row) return;
-
-    const isVisible = row.style.display === 'table-row';
-    if (isVisible) {
-        // Закрыть и вернуть кнопке исходный вид
-        row.style.display = 'none';
-        btn.innerHTML = `<i class="bi bi-code-slash"></i> ${I18n.t('tab_code')}`;
-        return;
-    }
-
-    // Показать строку и сменить кнопку на Close
-    row.style.display = 'table-row';
-    btn.innerHTML = `<i class="bi bi-x"></i> ${I18n.t('close')}`;
-
+async function loadInlineCodeContent(btn, issueId) {
     const content = document.getElementById('code-content-' + issueId);
-    if (content && content.dataset.loaded === 'true') {
-        // Код уже загружен, просто показали
+    if (!content || content.dataset.loaded === 'true') {
         return;
     }
 
-    // Загружаем код
     const filePath = btn.dataset.filePath;
     const line = btn.dataset.line;
     const projectId = btn.dataset.projectId;
@@ -991,11 +1150,15 @@ async function toggleInlineCode(btn, issueId) {
             project_id: projectId,
             file_path: filePath,
             line: line,
-            context: 10
+            context: 10,
         });
-        if (runId) params.append('run_id', runId);
+        if (runId) {
+            params.append('run_id', runId);
+        }
         const resp = await fetch(`/ui/file?${params.toString()}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+        }
         const html = await resp.text();
         content.innerHTML = html;
         content.dataset.loaded = 'true';
@@ -1005,11 +1168,67 @@ async function toggleInlineCode(btn, issueId) {
             window.CodeViewer.init(content);
         }
 
-        // Подсветка синтаксиса
         if (typeof Prism !== 'undefined') {
-            content.querySelectorAll('.sq-code-line-code').forEach(el => Prism.highlightElement(el));
+            content.querySelectorAll('.sq-code-line-code').forEach((el) => Prism.highlightElement(el));
         }
     } catch (e) {
         content.innerHTML = `<div class="sq-alert sq-alert-danger">Error: ${e.message}</div>`;
     }
 }
+
+function closeInlineCodeRow(row, btn) {
+    const codeLabel = `<i class="bi bi-code-slash"></i> ${I18n.t('tab_code')}`;
+
+    const finish = () => {
+        row.classList.remove('is-open', 'is-closing');
+        btn.innerHTML = codeLabel;
+    };
+
+    if (sqPrefersReducedMotion()) {
+        finish();
+        return;
+    }
+
+    const wrapper = row.querySelector('.sq-inline-code-wrapper');
+    if (!wrapper) {
+        finish();
+        return;
+    }
+
+    row.classList.add('is-closing');
+    const onEnd = (e) => {
+        if (e.target !== wrapper || e.animationName !== 'sq-codeHide') {
+            return;
+        }
+        wrapper.removeEventListener('animationend', onEnd);
+        finish();
+    };
+    wrapper.addEventListener('animationend', onEnd);
+    setTimeout(finish, SQ_MOTION_MS);
+}
+
+async function toggleInlineCode(btn, issueId) {
+    const row = document.getElementById('code-row-' + issueId);
+    if (!row) {
+        return;
+    }
+
+    if (row.classList.contains('is-open')) {
+        closeInlineCodeRow(row, btn);
+        return;
+    }
+
+    row.classList.remove('is-closing');
+    row.classList.add('is-open');
+    btn.innerHTML = `<i class="bi bi-x"></i> ${I18n.t('close')}`;
+
+    const content = document.getElementById('code-content-' + issueId);
+    if (content && content.dataset.loaded !== 'true') {
+        await loadInlineCodeContent(btn, issueId);
+    }
+}
+
+window.toggleInlineCode = toggleInlineCode;
+window.showToast = showToast;
+window.sqCiPanelAfterRequest = sqCiPanelAfterRequest;
+window.fireCiToast = fireCiToast;

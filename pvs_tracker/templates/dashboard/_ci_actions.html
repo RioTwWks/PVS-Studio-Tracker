@@ -1,0 +1,36 @@
+<div id="project-ci-actions" class="sq-ci-actions">
+    <button type="button" class="sq-btn sq-btn-primary"
+            hx-post="/ui/projects/{{ project.id }}/toggle-disabled"
+            hx-target="#project-ci-panel"
+            hx-swap="innerHTML"
+            hx-on="htmx:afterRequest: sqCiPanelAfterRequest(event)">
+        {% if project.disabled %}
+        <i class="bi bi-play"></i> <span data-i18n="ci_enable">Enable</span>
+        {% else %}
+        <i class="bi bi-pause"></i> <span data-i18n="ci_disable">Disable</span>
+        {% endif %}
+    </button>
+    <button type="button" class="sq-btn sq-btn-primary"
+            hx-post="/ui/projects/{{ project.id }}/toggle-jira"
+            hx-target="#project-ci-panel"
+            hx-swap="innerHTML"
+            hx-on="htmx:afterRequest: sqCiPanelAfterRequest(event)">
+        {% if project.disable_jira %}
+        <span data-i18n="ci_jira_enable">Jira: on</span>
+        {% else %}
+        <span data-i18n="ci_jira_pause">Jira: pause</span>
+        {% endif %}
+    </button>
+    {% if is_admin %}
+    <button type="button" class="sq-btn sq-btn-primary"
+            hx-post="/ui/projects/{{ project.id }}/trigger-analysis"
+            hx-target="#project-ci-panel"
+            hx-swap="innerHTML"
+            hx-on="htmx:afterRequest: sqCiPanelAfterRequest(event)">
+        <i class="bi bi-rocket"></i> <span data-i18n="ci_trigger_analysis">Run analysis</span>
+    </button>
+    {% endif %}
+    <a href="/ui/projects/{{ project.id }}/clone" class="sq-btn sq-btn-primary">
+        <i class="bi bi-copy"></i> <span data-i18n="ci_clone_project">Clone</span>
+    </a>
+</div>

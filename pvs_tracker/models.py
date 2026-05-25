@@ -73,6 +73,42 @@ class Project(SQLModel, table=True):
     quality_gate_id: Optional[int] = Field(default=None, foreign_key="qualitygate.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # CI / SAST orchestration (ported from PVS_Sonar_WebHook_FastAPI)
+    slug: Optional[str] = Field(
+        default=None,
+        unique=True,
+        index=True,
+        description="Stable Jenkins/CI key (former sonar_project_key)",
+    )
+    author_email: Optional[str] = Field(default=None)
+    group_name: Optional[str] = Field(default=None, index=True)
+    cvs_system: Optional[str] = Field(default=None, description="Git or TFVC")
+    repo_path: Optional[str] = Field(
+        default=None,
+        description="Git URL or TFVC path (former tfs_path)",
+    )
+    analysis_branch: Optional[str] = Field(
+        default="",
+        description="Branch/path for analysis (former another_branch)",
+    )
+    jira_project: Optional[str] = Field(default="")
+    sub_modules: bool = Field(default=False)
+    life_time: Optional[str] = Field(default=None)
+    cmake_msbuild: Optional[str] = Field(default=None)
+    select_vcxproj: Optional[str] = Field(default="")
+    pvs_exclude_vcxproj: Optional[str] = Field(default="")
+    pvs_exclude_path: Optional[str] = Field(default="")
+    pvs_check_conf_name: Optional[str] = Field(default=None)
+    pvs_check_arch: Optional[str] = Field(default=None)
+    cmake_win_commands: Optional[str] = Field(default="")
+    cmake_linux_commands: Optional[str] = Field(default="")
+    disabled: bool = Field(default=False, index=True)
+    disable_jira: bool = Field(default=True)
+    last_processed_changeset: Optional[str] = Field(default="")
+    release_version: Optional[str] = Field(default="")
+    last_jenkins_build_id: Optional[int] = Field(default=None)
+    last_analysis_at: Optional[datetime] = Field(default=None)
+
     # Relationships
     runs: list["Run"] = Relationship(back_populates="project")
     members: list["ProjectMember"] = Relationship(back_populates="project")
@@ -259,6 +295,11 @@ class Issue(SQLModel, table=True):
     resolution: IssueResolution = Field(default=IssueResolution.UNRESOLVED)
     cwe_id: Optional[int] = Field(default=None, description="CWE identifier")
     technical_debt_minutes: int = Field(default=0, description="Estimated remediation time")
+    jira_issue_key: Optional[str] = Field(
+        default=None,
+        index=True,
+        description="Linked Jira issue key (e.g. PROJ-123)",
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships

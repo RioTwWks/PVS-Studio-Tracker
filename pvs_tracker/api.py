@@ -78,6 +78,17 @@ class ProjectCreate(BaseModel):
     git_url: Optional[str] = None
     git_branch: str = "main"
     quality_gate_id: Optional[int] = None
+    slug: Optional[str] = None
+    author_email: Optional[str] = None
+    group_name: Optional[str] = None
+    cvs_system: Optional[str] = None
+    repo_path: Optional[str] = None
+    analysis_branch: Optional[str] = None
+    jira_project: Optional[str] = None
+    pvs_check_conf_name: Optional[str] = None
+    pvs_check_arch: Optional[str] = None
+    disabled: Optional[bool] = None
+    disable_jira: Optional[bool] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -90,6 +101,19 @@ class ProjectUpdate(BaseModel):
     git_url: Optional[str] = None
     git_branch: Optional[str] = None
     quality_gate_id: Optional[int] = None
+    slug: Optional[str] = None
+    author_email: Optional[str] = None
+    group_name: Optional[str] = None
+    cvs_system: Optional[str] = None
+    repo_path: Optional[str] = None
+    analysis_branch: Optional[str] = None
+    jira_project: Optional[str] = None
+    pvs_check_conf_name: Optional[str] = None
+    pvs_check_arch: Optional[str] = None
+    disabled: Optional[bool] = None
+    disable_jira: Optional[bool] = None
+    last_processed_changeset: Optional[str] = None
+    release_version: Optional[str] = None
 
 
 class QualityGateCreate(BaseModel):
@@ -405,15 +429,12 @@ async def create_project_api(
         if existing:
             raise HTTPException(status_code=400, detail="Project name already exists")
         
-        project = Project(
-            name=body.name,
-            language=body.language,
-            description=body.description,
-            source_root_win=body.source_root_win,
-            source_root_linux=body.source_root_linux,
-            source_root_macos=body.source_root_macos,
-            quality_gate_id=body.quality_gate_id,
-        )
+        from pvs_tracker.project_ci import slug_from_name
+
+        payload = body.model_dump(exclude_unset=True)
+        if not payload.get("slug"):
+            payload["slug"] = slug_from_name(body.name)
+        project = Project(**payload)
         db_session.add(project)
         db_session.commit()
         db_session.refresh(project)
@@ -484,26 +505,13 @@ async def update_project_api(
         
         if not can_modify_project(user, project_id):
             raise HTTPException(status_code=403, detail="Access denied")
-        
-        if body.name is not None:
-            project.name = body.name
-        if body.language is not None:
-            project.language = body.language
-        if body.description is not None:
-            project.description = body.description
-        if body.source_root_win is not None:
-            project.source_root_win = body.source_root_win if body.source_root_win else None
-        if body.source_root_linux is not None:
-            project.source_root_linux = body.source_root_linux if body.source_root_linux else None
-        if body.source_root_macos is not None:
-            project.source_root_macos = body.source_root_macos if body.source_root_macos else None
-        if body.git_url is not None:
-            project.git_url = body.git_url if body.git_url else None
-        if body.git_branch is not None:
-            project.git_branch = body.git_branch
-        if body.quality_gate_id is not None:
-            project.quality_gate_id = body.quality_gate_id
-        
+
+        empty_to_none = ("source_root_win", "source_root_linux", "source_root_macos", "git_url")
+        for key, value in body.model_dump(exclude_unset=True).items():
+            if key in empty_to_none and value == "":
+                value = None
+            setattr(project, key, value)
+
         db_session.add(project)
         db_session.commit()
         

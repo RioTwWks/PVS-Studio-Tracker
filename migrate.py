@@ -24,15 +24,19 @@ from pvs_tracker.db import engine
 from pvs_tracker.models import User, UserRole
 from pvs_tracker.security import hash_password
 from pvs_tracker.quality_gate import create_default_quality_gate
+from pvs_tracker.db_migrate_ci import apply_ci_schema_migration
 
 
 def run_migration():
     """Run the database migration."""
     print("Starting database migration...")
 
-    # Create all new tables
-    print("Creating new tables...")
+    # Create all new tables and CI columns
+    print("Creating new tables and CI columns...")
     SQLModel.metadata.create_all(engine)
+    ci_result = apply_ci_schema_migration()
+    if ci_result["project_columns"] or ci_result["issue_columns"]:
+        print(f"  CI columns added: {ci_result}")
 
     with Session(engine) as session:
         # Initialize default quality gate

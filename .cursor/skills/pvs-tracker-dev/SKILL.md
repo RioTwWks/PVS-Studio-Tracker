@@ -65,9 +65,26 @@ In `incremental.classify_and_store`:
 
 ## Webhooks
 
-- `WEBHOOK_URL` / `WEBHOOK_SECRET`
+- `WEBHOOK_URL` / `WEBHOOK_SECRET` — outbound after upload / QG
 - Events: `report_uploaded`, `quality_gate_evaluated`
 - `httpx` async in `webhooks.py`
+
+## CI / SAST (монолит)
+
+| Module | Role |
+|--------|------|
+| `inbound_webhooks.py` | `POST /webhook/inbound` (TFS/Git) |
+| `jenkins_service.py` | Trigger job, `SONAR_*` param aliases |
+| `project_ci.py` | `parse_sonar_form_fields`, create/update project |
+| `project_manage.py` | UI routes, HTMX CI panel, `#ci-toast-payload` |
+| `jira_sync.py` | Issues after upload |
+
+UI: `home.html` (colored cards), `projects/_form_fields.html`, `dashboard/_ci_*.html`.  
+Toast: `showToast` in `app.js` — **no** bootstrap class `toast` (hidden without `.show`).  
+Inline Code (Issues): `issue_row.html` + `toggleInlineCode` / `closeInlineCodeRow` in `app.js`.  
+Tests: `tests/test_ci_integration.py`.
+
+See [docs/jenkins-ci.md](../../docs/jenkins-ci.md).
 
 ## Quality gates
 

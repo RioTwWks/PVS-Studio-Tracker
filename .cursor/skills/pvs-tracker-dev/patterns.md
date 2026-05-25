@@ -39,8 +39,19 @@ Return JSON only under `/api/*`.
 ## HTMX
 
 - Target `#issues-table-full` for filter form
+- CI panel: `#project-ci-panel`, `innerHTML` swap; toast via hidden `#ci-toast-payload` in response
 - Thread all filter query params through sort + pagination URLs
 - Partials: no `base.html`
+- `project_manage` templates must pass `current_user` in context (`_template_ctx`)
+
+## Toast (CI toggles)
+
+- Use `sq-toast` only — Bootstrap `.toast:not(.show) { display: none }`
+- After CI POST: parse `xhr.responseText` for `#ci-toast-payload` or `HX-Trigger` JSON
+
+## Inline code (Issues)
+
+- `toggleInlineCode` in `app.js`; row class `is-open`; close animation `sq-codeHide`
 
 ## Testing
 

@@ -50,9 +50,17 @@ PVS-Studio-Tracker/
 │   ├── notifications.py     # SMTP после POST /api/v1/upload
 │   ├── warnings_catalog.py  # sync каталога PVS с api v2
 │   ├── webhooks.py
+│   ├── inbound_webhooks.py    # POST /webhook/inbound
+│   ├── jenkins_service.py
+│   ├── jira_service.py, jira_sync.py
+│   ├── repository_service.py
+│   ├── project_ci.py, project_manage.py, project_form_context.py
+│   ├── project_groups.py, ci_config.py, admin_utils.py
 │   ├── git_integration.py
 │   ├── artifact_storage.py
 │   └── templates/
+│       ├── home.html
+│       ├── projects/project_form.html, projects/_form_fields.html
 │       ├── dashboard.html
 │       ├── dashboard/_overview_tab.html
 │       ├── dashboard/_issues_tab.html
@@ -60,8 +68,9 @@ PVS-Studio-Tracker/
 │       ├── dashboard/_trends_tab.html
 │       ├── dashboard/_trends_content.html   # fragment для OS switcher
 │       ├── dashboard/_platform_switcher.html
+│       ├── dashboard/_ci_tab.html, dashboard/_ci_panel.html, dashboard/_ci_actions.html
 │       ├── dashboard/_upload_tab.html
-│       ├── dashboard/_settings_tab.html
+│       ├── dashboard/_settings_tab.html, dashboard/_settings_params_panel.html
 │       ├── dashboard/_scripts.html
 │       ├── profile_settings.html
 │       ├── quality_gates_settings.html
@@ -86,7 +95,7 @@ PVS-Studio-Tracker/
 
 См. `pvs_tracker/models.py`. Кратко:
 
-- **Project** — `name`, `language`, `source_root_*` (win/linux/macos), `git_*`, `quality_gate_id`, …
+- **Project** — `name`, `slug` (Sonar Project Key), `group_name`, CI-поля (`repo_path`, `cvs_system`, `analysis_branch`, `disable_jira`, `disabled`, Jenkins/Jira metadata, PVS/CMake поля), `source_root_*`, `quality_gate_id`, …
 - **Run** — `project_id`, `commit`, `branch`, `target_platform` (`windows|linux|macos`), `status`, метрики …
 - **Issue** — `fingerprint`, `cross_platform_fp`, `file_path`, `line`, `rule_code`, `status` (`new|existing|fixed|ignored`), …
 - **QualityGate** + **QualityGateRule** — scope оценки: набор `rule_code`; fail при `new` в scope
@@ -155,6 +164,17 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 | GET | `/ui/issues` | HTML / partial | — |
 | POST | `/ui/upload` | 303 | session `require_auth` |
 | POST | `/ui/projects` | redirect | session |
+| GET | `/ui/projects/new` | HTML форма CI | session |
+| POST | `/ui/projects/create` | 303 → dashboard `?tab=ci` | session |
+| GET | `/ui/projects/{id}/clone` | HTML форма клона | session |
+| POST | `/ui/projects/{id}/ci` | 303 → `?tab=settings&settings_tab=params` | session |
+| POST | `/ui/projects/{id}/toggle-disabled` | HTML fragment `#project-ci-panel` + toast | session |
+| POST | `/ui/projects/{id}/toggle-jira` | HTML fragment + toast | session |
+| POST | `/ui/projects/{id}/trigger-analysis` | HTML fragment + toast | admin |
+| POST | `/ui/projects/{id}/delete` | 303 → `/` | admin |
+| GET | `/ui/projects/manage` | 303 → `/` | — |
+| POST | `/webhook/inbound` | JSON | Basic auth |
+| POST | `/api/v1/projects/{slug}/analysis-callback` | JSON | — |
 | GET | `/ui/settings/profile` | HTML | session |
 | GET | `/ui/settings/quality-gates` | HTML | session admin |
 | GET | `/ui/settings/global` | HTML | session admin |
@@ -195,6 +215,8 @@ JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`,
 | `SECRET_KEY` | `main.py` (sessions) |
 | `JWT_SECRET_KEY` | `auth_service.py` |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | `webhooks.py` |
+| `WEBHOOK_USERNAME`, `WEBHOOK_PASSWORD` | `inbound_webhooks.py` |
+| `JENKINS_*`, `JIRA_*` | `jenkins_service.py`, `jira_service.py` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_CACHE_DIR`, `SNAPSHOTS_DIR`, … | `git_integration.py` |
 

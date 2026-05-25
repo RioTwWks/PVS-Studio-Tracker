@@ -38,6 +38,15 @@
             </p>
             {% endif %}
         </div>
+        {% if is_admin %}
+        <div class="sq-project-header-right">
+            <form id="delete-project-form" action="/ui/projects/{{ project.id }}/delete" method="post" class="m-0">
+                <button type="button" class="sq-btn sq-btn-danger" onclick="confirmDeleteProject()">
+                    <i class="bi bi-trash"></i> <span data-i18n="delete_project">Delete Project</span>
+                </button>
+            </form>
+        </div>
+        {% endif %}
     </div>
 
     {# SonarQube-style Project Navigation Tabs #}
@@ -76,6 +85,12 @@
                 </button>
             </li>
             <li class="sq-project-tab">
+                <button class="sq-project-tab-btn" data-tab="ci" onclick="switchProjectTab('ci')">
+                    <i class="bi bi-gear-wide-connected"></i>
+                    <span data-i18n="tab_ci">Analysis / CI</span>
+                </button>
+            </li>
+            <li class="sq-project-tab">
                 <button class="sq-project-tab-btn" data-tab="upload" onclick="switchProjectTab('upload')">
                     <i class="bi bi-cloud-arrow-up"></i>
                     <span data-i18n="tab_upload">Upload</span>
@@ -94,9 +109,11 @@
     {% include "dashboard/_issues_tab.html" %}
     {% include "dashboard/_code_tab.html" %}
     {% include "dashboard/_trends_tab.html" %}
+    {% include "dashboard/_ci_tab.html" %}
     {% include "dashboard/_upload_tab.html" %}
     {% include "dashboard/_settings_tab.html" %}
 </div>
+<script src="/static/project-form.js" defer></script>
 
 {% include "dashboard/_scripts.html" %}
 

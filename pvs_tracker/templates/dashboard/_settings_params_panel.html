@@ -1,0 +1,13 @@
+{% if flash_message %}
+<div class="sq-alert {% if flash_is_error %}sq-alert-danger{% else %}sq-alert-success{% endif %} mb-3 py-2">{{ flash_message }}</div>
+{% endif %}
+<form method="post" action="/ui/projects/{{ project.id }}/ci" class="project-ci-form">
+    {% set group_choices = [(1,'QA'),(2,'QD'),(3,'QF'),(4,'QG'),(5,'QS'),(6,'QW'),(7,'Other_Projects')] %}
+    {% set edit_id = project.id %}
+    {% set edit_proj = 'true' %}
+    {% set clone_proj = 'false' %}
+    {% include "projects/_form_fields.html" %}
+    <button type="submit" class="sq-btn sq-btn-primary mt-3">
+        <i class="bi bi-check-lg"></i> <span data-i18n="save_project_params">Save parameters</span>
+    </button>
+</form>

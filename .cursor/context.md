@@ -15,11 +15,16 @@ SonarQube не закрывает инкрементальные отчёты PV
 ```mermaid
 graph TD
   Browser[Browser] -->|POST /ui/upload| Main[main.py FastAPI]
-  CI[CI/CD] -->|POST /api/v1/upload| Main
+  TFS[TFS/Git] -->|POST /webhook/inbound| Inbound[inbound_webhooks.py]
+  Inbound --> Jenkins[jenkins_service.py]
+  Jenkins -->|build| CI[CI pipeline]
+  CI -->|POST /api/v1/upload| Main
   Scripts[Scripts] -->|POST /api/v2/* JWT| API[api.py]
+  Manage[project_manage.py] --> CIProj[project_ci.py]
   Main --> Parser[parser.py]
   Main --> Diff[incremental.py]
   Main --> QG[quality_gate.py]
+  Main --> Jira[jira_sync.py]
   API --> AuthSvc[auth_service.py]
   Parser --> Diff
   Diff --> DB[(SQLite/Postgres)]
@@ -31,6 +36,7 @@ graph TD
   CodeViewer --> Files[file_resolver.py]
   DB --> UI[Jinja2 + HTMX]
   UI --> Chart[Chart.js in _trends_tab]
+  UI --> AppJS[app.js toast i18n]
 ```
 
 ## Ключевые решения
@@ -52,13 +58,34 @@ graph TD
 
 ## Frontend
 
-- **Вкладки дашборда:** Overview, Issues, Code, Trends, Upload, Settings (`dashboard/_*.html`).
-- **Платформы:** `_platform_switcher.html`, фрагмент `_trends_content.html`.
-- **Настройки:** `/ui/settings/profile`, `/ui/settings/quality-gates` (admin), `/ui/settings/global` (admin).
+### Главная и проекты
+
+- **`/`** (`home.html`) — `<details>` по группам; цвет карточки: красный `disabled`, горчичный `disable_jira`, синий иначе (как PVS_Sonar list).
+- **`/ui/projects/new`** — форма Sonar-полей (`projects/_form_fields.html`, `static/project-form.js`).
+- **`/ui/projects/manage`** — редирект 303 на `/`.
+
+### Дашборд (`/ui/projects/{id}/dashboard`)
+
+| Вкладка | Шаблон | Назначение |
+|---------|--------|------------|
+| Overview | `_overview_tab.html` | KPI, quality gate strip |
+| Issues | `_issues_tab.html` | HTMX-таблица; inline Code в `issue_row.html` |
+| Code | `_code_tab.html` | дерево файлов |
+| Trends | `_trends_tab.html` | Chart.js |
+| Analysis / CI | `_ci_tab.html`, `_ci_panel.html` | Jenkins/Jira toggles; toast через `#ci-toast-payload` + `app.js` |
+| Upload | `_upload_tab.html` | JSON + snapshot |
+| Settings | `_settings_tab.html` | подвкладки: params (`_settings_params_panel.html`), source roots, quality gate |
+
+- Удаление проекта: кнопка в `dashboard.html` (header, admin).
+- Query: `?tab=`, `?settings_tab=params|sources|quality`, `?branch=`, `?platform_filter=`.
+
+### Прочий UI
+
+- **Платформы:** `_platform_switcher.html`, `_trends_content.html`.
+- **Глобальные настройки:** `/ui/settings/profile`, `/ui/settings/quality-gates`, `/ui/settings/global`.
 - **i18n:** `static/translations.json` + `app.js` (`data-i18n`).
-- **Тема:** dark blue, `ThemeManager` в `app.js`.
-- **Chart:** `createTrendChart` в `_scripts.html` / trends tab; не перезагружать при фильтрации issues.
-- **HTMX:** `code_view.html` и `partials/*` **без** `base.html`.
+- **Toast:** `showToast()` — класс `sq-toast` (не bootstrap `.toast`, иначе `display:none`).
+- **HTMX:** `partials/*`, `code_view.html` **без** `base.html`; CI panel `#project-ci-panel`.
 
 ## Auth (фактическое состояние)
 
@@ -86,8 +113,8 @@ graph TD
 
 ## Границы
 
-- ✅ Upload, diff (per platform), UI, API v2, profile/email, code viewer, webhooks, quality gates (rules), CSV export
-- ❌ Сам анализ PVS, Docker/K8s, полноценный LDAP в UI (пока), diff по branch (TODO)
+- ✅ Upload, diff (per platform), UI, API v2, CI/Jira/Jenkins, монолит project_manage, code viewer, webhooks, quality gates, CSV export
+- ❌ Сам анализ PVS, Docker/K8s, полноценный LDAP в UI (пока), diff по branch (TODO), отдельный Sonar-сервис (заменён трекером)
 
 ## Для агентов Cursor
 

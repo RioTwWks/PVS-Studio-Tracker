@@ -1,0 +1,67 @@
+<div id="project-row-{{ project.id }}" class="border-bottom p-3">
+    {% if flash_message %}
+    <div class="alert alert-success alert-sm py-1 mb-2">{{ flash_message }}</div>
+    {% endif %}
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <h5 class="mb-1">
+                <a href="/ui/projects/{{ project.id }}/dashboard">{{ project.name }}</a>
+                {% if project.disabled %}
+                <span class="badge bg-secondary">выкл</span>
+                {% endif %}
+                {% if project.disable_jira %}
+                <span class="badge bg-warning text-dark">jira off</span>
+                {% else %}
+                <span class="badge bg-info">jira on</span>
+                {% endif %}
+                {% if project.last_jenkins_build_id %}
+                <span class="badge bg-primary">build #{{ project.last_jenkins_build_id }}</span>
+                {% endif %}
+            </h5>
+            <small class="text-muted">
+                slug={{ project.slug or '—' }} · {{ project.cvs_system or '—' }} ·
+                {{ project.repo_path or '—' }} @ {{ project.analysis_branch or project.git_branch or '—' }}
+            </small>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+            <button type="button" class="sq-btn sq-btn-outline sq-btn-sm"
+                    hx-post="/ui/projects/{{ project.id }}/toggle-disabled"
+                    hx-target="#project-row-{{ project.id }}"
+                    hx-swap="outerHTML">
+                {% if project.disabled %}▶️ Включить{% else %}⏸️ Выключить{% endif %}
+            </button>
+            {% if is_admin %}
+            <button type="button" class="sq-btn sq-btn-primary sq-btn-sm"
+                    hx-post="/ui/projects/{{ project.id }}/trigger-analysis"
+                    hx-target="#project-row-{{ project.id }}"
+                    hx-swap="outerHTML">
+                🚀 Анализ
+            </button>
+            {% endif %}
+            <button type="button" class="sq-btn sq-btn-outline sq-btn-sm"
+                    hx-post="/ui/projects/{{ project.id }}/toggle-jira"
+                    hx-target="#project-row-{{ project.id }}"
+                    hx-swap="outerHTML">
+                {% if project.disable_jira %}Jira ▶{% else %}Jira ⏸{% endif %}
+            </button>
+            <a href="/ui/projects/{{ project.id }}/edit" class="sq-btn sq-btn-outline sq-btn-sm">✏️</a>
+            <form action="/ui/projects/{{ project.id }}/clone" method="post" class="d-inline">
+                <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm">📋</button>
+            </form>
+            {% if is_admin %}
+            <form action="/ui/projects/{{ project.id }}/ci-delete" method="post" class="d-inline"
+                  onsubmit="return confirm('Удалить проект?');">
+                <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm text-danger">🗑️</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="mt-2 small">
+        <span>Email: {{ project.author_email or '—' }}</span> ·
+        <span>Jira: {{ project.jira_project or '—' }}</span> ·
+        <span>PVS: {{ project.pvs_check_conf_name or '—' }} / {{ project.pvs_check_arch or '—' }}</span>
+        {% if project.last_analysis_at %}
+        · <span>Последний запуск: {{ project.last_analysis_at }}</span>
+        {% endif %}
+    </div>
+</div>

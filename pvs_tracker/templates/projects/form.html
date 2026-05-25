@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{% if edit_mode %}Редактировать{% else %}Новый{% endif %} проект CI{% endblock %}
+{% block content %}
+<div class="sq-card">
+    <div class="sq-card-header">
+        {% if edit_mode %}Редактирование: {{ project.name }}{% else %}Новый CI-проект{% endif %}
+    </div>
+    <div class="sq-card-body">
+        <form action="/ui/projects/ci" method="post">
+            {% if edit_mode %}<input type="hidden" name="edit_id" value="{{ project.id }}">{% endif %}
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="sq-form-label">Имя проекта (upload name)</label>
+                    <input class="sq-input" name="name" required
+                           value="{{ project.name if project else '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="sq-form-label">Slug (Jenkins key)</label>
+                    <input class="sq-input" name="slug"
+                           value="{{ project.slug if project else '' }}"
+                           placeholder="auto from name">
+                </div>
+                <div class="col-md-6">
+                    <label class="sq-form-label">Author email</label>
+                    <input class="sq-input" type="email" name="author_email" required
+                           value="{{ project.author_email if project else '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="sq-form-label">Группа</label>
+                    <input class="sq-input" name="group_name"
+                           value="{{ project.group_name if project else 'Ungrouped' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="sq-form-label">CVS</label>
+                    <select class="sq-select" name="cvs_system" required>
+                        <option value="Git" {% if project and project.cvs_system == 'Git' %}selected{% endif %}>Git</option>
+                        <option value="TFVC" {% if project and project.cvs_system == 'TFVC' %}selected{% endif %}>TFVC</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="sq-form-label">Repo path / Git URL</label>
+                    <input class="sq-input" name="repo_path" required
+                           value="{{ project.repo_path if project else '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="sq-form-label">Ветка анализа</label>
+                    <input class="sq-input" name="analysis_branch"
+                           value="{{ project.analysis_branch if project else '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="sq-form-label">Jira project key</label>
+                    <input class="sq-input" name="jira_project"
+                           value="{{ project.jira_project if project else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="sq-form-label">PVS config</label>
+                    <input class="sq-input" name="pvs_check_conf_name" required
+                           value="{{ project.pvs_check_conf_name if project else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="sq-form-label">PVS arch</label>
+                    <input class="sq-input" name="pvs_check_arch" required
+                           value="{{ project.pvs_check_arch if project else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="sq-form-label">Language</label>
+                    <input class="sq-input" name="language"
+                           value="{{ project.language if project else 'c++' }}">
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="sq-btn sq-btn-primary">Сохранить</button>
+                <a href="/ui/projects/manage" class="sq-btn sq-btn-outline">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

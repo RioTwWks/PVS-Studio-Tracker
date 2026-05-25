@@ -63,7 +63,7 @@
 </tr>
 
 {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
-<tr class="sq-inline-code-row" id="code-row-{{ issue.id }}" style="display:none;">
+<tr class="sq-inline-code-row" id="code-row-{{ issue.id }}">
     <td colspan="{% if show_platform_badge %}10{% else %}9{% endif %}" class="sq-inline-code-cell">
         <div class="sq-inline-code-wrapper">
             <div class="sq-inline-code-header">

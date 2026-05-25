@@ -32,7 +32,7 @@ from pvs_tracker.artifact_storage import store_code_snapshot, store_run_report
 from pvs_tracker.upload_metadata import merge_commit_upload_fields, parse_commit_metadata_bytes
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.classifier_parser import parse_classifier_csv
-from pvs_tracker.db import engine
+from pvs_tracker.db import engine, get_session
 import pvs_tracker.code_viewer as code_viewer_module
 from pvs_tracker.code_viewer import merge_code_snapshot, router as code_viewer_router
 from pvs_tracker.api import router as api_v2_router
@@ -42,6 +42,11 @@ from pvs_tracker.security import hash_password
 # ---------------------------------------------------------------------------
 # App & DB
 # ---------------------------------------------------------------------------
+
+import logging as _logging
+
+_logging.getLogger("spnego").setLevel(_logging.WARNING)
+_logging.getLogger("spnego._gss").setLevel(_logging.WARNING)
 
 app = FastAPI(title="PVS-Studio Tracker")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "dev-change-me"))
@@ -89,6 +94,9 @@ def _migrate_database() -> None:
     """Apply schema migrations for existing databases."""
     # Create all tables (safe if they already exist)
     SQLModel.metadata.create_all(engine)
+    from pvs_tracker.db_migrate_ci import apply_ci_schema_migration
+
+    apply_ci_schema_migration()
 
     with Session(engine) as session:
         # Check if migration is needed
@@ -274,19 +282,20 @@ app.include_router(code_viewer_router)
 # Register API v2 router (SonarQube-like features)
 app.include_router(api_v2_router)
 
+from pvs_tracker.inbound_webhooks import router as inbound_webhooks_router
+from pvs_tracker.project_manage import router as project_manage_router
+
+app.include_router(inbound_webhooks_router)
+app.include_router(project_manage_router)
+
 # Static files
 STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
 if os.path.isdir(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ---------------------------------------------------------------------------
-# Dependencies
+# Dependencies — get_session from pvs_tracker.db
 # ---------------------------------------------------------------------------
-
-
-def get_session():
-    with Session(engine) as session:
-        yield session
 
 
 def get_current_user(request: Request) -> str | None:
@@ -346,11 +355,16 @@ async def logout(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, session: Session = Depends(get_session)):
-    projects = session.exec(select(Project).order_by(Project.name)).all()
+    from pvs_tracker.project_ci import list_ci_projects_grouped
+
+    projects_by_group = list_ci_projects_grouped(session)
     return templates.TemplateResponse(
         request,
         "home.html",
-        {"current_user": get_current_user(request), "projects": projects},
+        {
+            "current_user": get_current_user(request),
+            "projects_by_group": projects_by_group,
+        },
     )
 
 
@@ -374,13 +388,14 @@ async def create_project_ui(
     platform = normalize_target_platform(target_platform)
     name = project_name.strip()
     if not name:
-        projects = session.exec(select(Project).order_by(Project.name)).all()
+        from pvs_tracker.project_ci import list_ci_projects_grouped
+
         return templates.TemplateResponse(
             request,
             "home.html",
             {
                 "current_user": get_current_user(request),
-                "projects": projects,
+                "projects_by_group": list_ci_projects_grouped(session),
                 "error": "Project name is required",
             },
             status_code=400,
@@ -441,6 +456,9 @@ async def ui_dashboard(
     branch: str = "",
     platform_filter: str = "windows",
     upload_error: str = "",
+    tab: str = "",
+    settings_tab: str = "",
+    ci_error: str = "",
     session: Session = Depends(get_session),
 ):
     project = session.get(Project, project_id)
@@ -498,6 +516,20 @@ async def ui_dashboard(
 
     quality_gates = session.exec(select(QualityGate).order_by(QualityGate.name)).all()
 
+    from pvs_tracker.admin_utils import is_admin
+    from pvs_tracker.project_form_context import project_form_context
+    from pvs_tracker.project_groups import GROUP_CHOICES
+
+    form_ctx = project_form_context(project, edit=True, edit_id=project.id, load_jira=False)
+    form_ctx["group_choices"] = GROUP_CHOICES
+    form_ctx["is_admin"] = is_admin(request)
+    sub = (settings_tab or "params").strip().lower()
+    if sub not in ("params", "sources", "quality"):
+        sub = "params"
+    err = ci_error.strip()
+    form_ctx["flash_message"] = err or None
+    form_ctx["flash_is_error"] = bool(err)
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -512,6 +544,9 @@ async def ui_dashboard(
             "qg_result": qg_result,
             "quality_gates": quality_gates,
             "upload_error": upload_error.strip() or None,
+            "initial_tab": tab.strip() or "overview",
+            "initial_settings_subtab": sub,
+            **form_ctx,
         },
     )
 
@@ -868,7 +903,12 @@ async def upload_report_ui(
         session.commit()
 
         import asyncio
+        from pvs_tracker.jira_sync import schedule_jira_sync
+        from pvs_tracker.webhooks import trigger_upload_webhook
+
         asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
+        schedule_jira_sync(project.id, run.id)
+        asyncio.create_task(trigger_upload_webhook(session, project.id, run.id, len(issues)))
 
         return RedirectResponse(
             url=f"/ui/projects/{project.id}/dashboard?platform_filter={platform}",
@@ -1085,6 +1125,11 @@ async def upload_report_api(
         asyncio.create_task(
             schedule_api_upload_notifications(project.id, run.id, qg_result)
         )
+        from pvs_tracker.jira_sync import schedule_jira_sync
+        from pvs_tracker.webhooks import trigger_upload_webhook
+
+        schedule_jira_sync(project.id, run.id)
+        asyncio.create_task(trigger_upload_webhook(session, project.id, run.id, len(issues)))
 
         return {
             "status": "success",
@@ -1101,6 +1146,31 @@ async def upload_report_api(
             run.status = "failed"
             session.commit()
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/v1/projects/{slug}/analysis-callback")
+def analysis_callback(
+    slug: str,
+    commit: str = Form(""),
+    version: str = Form(""),
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
+    """Jenkins callback: update last processed changeset / release version."""
+    from pvs_tracker.project_ci import get_project_by_slug
+
+    project = get_project_by_slug(session, slug)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if commit.strip():
+        project.last_processed_changeset = commit.strip()
+    if version.strip():
+        project.release_version = version.strip()
+    from datetime import datetime
+
+    project.last_analysis_at = datetime.utcnow()
+    session.add(project)
+    session.commit()
+    return {"status": "ok", "project": project.name, "slug": slug}
 
 
 @app.get("/api/v1/projects/{project_id}/dashboard")

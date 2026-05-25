@@ -137,3 +137,20 @@ async def trigger_quality_gate_webhook(
 
     payload = build_quality_gate_payload(project, run, quality_gate_result)
     return await send_webhook(WEBHOOK_URL, payload, WEBHOOK_SECRET)
+
+
+async def trigger_upload_webhook(
+    session: Session,
+    project_id: int,
+    run_id: int,
+    issue_count: int,
+) -> bool:
+    """Trigger outbound webhook after report upload."""
+    if not WEBHOOK_URL:
+        return False
+    project = session.get(Project, project_id)
+    run = session.get(Run, run_id)
+    if not project or not run:
+        return False
+    payload = build_upload_payload(project, run, issue_count)
+    return await send_webhook(WEBHOOK_URL, payload, WEBHOOK_SECRET)

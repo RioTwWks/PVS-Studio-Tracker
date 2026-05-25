@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block title %}Список проектов - PVS+Sonar{% endblock %}
+
+{% block extra_css %}
+<style>
+    .container {
+        max-width: 1000px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .page-header {
+        background: var(--card-bg);
+        border-radius: 20px;
+        box-shadow: var(--shadow-lg);
+        padding: 30px;
+        margin-bottom: 30px;
+        text-align: center;
+        animation: slideUp 0.5s ease-out;
+    }
+
+    .page-header h2 {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 20px;
+        /* background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text; */
+    }
+
+    .page-header h2 .emoji {
+        /* Убираем градиент для эмодзи */
+        background: none;
+        -webkit-text-fill-color: initial;
+        background-clip: initial;
+        /* Можно задать свой цвет эмодзи, если нужно */
+        color: inherit; /* или конкретный цвет */
+    }
+
+    .page-header h2 > span:not(.emoji) {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .page-header a {
+        display: inline-block;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        padding: 12px 28px;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-md);
+    }
+
+    .page-header a:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+        text-decoration: none;
+    }
+
+    /* Стили для кнопки сканирования */
+    .page-header button {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        padding: 12px 28px;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-md);
+        margin-left: 10px;
+    }
+
+    .page-header button:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .page-header button:active {
+        transform: translateY(0);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .details {
+        position: relative;
+        display: block;
+        margin-bottom: 20px;
+        background: var(--card-bg);
+        border-radius: 16px;
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        transition: all 0.3s ease;
+        animation: slideUp 0.5s ease-out;
+        animation-fill-mode: both;
+    }
+
+    .details:nth-child(1) { animation-delay: 0.1s; }
+    .details:nth-child(2) { animation-delay: 0.2s; }
+    .details:nth-child(3) { animation-delay: 0.3s; }
+    .details:nth-child(4) { animation-delay: 0.4s; }
+    .details:nth-child(5) { animation-delay: 0.5s; }
+
+    .details:hover {
+        box-shadow: var(--shadow-xl);
+        transform: translateY(-4px);
+    }
+
+    .details::after {
+        position: absolute;
+        right: 30px;
+        top: 20px;
+        content: "";
+        display: block;
+        width: 14px;
+        height: 14px;
+        border-right: 3px solid var(--primary-color);
+        border-bottom: 3px solid var(--primary-color);
+        transform: rotate(-45deg);
+        transform-origin: center;
+        transition: all 0.3s ease;
+    }
+
+    .details[open]::after {
+        transform: rotate(45deg);
+    }
+
+    .details[open] {
+        padding-bottom: 0;
+    }
+
+    .details__title,
+    .dis_details__title,
+    .dis_jira_details__title {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        padding: 20px 30px;
+        font-size: 20px;
+        font-weight: 700;
+        cursor: pointer;
+        list-style: none;
+        transition: all 0.3s ease;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .dis_details__title {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    .details__title:hover,
+    .dis_details__title:hover,
+    .dis_jira_details__title:hover {
+        filter: brightness(1.1);
+        transform: scale(1.01);
+    }
+
+    .details__title::-webkit-details-marker,
+    .dis_details__title::-webkit-details-marker,
+    .dis_jira_details__title::-webkit-details-marker {
+        display: none;
+    }
+
+    .dis_jira_details__title {
+        background: linear-gradient(135deg, #ce9a3a 0%, #c99b1f 100%);
+    }
+
+    .sub_details {
+        position: relative;
+        display: block;
+        margin: 15px;
+        background: rgba(99, 102, 241, 0.05);
+        border-radius: 12px;
+        border: 2px solid rgba(99, 102, 241, 0.1);
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+
+    .sub_details:hover {
+        border-color: rgba(99, 102, 241, 0.3);
+        background: rgba(99, 102, 241, 0.08);
+    }
+
+    .sub_details::after {
+        position: absolute;
+        right: 24px;
+        top: 18px;
+        content: "";
+        display: block;
+        width: 12px;
+        height: 12px;
+        border-right: 3px solid var(--primary-color);
+        border-bottom: 3px solid var(--primary-color);
+        transform: rotate(-45deg);
+        transform-origin: center;
+        transition: all 0.3s ease;
+    }
+
+    .sub_details[open]::after {
+        transform: rotate(45deg);
+    }
+
+    .sub_details[open] {
+        padding-bottom: 0;
+    }
+
+    .details__content {
+        padding: 30px;
+        background: var(--card-bg);
+    }
+
+    .details__content p {
+        margin: 12px 0;
+        font-size: 15px;
+        line-height: 1.8;
+    }
+
+    .details__content p strong {
+        color: var(--text-primary);
+        font-weight: 600;
+        min-width: 180px;
+        display: inline-block;
+    }
+
+    .details__content a {
+        color: var(--primary-color);
+        font-weight: 500;
+    }
+
+    .details__content a:hover {
+        text-decoration: underline;
+    }
+
+    .code-block {
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-family: 'Courier New', monospace;
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 20px;
+        border-radius: 10px;
+        border: 2px solid #334155;
+        overflow-x: auto;
+        max-height: 400px;
+        overflow-y: auto;
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 15px 0;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    [data-theme="light"] .code-block {
+        background: #1e293b;
+        color: #e2e8f0;
+        border-color: #334155;
+    }
+
+    [data-theme="dark"] .code-block {
+        background: #0f172a;
+        color: #cbd5e1;
+        border-color: #1e293b;
+    }
+
+    .code-block::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .code-block::-webkit-scrollbar-track {
+        background: #0f172a;
+        border-radius: 4px;
+    }
+
+    [data-theme="dark"] .code-block::-webkit-scrollbar-track {
+        background: #020617;
+    }
+
+    .code-block::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 4px;
+    }
+
+    .code-block::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+
+    hr {
+        border: none;
+        border-top: 2px solid var(--border-color);
+        margin: 25px 0;
+    }
+
+    h4 {
+        color: var(--text-primary);
+        font-size: 18px;
+        font-weight: 600;
+        margin: 20px 0 15px 0;
+    }
+
+    .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 25px;
+        padding-top: 25px;
+        border-top: 2px solid var(--border-color);
+    }
+
+    button,
+    a.button {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-sm);
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
+    }
+
+    button:hover,
+    a.button:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+        text-decoration: none;
+        color: white;
+        filter: brightness(1.1);
+    }
+
+    button:active,
+    a.button:active {
+        transform: translateY(0);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .delete-button {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    .delete-button:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    }
+
+    .project-badge {
+        float: right;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 8px;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.3s ease;
+    }
+
+    .project-badge:hover {
+        transform: scale(1.05);
+        box-shadow: var(--shadow-md);
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .container {
+            padding: 10px;
+        }
+
+        .page-header {
+            padding: 20px;
+        }
+
+        .page-header h2 {
+            font-size: 24px;
+        }
+
+        .details__content {
+            padding: 20px;
+        }
+
+        .details__content p strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        button,
+        a.button {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2><span class="emoji">📋</span> Список добавленных проектов</h2>
+        <a href="/" target="_blank">➕ Добавить новый проект</a>
+    </div>
+
+    <!-- Flash-сообщения отображаются в base.html -->
+
+    <form action="/" method="POST">
+        {% for group, projects in projects_by_group.items() %}
+        <details class="details" name="group">
+            <summary class="details__title">{{ group }}</summary>
+
+            {% for project in projects %}
+            <details class="sub_details" name="proj">
+                {% if project.disabled %}
+                <summary class="dis_details__title">{{ project.sonar_project_name }}</summary>
+                {% elif project.disable_jira %}
+                <summary class="dis_jira_details__title">{{ project.sonar_project_name }}</summary>
+                {% else %}
+                <summary class="details__title">{{ project.sonar_project_name }}</summary>
+                {% endif %}
+
+                <div class="details__content">
+                    <div class="project-badge">
+                        <a href="http://qube/dashboard?id={{ project.sonar_project_key }}" target="_blank">
+                            <img src="http://qube/api/project_badges/quality_gate?project={{ project.sonar_project_key }}" 
+                                 alt="Quality Gate">
+                        </a>
+                    </div>
+
+                    <p><strong>Author Email:</strong> <a href="mailto:{{ project.author_email }}">{{ project.author_email }}</a></p>
+                    <p><strong>SonarQube Project Name:</strong> {{ project.sonar_project_name }}</p>
+                    <p><strong>SonarQube Project Key:</strong> {{ project.sonar_project_key }}</p>
+                    <p><strong>Проект в Jira:</strong> {{ project.jira_project }}</p>
+                    <p><strong>CVS System:</strong> {{ project.cvs_system }}</p>
+                    <p><strong>TFS Path:</strong> <a href="{% if project.cvs_system == 'Git' %} {{ project.tfs_path }} {% else %} http://qtfs:8080/tfs/QUIK/{{ project.tfs_path.split('/')[1] }}/_versionControl?path={{ project.tfs_path }}/{{ project.another_branch }} {% endif %}" target="_blank">{{ project.tfs_path }}</a></p>
+                    <p><strong>Ветка:</strong> {{ project.another_branch }}</p>
+                    <p><strong>Submodules:</strong> {% if project.sub_modules %} ✅ Yes {% else %} ❌ No {% endif %}</p>
+                    <p><strong>Время жизни проекта:</strong> {{ project.life_time }}</p>
+                    <p><strong>CMake или MSBuild:</strong> {{ project.cmake_msbuild }}</p>
+                    <p><strong>Select 'vcxproj':</strong> {{ project.select_vcxproj }}</p>
+                    <p><strong>PVS exclude 'vcxproj':</strong> {{ project.pvs_exclude_vcxproj }}</p>
+                    <p><strong>PVS exclude path:</strong> {{ project.pvs_exclude_path }}</p>
+                    <p><strong>Конфигурация:</strong> {{ project.pvs_check_conf_name }}</p>
+                    <p><strong>Архитектура:</strong> {{ project.pvs_check_arch }}</p>
+                    <p><strong>Версия проекта:</strong> {{ project.version }}</p>
+
+                    <hr>
+                    {% if project.cmake_win_commands %}
+                    <h4>💻 Команды для конфигурации Windows-версии</h4>
+                    <div class="code-wrapper" style="position:relative; display:block;">
+                        <button class="copy-btn" type="button" aria-label="Copy" title="Copy"
+                                style="position:absolute; right:8px; top:8px; z-index:10;">Copy</button>
+                        <pre class="code-block">{{ project.cmake_win_commands }}</pre>
+                    </div>
+                    <hr>
+                    {% endif %}
+
+                    {% if project.cmake_linux_commands %}
+                    <h4>🐧 Команды для конфигурации Linux-версии</h4>
+                    <div class="code-wrapper" style="position:relative; display:block;">
+                        <button class="copy-btn" type="button" aria-label="Copy" title="Copy"
+                                style="position:absolute; right:8px; top:8px; z-index:10;">Copy</button>
+                        <pre class="code-block">{{ project.cmake_linux_commands }}</pre>
+                    </div>
+
+                    <script>
+                    document.addEventListener('click', async (e) => {
+                    const btn = e.target.closest('.copy-btn');
+                    if (!btn) return;
+                    const wrapper = btn.closest('.code-wrapper');
+                    if (!wrapper) return;
+                    const pre = wrapper.querySelector('pre');
+                    if (!pre) return;
+                    const text = pre.innerText;
+                    try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(text);
+                        } else {
+                        // Отступ
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.style.position = 'fixed';
+                        ta.style.left = '-9999px';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        }
+                        btn.textContent = 'Copied';
+                        setTimeout(() => btn.textContent = 'Copy', 1200);
+                    } catch (err) {
+                        btn.textContent = 'Error';
+                        setTimeout(() => btn.textContent = 'Copy', 1200);
+                    }
+                    });
+                    </script>
+
+                    <hr>
+                    {% endif %}
+
+                    <div class="action-buttons">
+                        <a href="/?clone_id={{ project.id }}" class="button">📋 Клонировать проект</a>
+
+                        {% if project.disabled %}
+                        <button type="submit" formaction="/project/enable/{{ project.id }}" name="enable_project" class="button">▶️ Включить проект</button>
+                        {% else %}
+                        <button type="submit" formaction="/project/disable/{{ project.id }}" name="disable_project" class="button">⏸️ Выключить проект</button>
+                        {% endif %}
+
+                        <a href="/?edit_id={{ project.id }}" class="button">✏️ Редактировать проект</a>
+
+                        <button type="submit" formaction="/project/analyze/{{ project.id }}" name="start_analyze" class="button">🚀 Проанализировать сейчас</button>
+
+                        {% if project.disable_jira %}
+                        <button type="submit" formaction="/project/enable_jira/{{ project.id }}" name="enable_jira" class="button">▶️ Начать создание задач</button>
+                        {% else %}
+                        <button type="submit" formaction="/project/disable_jira/{{ project.id }}" name="disable_jira" class="button">⏸️ Приостановить создание задач</button>
+                        {% endif %}
+
+                        {% if is_admin %}
+                        <button type="submit" formaction="/project/delete/{{ project.id }}" name="delete_project" class="button delete-button" onclick="return confirm('Вы уверены, что хотите удалить этот проект?')">🗑️ Удалить проект</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </details>
+            {% endfor %}
+        </details>
+        {% endfor %}
+    </form>
+</div>
+{% endblock %}

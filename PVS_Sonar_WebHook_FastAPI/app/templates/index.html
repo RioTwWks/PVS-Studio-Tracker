@@ -1,0 +1,613 @@
+{% extends "base.html" %}
+
+{% block title %}{% if clone_proj == 'true' %}Клонировать проект{% elif edit_proj == 'true' %}Редактировать проект{% else %}Добавить новый проект{% endif %} - PVS+Sonar{% endblock %}
+
+{% block extra_css %}
+<style>
+    .container {
+        max-width: 900px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .form-card {
+        background: var(--card-bg);
+        border-radius: 20px;
+        box-shadow: var(--shadow-xl);
+        overflow: hidden;
+        animation: slideUp 0.5s ease-out;
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .form-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+    }
+
+    .form-header h2 {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .form-header-links {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .form-header-links a {
+        color: white;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    }
+
+    .form-header-links a:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        text-decoration: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .form-body {
+        padding: 40px;
+    }
+
+    .form-section {
+        margin-bottom: 30px;
+        padding-bottom: 25px;
+        border-bottom: 2px solid var(--border-color);
+        transition: all 0.3s ease;
+    }
+
+    .form-section:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .form-section:hover {
+        border-color: var(--primary-color);
+    }
+
+    .form-group {
+        margin-bottom: 25px;
+    }
+
+    .form-group:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Стили для обязательных полей */
+    .form-group.required label::after {
+        content: " *";
+        color: #ef4444;
+        font-weight: bold;
+    }
+
+    .form-group.required input:invalid:not(:placeholder-shown),
+    .form-group.required select:invalid,
+    .form-group.required textarea:invalid {
+        border-color: #ef4444;
+    }
+
+    .form-group.required input:valid,
+    .form-group.required select:valid,
+    .form-group.required textarea:valid {
+        border-color: #10b981;
+    }
+
+    .form-hint {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    label small {
+        display: block;
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--text-secondary);
+        font-size: 12px;
+        margin-top: 4px;
+        font-style: italic;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="month"],
+    textarea,
+    select {
+        width: 100%;
+        padding: 14px 16px;
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+        font-size: 15px;
+        font-family: inherit;
+        transition: all 0.3s ease;
+        background: var(--card-bg);
+    }
+
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    input[type="month"]:focus,
+    textarea:focus,
+    select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        background: var(--card-bg);
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        transform: translateY(-2px);
+    }
+
+    [data-theme="dark"] input[type="text"],
+    [data-theme="dark"] input[type="email"],
+    [data-theme="dark"] input[type="month"],
+    [data-theme="dark"] textarea,
+    [data-theme="dark"] select {
+        border-color: var(--border-color);
+        color: var(--text-primary);
+    }
+
+    [data-theme="dark"] input[type="text"]:focus,
+    [data-theme="dark"] input[type="email"]:focus,
+    [data-theme="dark"] input[type="month"]:focus,
+    [data-theme="dark"] textarea:focus,
+    [data-theme="dark"] select:focus {
+        background: #1e293b;
+    }
+
+    textarea {
+        resize: vertical;
+        min-height: 120px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    select {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236366f1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 16px center;
+        padding-right: 40px;
+    }
+
+    input[type="checkbox"] {
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        accent-color: var(--primary-color);
+        transform: scale(1.2);
+    }
+
+    .checkbox-group {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+        width: auto;               /* или оставьте auto + transform */
+        height: 16px;
+        /* Если браузер не меняет размер (Chrome/Edge), используем трансформ */
+        transform: scale(1.5);    /* 75 % от оригинального размера */
+        transform-origin: left top;/* чтобы масштабировать от левого‑верхнего угла */
+    }
+
+    .checkbox-group label {
+        margin-bottom: 0;
+        text-transform: none;
+        letter-spacing: normal;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .submit-section {
+        margin-top: 40px;
+        /* padding-top: 30px;
+        border-top: 2px solid var(--border-color); */
+        text-align: center;
+    }
+
+    input[type="submit"] {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        border: none;
+        padding: 16px 48px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-md);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    input[type="submit"]:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+        background: linear-gradient(135deg, var(--primary-hover) 0%, #7c3aed 100%);
+    }
+
+    input[type="submit"]:active {
+        transform: translateY(0);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .hidden-input {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .container {
+            padding: 10px;
+        }
+
+        .form-body {
+            padding: 25px 20px;
+        }
+
+        .form-header {
+            padding: 20px;
+        }
+
+        .form-header h2 {
+            font-size: 22px;
+        }
+
+        .form-header-links {
+            flex-direction: column;
+        }
+
+        .form-header-links a {
+            width: 100%;
+            text-align: center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <form method="POST" action="/project" class="form-card">
+        <div class="form-header">
+            <h2>
+                {% if clone_proj == 'true' %}📋 Клонировать существующий проект
+                {% elif edit_proj == 'true' %}✏️ Изменить существующий проект
+                {% else %}➕ Добавить новый проект
+                {% endif %}
+            </h2>
+            <div class="form-header-links">
+                <a href="/list" target="_blank">📋 Посмотреть проекты</a>
+                <a target="_blank" href="http://qteam:8888/Автоматизация-статического-анализа-кода-PVS-SonarQube-temp.ashx">📖 Инструкция</a>
+            </div>
+        </div>
+
+        <div class="form-body">
+            {% if edit_proj == 'true' and edit_id %}
+            <input type="hidden" name="edit_id" value="{{ edit_id }}">
+            {% endif %}
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="GROUP_ID">Группа</label>
+                    <select id="GROUP_ID" name="group_id" required>
+                        <option value="1" {% if group_id == 1 %}selected{% endif %}>QA</option>
+                        <option value="2" {% if group_id == 2 %}selected{% endif %}>QD</option>
+                        <option value="3" {% if group_id == 3 %}selected{% endif %}>QF</option>
+                        <option value="4" {% if group_id == 4 %}selected{% endif %}>QG</option>
+                        <option value="5" {% if group_id == 5 %}selected{% endif %}>QS</option>
+                        <option value="6" {% if group_id == 6 %}selected{% endif %}>QW</option>
+                        <option value="7" {% if group_id == 7 %}selected{% endif %}>Other_Projects</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="AUTHOR_EMAIL">Ваш Email</label>
+                    <input type="email" id="AUTHOR_EMAIL" name="author_email" value="{{ author_email }}" placeholder="example@arqa.ru" required pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$">
+                    <small class="form-hint">Введите корректный email адрес (например: user@example.com)</small>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="SONAR_PROJECT_NAME">SonarQube Project Name</label>
+                    <input type="text" id="SONAR_PROJECT_NAME" name="sonar_project_name" value="{{ sonar_project_name }}" placeholder="Название проекта" required pattern="[^\s]+" title="Название не должно содержать пробелов">
+                    <small class="form-hint">Название проекта без пробелов</small>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="SONAR_PROJECT_KEY">
+                        SonarQube Project Key
+                        <small>http://qube/dashboard?id=<b>key</b></small>
+                    </label>
+                    <input type="text" id="SONAR_PROJECT_KEY" name="sonar_project_key" value="{{ sonar_project_key }}" placeholder="project.key" required>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="JIRA_PROJECT">Проект в Jira</label>
+                    <select id="JIRA_PROJECT" name="jira_project">
+                        {% for project in all_jira_projects %}
+                        <option value="{{ project.name }}" {% if jira_project == project.name %}selected{% endif %}>{{ project.name|escape }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <script>
+                const groupSelect = document.getElementById('GROUP');
+                const sonarProjectKeyInput = document.getElementById('SONAR_PROJECT_KEY');
+            
+                const projectKeyMap = {
+                    "QDealer": "qd.",
+                    "QuikFront": "front.",
+                    "QGates": "gates.",
+                    "QuikServer": "quikserver."
+                };
+            
+                groupSelect.addEventListener('change', function() {
+                    const selectedValue = groupSelect.value;
+                    sonarProjectKeyInput.value = projectKeyMap[selectedValue] || '';
+                });
+            </script>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="CVS_SYSTEM"><b>Git</b> или <b>TFVC</b></label>
+                    <select id="CVS_SYSTEM" name="cvs_system" required>
+                        <option value="Git" {% if cvs_system == 'Git' %}selected{% endif %}>Git</option>
+                        <option value="TFVC" {% if cvs_system == 'TFVC' %}selected{% endif %}>TFVC</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="TFS_PATH">Ссылка на TFS репозиторий</label>
+                    <input type="text" id="TFS_PATH" name="tfs_path" value="{{ tfs_path }}" placeholder="https://..." required>
+                    <small class="form-hint">Введите URL репозитория</small>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="ANOTHER_BRANCH">Ветка</label>
+                    <input type="text" id="ANOTHER_BRANCH" name="another_branch" placeholder="master" value="{{ another_branch }}" required>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                        <label for="SUB_MODULES">
+                            Включить sub-модули?
+                            <small><i>для Git-репозиториев</i></small>
+                        </label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="SUB_MODULES" name="sub_modules" value="true" {% if sub_modules %}checked{% endif %}>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="LIFE_TIME">
+                        Время жизни проекта
+                        <small>Например (если браузер не поддерживает календарь): <b>{{ current_date }}</b> (Год-Месяц). Если не требуется, то оставить пустым</small>
+                    </label>
+                    <input type="month" id="LIFE_TIME" name="life_time" value="{{ life_time }}">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="CMAKE_MSBUILD">Сборка CMake или MSBuild?</label>
+                    <select id="CMAKE_MSBUILD" name="cmake_msbuild">
+                        <option value="CMake" {% if cmake_msbuild == 'CMake' %}selected{% endif %}>CMake</option>
+                        <option value="MSBuild" {% if cmake_msbuild == 'MSBuild' %}selected{% endif %}>MSBuild</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="SELECT_VCXPROJ">
+                        Проанализировать конкретный компонент
+                        <small>Например: <b>.\Plugins\SMS\Server\BOSMS.vcxproj</b></small>
+                    </label>
+                    <input type="text" id="SELECT_VCXPROJ" name="select_vcxproj" placeholder="Если не требуется, то оставить пустым" value="{{ select_vcxproj }}">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="PVS_EXCLUDE_VCXPROJ">
+                        PVS exclude 'vcxproj'
+                        <small>Например: <b>INSTR_TEST,ANOTHER_TEST</b></small>
+                    </label>
+                    <input type="text" id="PVS_EXCLUDE_VCXPROJ" name="pvs_exclude_vcxproj" placeholder="Если не требуется, то оставить пустым" value="{{ pvs_exclude_vcxproj }}">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="PVS_EXCLUDE_PATH">
+                        PVS exclude path
+                        <small>Например: <b>External/arqa,External/libs/DL</b></small>
+                    </label>
+                    <input type="text" id="PVS_EXCLUDE_PATH" name="pvs_exclude_path" placeholder="Если не требуется, то оставить пустым" value="{{ pvs_exclude_path }}">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="PVS_CHECK_CONF_NAME">Конфигурация</label>
+                    <input type="text" id="PVS_CHECK_CONF_NAME" name="pvs_check_conf_name" placeholder="Release, Debug, RelWithDebInfo" value="{{ pvs_check_conf_name }}" required>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group required">
+                    <label for="PVS_CHECK_ARCH">Архитектура</label>
+                    <input type="text" id="PVS_CHECK_ARCH" name="pvs_check_arch" placeholder="Win32, x64" value="{{ pvs_check_arch }}" required>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="cmake_win_commands">Команды для конфигурации Windows-версии</label>
+                    <textarea id="cmake_win_commands" name="cmake_win_commands" rows="12" placeholder="Введите команды для Windows...">{{ cmake_win_commands }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="cmake_linux_commands">Команды для конфигурации Linux-версии</label>
+                    <textarea id="cmake_linux_commands" name="cmake_linux_commands" rows="12" placeholder="Оставить пустым, если нет Linux-версии">{{ cmake_linux_commands }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                        <label for="DISABLE_PROJECT">Временно отключить проверку проекта</label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="DISABLE_PROJECT" name="disabled" value="true" {% if disabled %}checked{% endif %}>
+                    </div>
+                </div>
+            </div>
+
+            <div class="submit-section">
+                <input type="submit" id="submitBtn" class="button" value="{% if edit_proj == 'true' %}Сохранить изменения{% else %}Отправить{% endif %}">
+            </div>
+
+            <input type="hidden" name="disable_jira" value="{{ disable_jira|lower }}">
+
+        </div>
+    </form>
+</div>
+
+<script>
+    // Валидация формы перед отправкой
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const requiredFields = this.querySelectorAll('[required]');
+        let isValid = true;
+        let firstInvalidField = null;
+        let errorMessage = '';
+
+        requiredFields.forEach(field => {
+            if (!field.value || field.value.trim() === '') {
+                isValid = false;
+                if (!firstInvalidField) {
+                    firstInvalidField = field;
+                    errorMessage = 'Пожалуйста, заполните все обязательные поля';
+                }
+            }
+            
+            // Специфичная валидация для Email
+            if (field.name === 'author_email' && field.value) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(field.value)) {
+                    isValid = false;
+                    if (!firstInvalidField) {
+                        firstInvalidField = field;
+                        errorMessage = 'Введите корректный email адрес (например: user@example.com)';
+                    }
+                }
+            }
+            
+            // Специфичная валидация для SonarQube Project Name
+            if (field.name === 'sonar_project_name' && field.value) {
+                if (/\s/.test(field.value)) {
+                    isValid = false;
+                    if (!firstInvalidField) {
+                        firstInvalidField = field;
+                        errorMessage = 'Название проекта не должно содержать пробелов';
+                    }
+                }
+            }
+        });
+
+        if (!isValid) {
+            e.preventDefault();
+            alert('⚠️ ' + errorMessage);
+            firstInvalidField.focus();
+        }
+    });
+
+    // Подсветка полей при вводе
+    document.querySelectorAll('[required]').forEach(field => {
+        field.addEventListener('input', function() {
+            // Валидация Email
+            if (this.name === 'author_email') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (this.value && !emailRegex.test(this.value)) {
+                    this.style.borderColor = '#ef4444'; // red
+                } else if (this.value) {
+                    this.style.borderColor = '#10b981'; // green
+                } else {
+                    this.style.borderColor = '';
+                }
+            }
+            // Валидация SonarQube Project Name
+            else if (this.name === 'sonar_project_name') {
+                if (this.value && /\s/.test(this.value)) {
+                    this.style.borderColor = '#ef4444'; // red
+                    this.setCustomValidity('Название не должно содержать пробелов');
+                } else {
+                    this.style.borderColor = '#10b981'; // green
+                    this.setCustomValidity('');
+                }
+            }
+            // Остальные поля
+            else {
+                if (this.value && this.value.trim() !== '') {
+                    this.style.borderColor = '#10b981'; // green
+                } else {
+                    this.style.borderColor = '#ef4444'; // red
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

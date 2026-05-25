@@ -1,0 +1,151 @@
+{# Поля формы проекта — те же имена и правила, что PVS_Sonar_WebHook_FastAPI #}
+{% if edit_id %}
+<input type="hidden" name="edit_id" value="{{ edit_id }}">
+{% endif %}
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <label class="sq-form-label" for="GROUP_ID">Группа *</label>
+        <select id="GROUP_ID" name="group_id" class="sq-select" required>
+            {% for gid, gname in group_choices %}
+            <option value="{{ gid }}" {% if group_id == gid %}selected{% endif %}>{{ gname }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-8">
+        <label class="sq-form-label" for="AUTHOR_EMAIL">Ваш Email *</label>
+        <input type="email" id="AUTHOR_EMAIL" name="author_email" class="sq-input" required
+               value="{{ author_email }}" placeholder="user@example.com"
+               pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$">
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6">
+        <label class="sq-form-label" for="SONAR_PROJECT_NAME">SonarQube Project Name *</label>
+        <input type="text" id="SONAR_PROJECT_NAME" name="sonar_project_name" class="sq-input" required
+               value="{{ sonar_project_name }}" pattern="[^\s]+" title="Без пробелов">
+        <small class="text-muted">Имя для upload и дашборда (без пробелов)</small>
+    </div>
+    <div class="col-md-6">
+        <label class="sq-form-label" for="SONAR_PROJECT_KEY">SonarQube Project Key *</label>
+        <input type="text" id="SONAR_PROJECT_KEY" name="sonar_project_key" class="sq-input" required
+               value="{{ sonar_project_key }}" placeholder="qd.myproject">
+        <small class="text-muted">Ключ Jenkins / CI (префикс зависит от группы)</small>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6">
+        <label class="sq-form-label" for="JIRA_PROJECT">Проект в Jira</label>
+        {% if all_jira_projects %}
+        <select id="JIRA_PROJECT" name="jira_project" class="sq-select">
+            <option value="">—</option>
+            {% for jp in all_jira_projects %}
+            <option value="{{ jp.name }}" {% if jira_project == jp.name %}selected{% endif %}>{{ jp.name }}</option>
+            {% endfor %}
+        </select>
+        {% else %}
+        <input type="text" id="JIRA_PROJECT" name="jira_project" class="sq-input" value="{{ jira_project }}">
+        {% endif %}
+    </div>
+    <div class="col-md-3">
+        <label class="sq-form-label" for="CVS_SYSTEM">Git / TFVC *</label>
+        <select id="CVS_SYSTEM" name="cvs_system" class="sq-select" required>
+            <option value="Git" {% if cvs_system == 'Git' %}selected{% endif %}>Git</option>
+            <option value="TFVC" {% if cvs_system == 'TFVC' %}selected{% endif %}>TFVC</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="sq-form-label" for="CMAKE_MSBUILD">CMake / MSBuild</label>
+        <select id="CMAKE_MSBUILD" name="cmake_msbuild" class="sq-select">
+            <option value="CMake" {% if cmake_msbuild == 'CMake' %}selected{% endif %}>CMake</option>
+            <option value="MSBuild" {% if cmake_msbuild == 'MSBuild' %}selected{% endif %}>MSBuild</option>
+        </select>
+    </div>
+</div>
+
+<div class="sq-form-group mt-2">
+    <label class="sq-form-label" for="TFS_PATH">Ссылка на TFS / Git репозиторий *</label>
+    <input type="text" id="TFS_PATH" name="tfs_path" class="sq-input" required
+           value="{{ tfs_path }}" placeholder="https://... или $/path">
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label class="sq-form-label" for="ANOTHER_BRANCH">Ветка *</label>
+        <input type="text" id="ANOTHER_BRANCH" name="another_branch" class="sq-input" required
+               value="{{ another_branch }}" placeholder="master">
+    </div>
+    <div class="col-md-6">
+        <label class="sq-form-label" for="LIFE_TIME">Время жизни проекта</label>
+        <input type="month" id="LIFE_TIME" name="life_time" class="sq-input" value="{{ life_time }}">
+        <small class="text-muted">Пусто — без ограничения ({{ current_date }})</small>
+    </div>
+</div>
+
+<div class="row g-3 align-items-center">
+    <div class="col-md-4">
+        <label class="sq-form-label d-flex align-items-center gap-2">
+            <input type="checkbox" name="sub_modules" value="true" class="form-check-input"
+                   {% if sub_modules %}checked{% endif %}>
+            Sub-модули (Git)
+        </label>
+    </div>
+    <div class="col-md-4">
+        <label class="sq-form-label d-flex align-items-center gap-2">
+            <input type="checkbox" name="disabled" value="true" class="form-check-input"
+                   {% if disabled %}checked{% endif %}>
+            Временно отключить проверку
+        </label>
+    </div>
+    <div class="col-md-4">
+        <label class="sq-form-label">Jira для новых issues</label>
+        <select name="disable_jira" class="sq-select">
+            <option value="false" {% if not disable_jira %}selected{% endif %}>Создавать задачи</option>
+            <option value="true" {% if disable_jira %}selected{% endif %}>Не создавать</option>
+        </select>
+    </div>
+</div>
+
+<div class="sq-form-group">
+    <label class="sq-form-label" for="SELECT_VCXPROJ">Анализировать компонент (vcxproj)</label>
+    <input type="text" id="SELECT_VCXPROJ" name="select_vcxproj" class="sq-input"
+           value="{{ select_vcxproj }}" placeholder=".\Plugins\...\file.vcxproj">
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label class="sq-form-label" for="PVS_EXCLUDE_VCXPROJ">PVS exclude vcxproj</label>
+        <input type="text" id="PVS_EXCLUDE_VCXPROJ" name="pvs_exclude_vcxproj" class="sq-input"
+               value="{{ pvs_exclude_vcxproj }}">
+    </div>
+    <div class="col-md-6">
+        <label class="sq-form-label" for="PVS_EXCLUDE_PATH">PVS exclude path</label>
+        <input type="text" id="PVS_EXCLUDE_PATH" name="pvs_exclude_path" class="sq-input"
+               value="{{ pvs_exclude_path }}">
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label class="sq-form-label" for="PVS_CHECK_CONF_NAME">Конфигурация PVS *</label>
+        <input type="text" id="PVS_CHECK_CONF_NAME" name="pvs_check_conf_name" class="sq-input" required
+               value="{{ pvs_check_conf_name }}" placeholder="Release">
+    </div>
+    <div class="col-md-6">
+        <label class="sq-form-label" for="PVS_CHECK_ARCH">Архитектура PVS *</label>
+        <input type="text" id="PVS_CHECK_ARCH" name="pvs_check_arch" class="sq-input" required
+               value="{{ pvs_check_arch }}" placeholder="x64">
+    </div>
+</div>
+
+<div class="sq-form-group">
+    <label class="sq-form-label" for="cmake_win_commands">Команды CMake/сборки (Windows)</label>
+    <textarea id="cmake_win_commands" name="cmake_win_commands" class="sq-input" rows="6">{{ cmake_win_commands }}</textarea>
+</div>
+
+<div class="sq-form-group">
+    <label class="sq-form-label" for="cmake_linux_commands">Команды CMake/сборки (Linux)</label>
+    <textarea id="cmake_linux_commands" name="cmake_linux_commands" class="sq-input" rows="6">{{ cmake_linux_commands }}</textarea>
+</div>

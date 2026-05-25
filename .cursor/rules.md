@@ -46,6 +46,10 @@
 - Фильтры и пагинация — query params; все `hx-get` сохраняют активные фильтры.
 - Chart.js: инициализация в trends/scripts partial; **не** перезагружать при смене фильтра issues.
 - `hx-target` — конкретный `id` (например `#issues-table-full`).
+- **CI toast:** только `sq-toast` в `app.js` — не класс bootstrap `toast` (скрыт без `.show`).
+- **Inline Code (Issues):** `toggleInlineCode` / `closeInlineCodeRow` в `app.js`; не трогать `max-height` на строке после анимации.
+- **CI panel:** HTMX → `#project-ci-panel`; уведомление из `#ci-toast-payload` в ответе или `HX-Trigger`.
+- **Шаблоны manage:** `project_manage._template_ctx()` передаёт `current_user`.
 
 ---
 

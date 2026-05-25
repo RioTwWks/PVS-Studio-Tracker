@@ -471,6 +471,17 @@ $env:APP_BASE_URL="http://localhost:8080"
 - `GET /ui/settings/profile` — Настройки профиля
 - `GET /ui/settings/quality-gates` — Quality gates (admin)
 - `GET /ui/projects/{id}/trends-fragment` — HTML KPI + chart по платформе
+- `GET /` — Главная: проекты по группам (цвет карточки = статус CI/Jira)
+- `GET /ui/projects/new` — Форма нового проекта (Sonar-поля)
+- `POST /ui/projects/create` — Создать проект → dashboard `?tab=ci`
+- `GET /ui/projects/{id}/dashboard?tab=ci` — Вкладка Analysis / CI
+- `GET /ui/projects/{id}/dashboard?tab=settings&settings_tab=params` — Параметры CI
+- `POST /ui/projects/{id}/toggle-disabled` — HTMX; toast «Проект вкл/выкл»
+- `POST /ui/projects/{id}/toggle-jira` — HTMX; toast Jira
+- `POST /webhook/inbound` — TFS/Git → Jenkins (Basic auth)
+- Issues → кнопка **Code** — inline-фрагмент (`GET /ui/file`); закрытие с анимацией в `app.js`
+
+**Отладка toast:** в консоли браузера `showToast('test', 'success')`; после правок `app.js` — Ctrl+F5.
 
 ---
 

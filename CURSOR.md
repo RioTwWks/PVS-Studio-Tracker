@@ -29,15 +29,21 @@ uvicorn pvs_tracker.main:app --reload --host 0.0.0.0 --port 8080
 pvs_tracker/
 ├── main.py              # v1 routes, dashboard, upload
 ├── api.py               # /api/v2 REST (JWT, RBAC, profile, QG rules)
+├── project_manage.py    # /ui/projects/new, CI HTMX, toggles
+├── project_ci.py        # Sonar form → Project fields
+├── inbound_webhooks.py, jenkins_service.py, jira_sync.py
 ├── auth_service.py      # Users, JWT, session → User
 ├── incremental.py       # diff per target_platform
 ├── platforms.py         # OS + cross_platform_fp
 ├── dashboard_context.py # platform-scoped dashboard metrics
 ├── notifications.py     # SMTP on API upload
 ├── quality_gate.py      # rule-code quality gates
-├── warnings_catalog.py  # PVS catalog sync (api v2)
 ├── code_viewer.py, webhooks.py, git_integration.py, ...
-└── templates/dashboard/ # tabs + _platform_switcher, _trends_content
+├── templates/
+│   ├── home.html        # grouped projects, color cards
+│   ├── projects/        # project_form, _form_fields
+│   └── dashboard/       # tabs incl. _ci_*, _settings_*
+static/app.js            # toast (sq-toast), i18n, inline code toggle
 ```
 
 ## Core behavior
@@ -62,10 +68,13 @@ pvs_tracker/
 
 ### Dashboard
 
-- Tabs: Overview, Issues, Code, Trends, Upload, Settings.
-- Branch switcher: `?branch=` filters chart + issues table.
-- **Platform switcher** (Windows/Linux/macOS): updates KPIs/chart via `platform-metrics` + `trends-fragment` without full reload.
-- Trend `total` in history: cumulative active count (`dashboard_history.py`, see `spec.md`).
+- Tabs: Overview, Issues, Code, Trends, **Analysis / CI**, Upload, **Settings** (sub-tabs: CI params, source roots, quality gate).
+- **Analysis / CI:** HTMX → `#project-ci-panel`; toast from `#ci-toast-payload` in response + `handleCiToastFromResponseText` in `app.js` (do not use bootstrap `.toast` class).
+- **Home:** project cards by group; colors per `disabled` / `disable_jira`.
+- **New project:** `/ui/projects/new` → `POST /ui/projects/create`.
+- Delete project: header button on dashboard (admin).
+- Branch: `?branch=`; platform: `platform-metrics` + `trends-fragment`; `?tab=` / `?settings_tab=`.
+- Trend `total`: cumulative active count (`dashboard_history.py`).
 
 ### Profile & email
 
@@ -106,16 +115,20 @@ Full route tables: `.cursor/spec.md`.
 | `SECRET_KEY` | Session middleware |
 | `JWT_SECRET_KEY` | `auth_service.py` |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | `webhooks.py` |
+| `WEBHOOK_USERNAME`, `WEBHOOK_PASSWORD` | `inbound_webhooks.py` |
+| `JENKINS_*` | `jenkins_service.py` |
+| `JIRA_*` | `jira_service.py`, `jira_sync.py` |
 | `SMTP_*`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_*`, `SNAPSHOTS_DIR` | `git_integration.py` |
 
-See `.env.example`.
+See `.env.example`. CI/UI: [docs/jenkins-ci.md](docs/jenkins-ci.md).
 
 ## Tests
 
 ```bash
 pytest
 pytest tests/test_smoke.py tests/test_parser.py -v
+pytest tests/test_ci_integration.py -q   # HTMX CI toggles, inbound webhook, Jira
 ```
 
 ## Agent skills

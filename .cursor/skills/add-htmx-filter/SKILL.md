@@ -75,6 +75,12 @@ Use `Depends(get_session)`; `/ui/issues` is behind session auth like other `/ui/
 - Re-init Chart.js or reload dashboard chart on filter apply.
 - Return JSON from UI filter endpoints.
 - Drop existing params from pagination/sort links.
+- Break inline Code rows in `partials/issue_row.html` (open state lives in DOM; full table swap closes panels — acceptable).
+
+## Related (not this skill)
+
+- CI toggles / toast: `project_manage.py`, `dashboard/_ci_actions.html`, `app.js` (`showToast`, `sq-toast`).
+- Inline code animation: `app.js` + `style.css` (`sq-codeReveal` / `sq-codeHide`).
 
 ## Verification
 

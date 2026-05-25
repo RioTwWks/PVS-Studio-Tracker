@@ -1,14 +1,49 @@
-    {# === Tab Content: Settings === #}
+    {# === Tab Content: Settings (sub-tabs) === #}
     <div class="sq-project-tab-content" id="tab-settings" style="display: none;">
-        <div class="sq-card">
-            <div class="sq-card-header">
-                <i class="bi bi-gear"></i> <span data-i18n="project_settings">Project Settings</span>
+        <nav class="sq-settings-subnav mb-3">
+            <ul class="sq-settings-subnav-list">
+                <li>
+                    <button type="button" class="sq-settings-subnav-btn active" data-settings-tab="params"
+                            onclick="switchSettingsSubTab('params')">
+                        <i class="bi bi-sliders"></i>
+                        <span data-i18n="settings_subtab_params">Project parameters</span>
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="sq-settings-subnav-btn" data-settings-tab="sources"
+                            onclick="switchSettingsSubTab('sources')">
+                        <i class="bi bi-folder2"></i>
+                        <span data-i18n="settings_subtab_sources">Source roots</span>
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="sq-settings-subnav-btn" data-settings-tab="quality"
+                            onclick="switchSettingsSubTab('quality')">
+                        <i class="bi bi-shield-check"></i>
+                        <span data-i18n="settings_subtab_quality">Quality gate</span>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="sq-settings-subtab-panel" id="settings-panel-params">
+            <div class="sq-card">
+                <div class="sq-card-header">
+                    <i class="bi bi-sliders"></i>
+                    <span data-i18n="project_params_title">Project parameters (CI + reports)</span>
+                </div>
+                <div class="sq-card-body" id="project-settings-params">
+                    {% include "dashboard/_settings_params_panel.html" %}
+                </div>
             </div>
-            <div class="sq-card-body">
-                <div class="sq-form-section">
-                    <h5 class="sq-section-title">
-                        <i class="bi bi-folder2"></i> <span data-i18n="source_roots">Source Roots</span>
-                    </h5>
+        </div>
+
+        <div class="sq-settings-subtab-panel" id="settings-panel-sources" style="display: none;">
+            <div class="sq-card">
+                <div class="sq-card-header">
+                    <i class="bi bi-folder2"></i> <span data-i18n="source_roots">Source Roots</span>
+                </div>
+                <div class="sq-card-body">
                     <p class="sq-section-desc" data-i18n="source_roots_desc">Configure the source directories for this project. This helps the code viewer locate files correctly.</p>
 
                     <div class="sq-form-group">
@@ -43,12 +78,15 @@
                     </button>
                     <span id="source-root-status" class="sq-form-status" style="display: none;"></span>
                 </div>
+            </div>
+        </div>
 
-                <hr class="my-4">
-                <div class="sq-form-section">
-                    <h5 class="sq-section-title">
-                        <i class="bi bi-shield-check"></i> <span data-i18n="quality_gate">Quality Gate</span>
-                    </h5>
+        <div class="sq-settings-subtab-panel" id="settings-panel-quality" style="display: none;">
+            <div class="sq-card">
+                <div class="sq-card-header">
+                    <i class="bi bi-shield-check"></i> <span data-i18n="quality_gate">Quality Gate</span>
+                </div>
+                <div class="sq-card-body">
                     <p class="sq-section-desc" data-i18n="qg_project_desc">One quality gate per project. Only new warnings with selected PVS codes affect pass/fail.</p>
                     <div class="sq-form-group">
                         <label class="sq-form-label" data-i18n="qg_project_select">Assigned gate</label>
@@ -66,22 +104,6 @@
                     </button>
                     <span id="quality-gate-status" class="sq-form-status" style="display: none;"></span>
                 </div>
-
-                {% if current_user == "admin" %}
-                <hr class="my-4">
-                <div class="sq-form-section">
-                    <h5 class="sq-section-title text-danger">
-                        <i class="bi bi-trash"></i> <span data-i18n="delete_project">Delete Project</span>
-                    </h5>
-                    <p class="sq-section-desc" data-i18n="delete_project_desc">Delete this project and all stored analyses, issues, comments, and activity logs.</p>
-
-                    <form id="delete-project-form" action="/ui/projects/{{ project.id }}/delete" method="post">
-                        <button type="button" class="sq-btn sq-btn-outline text-danger" onclick="confirmDeleteProject()">
-                            <i class="bi bi-trash"></i> <span data-i18n="delete_project">Delete Project</span>
-                        </button>
-                    </form>
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>

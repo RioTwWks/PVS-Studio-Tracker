@@ -45,24 +45,33 @@
 - **Инкрементальный diff по платформе** — сравнение run с тем же `target_platform`; `cross_platform_fp` для путей между ОС
 
 ### 📁 Inline Code Viewer
-- **Просмотр кода из дашборда** — переключение между вкладками «Предупреждения» и «Код»
+- **Код в таблице Issues** — кнопка Code в строке предупреждения: раскрытие inline-блока с подсветкой (плавная анимация open/close)
+- **Просмотр кода из дашборда** — вкладки «Предупреждения» и «Код» (файловое дерево)
 - **Синтаксическая подсветка** — Prism.js для C, C++, C#, Java, Python, JavaScript
 - **Аннотации на уровне строк** — цветные бейджи (серьёзность + правило)
 - **Безопасный доступ** — защита от path traversal, поддержка Windows/Linux путей
 - **Standalone страница** — `/ui/projects/{id}/code-viewer` с файловым браузером
 
 ### 🔌 Интеграции
-- **Webhook для CI/CD** — автоматические уведомления при оценке quality gate
+- **SAST-оркестрация (CI)** — реестр проектов, TFS/Git webhook → Jenkins → upload в трекер (без SonarQube). Подробнее: [docs/jenkins-ci.md](docs/jenkins-ci.md)
+- **Единый проект** — SonarQube Project Name/Key (`name` / `slug`), параметры сборки и отчёты PVS на одном дашборде
+- **Главная** (`/`) — проекты по группам (QA, QD, …); цвет карточки: синий — норма, горчичный — Jira off, красный — анализ выключен
+- **Создание проекта** — `/ui/projects/new` (поля как в PVS_Sonar_WebHook_FastAPI: `sonar_project_name`, `sonar_project_key`, группа, CVS, PVS, CMake)
+- **Inbound webhook** — `POST /webhook/inbound` (Basic auth)
+- **Jira sync** — создание Bug по `new` issues после upload (fingerprint в custom field)
+- **Webhook для CI/CD** — автоматические уведомления при оценке quality gate и `report_uploaded`
 - **Email (SMTP)** — письма подписчикам после успешной API-загрузки (`notifications.py`, см. `.env.example`)
 - **CSV экспорт** — выгрузка всех проблем с метаданными (CWE, technical debt, resolution)
 - **RESTful API v2** — полный CRUD для проектов, пользователей, quality gates, проблем
 - **LDAP (planned)** — заготовка в `auth.py`; UI использует MVP session login, API v2 — JWT/`auth_service.py`
 
 ### 🌐 Интерфейс
-- **i18n (RU/EN)** — клиентский перевод через `translations.json`
-- **Dark/Light theme** — переключение тем с сохранением в localStorage
-- **Responsive design** — адаптивная вёрстка для мобильных устройств
-- **HTMX** — серверный рендеринг с динамическими обновлениями
+- **Дашборд проекта** — вкладки: Overview, Issues, Code, Trends, **Analysis / CI**, Upload, **Settings** (подвкладки: параметры CI, source roots, quality gate)
+- **Analysis / CI** — Enable/Disable, Jira on/pause, Run analysis (admin), Clone; toast справа сверху (`static/app.js`, `sq-toast`)
+- **Удаление проекта** — кнопка в шапке дашборда (только admin)
+- **i18n (RU/EN)** — `static/translations.json` + `data-i18n` в шаблонах
+- **Dark/Light theme** — `ThemeManager` в `app.js`, localStorage
+- **HTMX** — таблица issues, панель CI, фильтры; плавные переходы в `style.css`
 
 ## Быстрый старт
 
@@ -78,9 +87,14 @@ pip install -e ".[dev]"
 # 3. Миграция базы данных (обязательно для v0.2.0+)
 python migrate.py
 
-# 4. Запуск сервера
+# 4. (опционально) Миграция проектов из PVS_Sonar_WebHook_FastAPI
+# python scripts/migrate_sonar_projects.py --source PVS_Sonar_WebHook_FastAPI/pvs_sonar.db
+
+# 5. Запуск сервера
 uvicorn pvs_tracker.main:app --reload --host 0.0.0.0 --port 8080
 ```
+
+Подробнее по Jenkins без SonarQube: [docs/jenkins-ci.md](docs/jenkins-ci.md).
 
 Откройте [http://localhost:8080](http://localhost:8080) — войдите с учётными данными:
 - **Username**: admin
@@ -393,13 +407,16 @@ Invoke-RestMethod -Uri http://localhost:8080/api/v2/projects/1 -Method PATCH -He
 
 ## Inline Code Viewer
 
-### Просмотр кода из дашборда
+### Просмотр кода во вкладке Issues
 
-1. **Откройте дашборд проекта** — вы увидите две вкладки: «Предупреждения» и «Код»
-2. **Переключитесь на вкладку «Код»** — покажется подсказка выбрать предупреждение
-3. **Вернитесь на вкладку «Предупреждения»** — найдите нужное предупреждение в таблице
-4. **Кликните кнопку «🔍 Код»** — автоматически переключит на вкладку «Код» и загрузит файл
-5. **Просмотрите код** — проблемная строка будет подсвечена и автоматически прокручена в видимую область
+1. Откройте дашборд → вкладка **Issues**
+2. В строке предупреждения нажмите **Code** — под таблицей раскроется фрагмент с `GET /ui/file`
+3. **Close** — плавно скрывает блок (класс `is-open` / анимация `sq-codeHide`)
+
+### Просмотр кода во вкладке Code (дерево файлов)
+
+1. Вкладка **Code** — файловое дерево и просмотрщик
+2. Из Issues можно перейти на вкладку Code через кнопку в строке (если настроен сценарий навигации)
 
 ### Полнофункциональный Code Viewer
 
@@ -420,8 +437,8 @@ Invoke-RestMethod -Uri http://localhost:8080/api/v2/projects/1 -Method PATCH -He
 **Через веб-интерфейс (рекомендуется):**
 
 1. Откройте дашборд проекта
-2. Перейдите на вкладку **"⚙️ Настройки проекта"** (третья вкладка)
-3. В секции "Корневая директория исходников" укажите пути:
+2. Вкладка **Settings** → подвкладка **Source roots**
+3. Укажите пути:
    - **Windows**: `C:\Projects\my-project\src`
    - **Linux**: `/home/user/projects/my-project/src`
 4. Нажмите кнопку **"Сохранить оба пути"** ✓
@@ -503,6 +520,9 @@ curl -X POST http://localhost:8080/api/v1/issues/<fingerprint>/ignore
 | `JWT_SECRET_KEY` | значение SECRET_KEY | Ключ для подписи JWT токенов |
 | `WEBHOOK_URL` | `` | URL для webhook уведомлений (CI/CD) |
 | `WEBHOOK_SECRET` | `` | Секрет для подписи webhook запросов |
+| `WEBHOOK_USERNAME`, `WEBHOOK_PASSWORD` | см. `.env.example` | Basic auth для `POST /webhook/inbound` |
+| `JENKINS_URL`, `JENKINS_JOB_NAME`, `JENKINS_USERNAME`, `JENKINS_TOKEN` | — | Запуск CI из трекера |
+| `JIRA_URL`, `JIRA_USERNAME`, `JIRA_PASSWORD`, `JIRA_FINGERPRINT_FIELD` | — | Jira Bug после upload |
 | `SMTP_HOST`, `SMTP_PORT`, … | см. `.env.example` | Email подписчикам после `POST /api/v1/upload` |
 | `APP_BASE_URL` | `http://localhost:8080` | Ссылка на дашборд в письме |
 
@@ -519,11 +539,20 @@ curl -X POST http://localhost:8080/api/v1/issues/<fingerprint>/ignore
 ```
 pvs_tracker/
 ├── main.py, api.py             # UI/v1 и REST /api/v2
+├── project_manage.py           # /ui/projects/new, CI HTMX, toggle disable/jira
+├── project_ci.py, ci_config.py # CRUD CI-проектов, Sonar-поля формы
+├── jenkins_service.py, inbound_webhooks.py, jira_sync.py, jira_service.py
+├── repository_service.py, project_groups.py, admin_utils.py
 ├── auth_service.py             # JWT + User (API v2)
-├── incremental.py, platforms.py
-├── dashboard_context.py, notifications.py
+├── incremental.py, platforms.py, dashboard_context.py, notifications.py
 ├── quality_gate.py, webhooks.py, warnings_catalog.py
-└── templates/                  # dashboard/, profile_settings.html, quality_gates_settings.html
+└── templates/
+    ├── home.html               # группы проектов, цветовые карточки
+    ├── projects/project_form.html, projects/_form_fields.html
+    └── dashboard/              # _ci_*, _settings_tab, _issues_tab, …
+static/
+├── app.js                      # toast, i18n, inline code, Chart
+├── style.css, translations.json
 ```
 
 ## Разработка

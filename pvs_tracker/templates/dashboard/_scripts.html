@@ -15,6 +15,9 @@
         const tabContent = document.getElementById('tab-' + tabName);
         if (tabContent) {
             tabContent.style.display = 'block';
+            tabContent.style.animation = 'none';
+            void tabContent.offsetHeight;
+            tabContent.style.animation = '';
         }
 
         // Activate tab button
@@ -42,6 +45,32 @@
 
         if (tabName === 'issues') {
             loadIssuesTab(false);
+        }
+
+        if (tabName === 'settings') {
+            const sub = window.__initialSettingsSubTab || 'params';
+            switchSettingsSubTab(sub);
+        }
+    }
+
+    function switchSettingsSubTab(subTabName) {
+        const valid = ['params', 'sources', 'quality'];
+        const name = valid.includes(subTabName) ? subTabName : 'params';
+
+        document.querySelectorAll('.sq-settings-subtab-panel').forEach((el) => {
+            el.style.display = 'none';
+        });
+        const panel = document.getElementById('settings-panel-' + name);
+        if (panel) {
+            panel.style.display = 'block';
+        }
+
+        document.querySelectorAll('.sq-settings-subnav-btn').forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.settingsTab === name);
+        });
+
+        if (typeof I18n !== 'undefined' && typeof I18n.applyLanguage === 'function') {
+            I18n.applyLanguage(I18n.getPreferredLang());
         }
     }
 
@@ -447,7 +476,14 @@
         window.PvsDashboard.setPlatformFilter(btn.dataset.platformFilter);
     });
 
+    window.__initialSettingsSubTab = '{{ initial_settings_subtab|default("params") }}';
+
     document.addEventListener('DOMContentLoaded', () => {
+        const initialTab = '{{ initial_tab|default("overview") }}';
+        if (initialTab && initialTab !== 'overview') {
+            switchProjectTab(initialTab);
+        }
+
         window.PvsDashboard.syncPlatformButtons();
 
         const initialMetrics = {
