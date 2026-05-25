@@ -71,7 +71,9 @@ const I18n = (() => {
             
             const key = el.getAttribute('data-i18n');
             const value = t(key);
-            
+            // Не подставляем сырой ключ — оставляем человекочитаемый текст из шаблона
+            if (!key || value === key) return;
+
             try {
                 if (el.getAttribute('data-i18n-attr') === 'title') {
                     el.title = value;
@@ -116,7 +118,11 @@ const I18n = (() => {
         // Update placeholders
         document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
             if (el && el.placeholder !== undefined) {
-                el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+                const pKey = el.getAttribute('data-i18n-placeholder');
+                const pVal = t(pKey);
+                if (pKey && pVal !== pKey) {
+                    el.placeholder = pVal;
+                }
             }
         });
 

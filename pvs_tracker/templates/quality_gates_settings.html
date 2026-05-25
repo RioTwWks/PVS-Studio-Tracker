@@ -1,21 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Quality Gates — PVS-Tracker{% endblock %}
+{% block title %}Пороги качества — PVS-Tracker{% endblock %}
 {% block content %}
 
 <div class="sq-page-header mb-4">
-    <h1 class="sq-page-title"><i class="bi bi-shield-check"></i> <span data-i18n="qg_settings_title">Quality Gates</span></h1>
-    <p class="sq-page-subtitle" data-i18n="qg_settings_subtitle">PVS warning catalog and per-project quality gate scopes (admin only)</p>
+    <h1 class="sq-page-title"><i class="bi bi-shield-check"></i> <span data-i18n="qg_settings_title">Пороги качества</span></h1>
+    <p class="sq-page-subtitle"><span data-i18n="qg_settings_subtitle">Каталог предупреждений PVS-Studio и наборы кодов для проектов (только для администраторов)</span></p>
 </div>
 
 <ul class="nav nav-tabs sq-tabs mb-4" role="tablist">
     <li class="nav-item">
         <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-catalog" type="button">
-            <i class="bi bi-list-ul"></i> <span data-i18n="qg_tab_catalog">Warnings catalog</span>
+            <i class="bi bi-list-ul"></i> <span data-i18n="qg_tab_catalog">Каталог предупреждений</span>
         </button>
     </li>
     <li class="nav-item">
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-gates" type="button">
-            <i class="bi bi-sliders"></i> <span data-i18n="qg_tab_gates">Quality Gates</span>
+            <i class="bi bi-sliders"></i> <span data-i18n="qg_tab_gates">Пороги качества</span>
         </button>
     </li>
 </ul>
@@ -24,29 +24,30 @@
     <div class="tab-pane fade show active" id="tab-catalog">
         <div class="sq-card">
             <div class="sq-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <span><i class="bi bi-database"></i> <span data-i18n="qg_catalog_header">PVS-Studio warnings</span></span>
+                <span><i class="bi bi-database"></i> <span data-i18n="qg_catalog_header">Предупреждения PVS-Studio</span></span>
                 <div class="d-flex gap-2 align-items-center">
                     <small class="text-muted" id="catalog-sync-info"></small>
                     <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="syncWarnings()">
-                        <i class="bi bi-cloud-download"></i> <span data-i18n="qg_sync_btn">Update from pvs-studio.com</span>
+                        <i class="bi bi-cloud-download"></i> <span data-i18n="qg_sync_btn">Обновить с pvs-studio.com</span>
                     </button>
                 </div>
             </div>
             <div class="sq-card-body">
                 <div class="row g-2 mb-3">
                     <div class="col-md-4">
-                        <input type="text" id="catalog-search" class="sq-input" placeholder="Search code or name..."
+                        <input type="text" id="catalog-search" class="sq-input"
+                               placeholder="Поиск по коду или названию"
                                data-i18n-placeholder="qg_search_placeholder" oninput="debouncedLoadCatalog()">
                     </div>
                     <div class="col-md-3">
                         <select id="catalog-language" class="sq-input" onchange="loadCatalog()">
-                            <option value="" data-i18n="qg_filter_all_langs">All languages</option>
+                            <option value="" data-i18n="qg_filter_all_langs">Все языки</option>
                             <option value="cpp">C/C++</option>
                             <option value="csharp">C#</option>
                             <option value="java">Java</option>
                             <option value="js">JS/TS</option>
                             <option value="go">Go</option>
-                            <option value="other">Other</option>
+                            <option value="other">Другое</option>
                         </select>
                     </div>
                 </div>
@@ -55,10 +56,10 @@
                     <table class="sq-table">
                         <thead>
                             <tr>
-                                <th data-i18n="qg_col_code">Code</th>
-                                <th data-i18n="qg_col_name">Name</th>
-                                <th data-i18n="qg_col_category">Category</th>
-                                <th data-i18n="qg_col_lang">Language</th>
+                                <th><span data-i18n="qg_col_code">Код</span></th>
+                                <th><span data-i18n="qg_col_name">Название</span></th>
+                                <th><span data-i18n="qg_col_category">Категория</span></th>
+                                <th><span data-i18n="qg_col_lang">Язык</span></th>
                             </tr>
                         </thead>
                         <tbody id="catalog-tbody"></tbody>
@@ -67,8 +68,8 @@
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <span id="catalog-pager-info" class="text-muted"></span>
                     <div class="btn-group">
-                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogPrev()">&laquo;</button>
-                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogNext()">&raquo;</button>
+                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogPrev()" title="Назад">&laquo;</button>
+                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogNext()" title="Вперёд">&raquo;</button>
                     </div>
                 </div>
             </div>
@@ -80,8 +81,8 @@
             <div class="col-lg-4">
                 <div class="sq-card">
                     <div class="sq-card-header d-flex justify-content-between align-items-center">
-                        <span data-i18n="qg_gates_list">Gates</span>
-                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="createGate()">
+                        <span data-i18n="qg_gates_list">Список порогов</span>
+                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="createGate()" title="Создать порог">
                             <i class="bi bi-plus-lg"></i>
                         </button>
                     </div>
@@ -92,37 +93,38 @@
             </div>
             <div class="col-lg-8">
                 <div class="sq-card" id="gate-editor" style="display:none;">
-                    <div class="sq-card-header" data-i18n="qg_edit_gate">Edit Quality Gate</div>
+                    <div class="sq-card-header"><span data-i18n="qg_edit_gate">Редактирование порога качества</span></div>
                     <div class="sq-card-body">
                         <div class="sq-form-group">
-                            <label class="sq-form-label" data-i18n="qg_gate_name">Name</label>
+                            <label class="sq-form-label"><span data-i18n="qg_gate_name">Название</span></label>
                             <input type="text" id="gate-name" class="sq-input">
                         </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="gate-is-default">
-                            <label class="form-check-label" for="gate-is-default" data-i18n="qg_is_default">Default gate</label>
+                            <label class="form-check-label" for="gate-is-default"><span data-i18n="qg_is_default">Порог по умолчанию</span></label>
                         </div>
                         <div class="sq-form-group">
-                            <label class="sq-form-label" data-i18n="qg_rules_label">PVS rules in scope</label>
-                            <input type="text" id="gate-rules-search" class="sq-input mb-2" placeholder="Filter rules..."
-                                   oninput="filterGateRules()">
+                            <label class="sq-form-label"><span data-i18n="qg_rules_label">Коды PVS в области проверки</span></label>
+                            <input type="text" id="gate-rules-search" class="sq-input mb-2"
+                                   placeholder="Фильтр по коду или названию"
+                                   data-i18n-placeholder="qg_filter_rules" oninput="filterGateRules()">
                             <div id="gate-rules-box" class="qg-rules-box border rounded p-2" style="max-height:320px;overflow-y:auto;"></div>
-                            <small class="text-muted"><span id="gate-rules-selected-count">0</span> <span data-i18n="qg_rules_selected">selected</span></small>
+                            <small class="text-muted"><span id="gate-rules-selected-count">0</span> <span data-i18n="qg_rules_selected">выбрано</span></small>
                         </div>
                         <div class="d-flex gap-2 flex-wrap">
                             <button type="button" class="sq-btn sq-btn-primary" onclick="saveGate()">
-                                <i class="bi bi-check-lg"></i> <span data-i18n="save">Save</span>
+                                <i class="bi bi-check-lg"></i> <span data-i18n="save">Сохранить</span>
                             </button>
                             <button type="button" class="sq-btn sq-btn-outline text-danger" onclick="deleteGate()">
-                                <i class="bi bi-trash"></i> <span data-i18n="delete">Delete</span>
+                                <i class="bi bi-trash"></i> <span data-i18n="qg_delete_btn">Удалить</span>
                             </button>
                         </div>
                         <span id="gate-editor-status" class="sq-form-status ms-2"></span>
                     </div>
                 </div>
                 <div class="sq-card" id="gate-editor-empty">
-                    <div class="sq-card-body text-muted text-center py-5" data-i18n="qg_select_gate_hint">
-                        Select a gate or create a new one
+                    <div class="sq-card-body text-muted text-center py-5">
+                        <span data-i18n="qg_select_gate_hint">Выберите порог в списке слева или создайте новый</span>
                     </div>
                 </div>
             </div>
@@ -137,6 +139,12 @@ let catalogDebounce = null;
 let selectedGateId = null;
 let allCatalogCodes = [];
 let gateSelectedRules = new Set();
+
+function tr(key, fallback) {
+    if (typeof I18n === 'undefined') return fallback;
+    const v = I18n.t(key);
+    return v === key ? fallback : v;
+}
 
 function apiHeaders() {
     const h = { 'Content-Type': 'application/json' };
@@ -182,7 +190,7 @@ async function loadCatalog() {
             `${(data.page - 1) * data.per_page + 1}–${Math.min(data.page * data.per_page, data.total)} / ${data.total}`;
         if (data.last_synced_at) {
             document.getElementById('catalog-sync-info').textContent =
-                (I18n.t('qg_last_sync') || 'Last sync') + ': ' + new Date(data.last_synced_at).toLocaleString();
+                tr('qg_last_sync', 'Последняя синхронизация') + ': ' + new Date(data.last_synced_at).toLocaleString();
         }
         status.textContent = '';
     } catch (e) {
@@ -196,13 +204,13 @@ function catalogNext() { catalogPage++; loadCatalog(); }
 
 async function syncWarnings() {
     const status = document.getElementById('catalog-status');
-    status.textContent = I18n.t('saving') || 'Syncing...';
+    status.textContent = tr('saving', 'Сохранение...');
     status.style.color = '#6c757d';
     try {
         const resp = await apiFetch(`${QG_API}/warnings/sync`, { method: 'POST' });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || resp.statusText);
-        status.textContent = `✓ imported: ${data.imported}, updated: ${data.updated}, total: ${data.total}`;
+        status.textContent = `✓ импортировано: ${data.imported}, обновлено: ${data.updated}, всего: ${data.total}`;
         status.style.color = '#198754';
         catalogPage = 1;
         await loadCatalog();
@@ -222,7 +230,7 @@ async function loadGates() {
         <li class="list-group-item list-group-item-action ${g.id === selectedGateId ? 'active' : ''}"
             onclick="selectGate(${g.id})" style="cursor:pointer;">
             <div class="fw-semibold">${escapeHtml(g.name)}</div>
-            <small>${g.rules_count} rules · ${g.projects_count} projects${g.is_default ? ' · default' : ''}</small>
+            <small>${g.rules_count} ${tr('qg_rules_short', 'кодов')} · ${g.projects_count} ${tr('qg_projects_short', 'проектов')}${g.is_default ? ' · ' + tr('qg_default_short', 'по умолчанию') : ''}</small>
         </li>
     `).join('');
 }
@@ -280,7 +288,7 @@ async function selectGate(id) {
 }
 
 async function createGate() {
-    const name = prompt(I18n.t('qg_new_gate_name') || 'Gate name');
+    const name = prompt(tr('qg_new_gate_name', 'Название порога качества'));
     if (!name) return;
     const resp = await apiFetch(`${QG_API}/quality-gates`, {
         method: 'POST',
@@ -305,7 +313,7 @@ async function saveGate() {
         body: JSON.stringify(body),
     });
     if (resp.ok) {
-        status.textContent = '✓ ' + (I18n.t('saved') || 'Saved');
+        status.textContent = '✓ ' + tr('saved', 'Сохранено');
         status.style.color = '#198754';
         await loadGates();
     } else {
@@ -317,7 +325,7 @@ async function saveGate() {
 
 async function deleteGate() {
     if (!selectedGateId) return;
-    if (!confirm(I18n.t('qg_delete_confirm') || 'Delete this quality gate?')) return;
+    if (!confirm(tr('qg_delete_confirm', 'Удалить этот порог качества?'))) return;
     const resp = await apiFetch(`${QG_API}/quality-gates/${selectedGateId}`, { method: 'DELETE' });
     if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
@@ -336,10 +344,26 @@ function escapeHtml(s) {
     return d.innerHTML;
 }
 
+function refreshPageI18n() {
+    if (typeof I18n !== 'undefined' && I18n.applyLanguage) {
+        I18n.applyLanguage(I18n.getPreferredLang());
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadCatalog();
     loadGates();
     loadAllCodesForGateEditor();
+    refreshPageI18n();
+    setTimeout(refreshPageI18n, 200);
+});
+
+// Fix language filter option: <option> cannot contain <span>
+document.addEventListener('DOMContentLoaded', () => {
+    const langSelect = document.getElementById('catalog-language');
+    if (langSelect && langSelect.options[0]) {
+        langSelect.options[0].textContent = tr('qg_filter_all_langs', 'Все языки');
+    }
 });
 </script>
 
