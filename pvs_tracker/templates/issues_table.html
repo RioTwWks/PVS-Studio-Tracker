@@ -13,9 +13,9 @@
 {% macro sort_header(label, key, class_name, i18n_key) -%}
     {% set next_order = 'desc' if sort_by == key and order == 'asc' else 'asc' %}
     <th class="{{ class_name }}">
-        <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
+        <a href="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&platform_filter={{ platform_filter|default('windows')|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
            class="sq-sort-link"
-           hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
+           hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&platform_filter={{ platform_filter|default('windows')|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page=1&sort_by={{ key }}&order={{ next_order }}"
            hx-target="#issues-table-full"
            hx-swap="innerHTML"
            hx-push-url="false"
@@ -35,6 +35,9 @@
         {{ sort_header("Type", "type", "sq-col-type", "type") }}
         {{ sort_header("Priority", "priority", "sq-col-priority", "priority") }}
         {{ sort_header("File", "file", "sq-col-file", "file") }}
+        {% if show_platform_badge %}
+        <th class="sq-col-platform" data-i18n="platform_column">Platform</th>
+        {% endif %}
         <th class="sq-col-line" data-i18n="line">Line</th>
         <th class="sq-col-message" data-i18n="message">Message</th>
         <th class="sq-col-actions" data-i18n="actions">Actions</th>
@@ -47,7 +50,7 @@
         {% endfor %}
     {% else %}
         <tr>
-            <td colspan="9" class="sq-empty-row">
+            <td colspan="{% if show_platform_badge %}10{% else %}9{% endif %}" class="sq-empty-row">
                 {% if total > 0 %}
                     <div class="alert alert-warning">…</div>
                 {% else %}
@@ -58,7 +61,7 @@
     {% endif %}
 {% if has_next %}
 <tr id="load-more-sentinel"
-    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page={{ next_page }}&per_page=25&fragment=true&sort_by={{ sort_by }}&order={{ order }}"
+    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&platform_filter={{ platform_filter|default('windows')|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page={{ next_page }}&per_page=25&fragment=true&sort_by={{ sort_by }}&order={{ order }}"
     hx-trigger="pvs-load-more"
     hx-swap="outerHTML"
     hx-target="this"

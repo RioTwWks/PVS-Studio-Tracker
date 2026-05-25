@@ -75,32 +75,36 @@ async def view_code(
     file_path: str = Query(...),
     line: int = Query(None, ge=1),
     run_id: int = Query(None, ge=1),
-    context: int = Query(0, ge=0),  # 🔑 Добавлен параметр context
+    platform: str = Query("windows"),
+    context: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ):
     """Display source file with inline warning annotations."""
     if templates is None:
         raise HTTPException(500, "Templates not initialized")
 
+    from pvs_tracker.platforms import normalize_target_platform
+    from pvs_tracker.run_queries import get_latest_run
+
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Get commit from run if available
+    plat = normalize_target_platform(platform)
     commit = None
+    run: Run | None = None
     if run_id:
         run = session.get(Run, run_id)
         if run:
             commit = run.commit
+            plat = run.target_platform or plat
     else:
-        run = session.exec(
-            select(Run)
-            .where(Run.project_id == project_id, Run.status == "done")
-            .order_by(Run.timestamp.desc())
-            .limit(1)
-        ).first()
+        run = get_latest_run(session, project_id, "", plat)
         if run:
             commit = run.commit
+            plat = run.target_platform or plat
+
+    target_platform = plat
 
     # Fetch source file using fallback strategy
     lines = []
@@ -118,6 +122,8 @@ async def view_code(
             source_archive_path=project.source_archive_path,
             source_root_win=project.source_root_win,
             source_root_linux=project.source_root_linux,
+            source_root_macos=project.source_root_macos,
+            target_platform=target_platform,
         )
         lines = source_file.lines
         source_type = source_file.source
@@ -300,6 +306,8 @@ async def code_viewer_page(
 async def get_project_files_api(
     project_id: int,
     run_id: Optional[int] = Query(None),
+    platform: str = Query("windows"),
+    branch: str = Query(""),
     session: Session = Depends(get_session),
 ):
     """Get file tree structure for project with warning counts."""
@@ -315,18 +323,17 @@ async def get_project_files_api(
     # Получаем глобальные настройки
     global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
 
-    # Determine which run to use
+    from pvs_tracker.platforms import normalize_target_platform
+    from pvs_tracker.run_queries import get_latest_run
+
+    plat = normalize_target_platform(platform)
+
     if run_id:
         run = session.get(Run, run_id)
         logger.info(f"🔍 Using explicit run_id={run_id}, run={run}")
     else:
-        run = session.exec(
-            select(Run)
-            .where(Run.project_id == project_id, Run.status == "done")
-            .order_by(Run.timestamp.desc())
-            .limit(1)
-        ).first()
-        logger.info(f"🔍 Auto-selected run={run}")
+        run = get_latest_run(session, project_id, branch, plat)
+        logger.info(f"🔍 Auto-selected run={run} platform={plat}")
     
     if not run:
         logger.warning(f"⚠️ No run found for project {project_id}")
@@ -354,10 +361,13 @@ async def get_project_files_api(
         filtered_stats.append((file_path, count, max_sev))
 
     # 🔑 Нормализуем пути для отображения
+    run_platform = run.target_platform if run else plat
     effective_root = get_effective_source_root(
         project.source_root_win,
         project.source_root_linux,
         global_settings,
+        project.source_root_macos,
+        platform=run_platform,
     )
 
     file_tree: dict = {}

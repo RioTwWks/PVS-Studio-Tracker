@@ -50,13 +50,47 @@
         switchProjectTab('code');
     }
 
+    async function saveQualityGate() {
+        const select = document.getElementById('project-quality-gate');
+        const status = document.getElementById('quality-gate-status');
+        const gateId = select.value ? parseInt(select.value, 10) : null;
+        try {
+            const response = await fetch('/api/v2/projects/{{ project.id }}', {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('token') || ''),
+                },
+                body: JSON.stringify({ quality_gate_id: gateId }),
+            });
+            if (response.ok) {
+                status.textContent = '✓ ' + I18n.t('saved');
+                status.style.color = '#198754';
+                status.style.display = 'inline';
+            } else {
+                const result = await response.json();
+                status.textContent = '✗ ' + (result.detail || I18n.t('error'));
+                status.style.color = '#dc3545';
+                status.style.display = 'inline';
+            }
+            setTimeout(() => { status.style.display = 'none'; }, 3000);
+        } catch (error) {
+            status.textContent = '✗ ' + I18n.t('network_error');
+            status.style.color = '#dc3545';
+            status.style.display = 'inline';
+        }
+    }
+
     async function saveSourceRoots() {
         const winInput = document.getElementById('source-root-win');
         const linuxInput = document.getElementById('source-root-linux');
+        const macosInput = document.getElementById('source-root-macos');
         const status = document.getElementById('source-root-status');
 
         const winValue = winInput.value.trim();
         const linuxValue = linuxInput.value.trim();
+        const macosValue = macosInput ? macosInput.value.trim() : '';
 
         try {
             const response = await fetch('/api/v1/projects/{{ project.id }}/source-roots', {
@@ -64,7 +98,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     source_root_win: winValue || null,
-                    source_root_linux: linuxValue || null
+                    source_root_linux: linuxValue || null,
+                    source_root_macos: macosValue || null,
                 })
             });
 
@@ -162,12 +197,18 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const historyData = JSON.parse('{{ history | tojson | safe }}');
-        if (historyData && historyData.length > 0) {
-            createTrendChart('trendChart', historyData);
-            if (window.__pvsChart) {
-                window.__pvsChart.resize();
+        const platformFilter = '{{ platform_filter|default('windows') }}';
+        const historyByPlatform = JSON.parse('{{ history_by_platform | tojson | safe }}');
+        if (platformFilter === 'all' && historyByPlatform && Object.keys(historyByPlatform).length > 0) {
+            createMultiPlatformTrendChart('trendChart', historyByPlatform);
+        } else {
+            const historyData = JSON.parse('{{ history | tojson | safe }}');
+            if (historyData && historyData.length > 0) {
+                createTrendChart('trendChart', historyData);
             }
+        }
+        if (window.__pvsChart) {
+            window.__pvsChart.resize();
         }
     });
 </script>

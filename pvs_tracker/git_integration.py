@@ -458,6 +458,8 @@ async def fetch_source_file(
     source_archive_path: Optional[str] = None,
     source_root_win: Optional[str] = None,
     source_root_linux: Optional[str] = None,
+    source_root_macos: Optional[str] = None,
+    target_platform: Optional[str] = None,
 ) -> SourceFile:
     """
     Fetch source file using fallback strategy:
@@ -493,14 +495,15 @@ async def fetch_source_file(
             logger.warning("Archive extraction failed: %s", e)
     
     # Strategy 3: Local file system (backward compatibility)
-    if source_root_win or source_root_linux:
+    if source_root_win or source_root_linux or source_root_macos:
         try:
             logger.info("Fetching from local filesystem: %s", file_path)
-            # 🔑 Безопасное разрешение пути
             abs_path = resolve_source_path(
                 source_root_win,
                 source_root_linux,
-                file_path,  # Передаём сырой путь
+                file_path,
+                project_source_root_macos=source_root_macos,
+                target_platform=target_platform,
             )
             logger.debug("Resolved path: %s", abs_path)  # 🔑 Отладочный лог
             content = abs_path.read_text(encoding="utf-8", errors="replace")

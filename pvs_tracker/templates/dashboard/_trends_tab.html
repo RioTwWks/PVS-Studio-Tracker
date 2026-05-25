@@ -1,5 +1,6 @@
     {# === Tab Content: Trends === #}
     <div class="sq-project-tab-content" id="tab-trends" style="display: none;">
+        {% include "dashboard/_platform_switcher.html" %}
         {% if history and history|length > 0 %}
         {% set latest = history[-1] %}
         {% set previous = history[-2] if history|length > 1 else None %}

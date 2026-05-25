@@ -1,5 +1,6 @@
     {# === Tab Content: Code === #}
     <div class="sq-project-tab-content" id="tab-code" style="display: none;">
+        {% include "dashboard/_platform_switcher.html" %}
         <div class="sq-file-browser-container">
             {# Search #}
             <div class="sq-file-browser-search">
@@ -37,8 +38,11 @@
         
         console.log("рџ“Ў loadFileTree() called");
         const projectId = '{{ project.id }}';
-        const runId = '{{ run_id if run_id else "" }}';
-        const url = `/api/projects/${projectId}/files${runId ? '?run_id=' + runId : ''}`;
+        const platform = '{{ platform_filter|default("windows") }}';
+        const branch = '{{ active_branch|default("") }}';
+        const params = new URLSearchParams({ platform });
+        if (branch) params.append('branch', branch);
+        const url = `/api/projects/${projectId}/files?${params.toString()}`;
         
         console.log("рџ”— Fetching:", url);
         
@@ -137,14 +141,13 @@
         
         try {
             const projectId = '{{ project.id }}';
-            const runId = '{{ run_id if run_id else "" }}';
-            
-            // Р¤РѕСЂРјРёСЂСѓРµРј URL Р±РµР·РѕРїР°СЃРЅРѕ С‡РµСЂРµР· URLSearchParams
+            const platform = '{{ platform_filter|default("windows") }}';
+
             const params = new URLSearchParams({
                 project_id: projectId,
                 file_path: filePath,
+                platform: platform,
             });
-            if (runId) params.append('run_id', runId);
             
             const url = `/ui/file?${params.toString()}`;
             console.log("рџ”— Fetching:", url);

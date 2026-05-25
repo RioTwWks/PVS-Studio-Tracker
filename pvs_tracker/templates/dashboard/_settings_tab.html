@@ -29,10 +29,42 @@
                                placeholder="/home/user/projects/my-project/src">
                     </div>
 
+                    <div class="sq-form-group">
+                        <label class="sq-form-label">
+                            <i class="bi bi-apple"></i> <span data-i18n="macos_source_root">macOS Source Root</span>
+                        </label>
+                        <input type="text" id="source-root-macos" class="sq-input"
+                               value="{{ project.source_root_macos or '' }}"
+                               placeholder="/Users/dev/projects/my-project/src">
+                    </div>
+
                     <button class="sq-btn sq-btn-primary" onclick="saveSourceRoots()">
                         <i class="bi bi-check-lg"></i> <span data-i18n="save_source_roots">Save Source Roots</span>
                     </button>
                     <span id="source-root-status" class="sq-form-status" style="display: none;"></span>
+                </div>
+
+                <hr class="my-4">
+                <div class="sq-form-section">
+                    <h5 class="sq-section-title">
+                        <i class="bi bi-shield-check"></i> <span data-i18n="quality_gate">Quality Gate</span>
+                    </h5>
+                    <p class="sq-section-desc" data-i18n="qg_project_desc">One quality gate per project. Only new warnings with selected PVS codes affect pass/fail.</p>
+                    <div class="sq-form-group">
+                        <label class="sq-form-label" data-i18n="qg_project_select">Assigned gate</label>
+                        <select id="project-quality-gate" class="sq-input">
+                            <option value="" data-i18n="qg_use_default">Use default gate</option>
+                            {% for gate in quality_gates|default([]) %}
+                            <option value="{{ gate.id }}" {% if project.quality_gate_id == gate.id %}selected{% endif %}>
+                                {{ gate.name }}{% if gate.is_default %} (default){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="sq-btn sq-btn-primary" onclick="saveQualityGate()">
+                        <i class="bi bi-check-lg"></i> <span data-i18n="save">Save</span>
+                    </button>
+                    <span id="quality-gate-status" class="sq-form-status" style="display: none;"></span>
                 </div>
 
                 {% if current_user == "admin" %}

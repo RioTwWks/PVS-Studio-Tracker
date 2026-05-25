@@ -352,6 +352,83 @@ function createTrendChart(canvasId, historyData) {
     return chart;
 }
 
+function createMultiPlatformTrendChart(canvasId, historyByPlatform) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+
+    const ctx = canvas.getContext('2d');
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    const colors = getChartColors(theme);
+    const isDark = theme === 'dark';
+
+    const platformColors = {
+        windows: isDark ? '#58a6ff' : '#0d6efd',
+        linux: isDark ? '#e6872a' : '#fd7e14',
+        macos: isDark ? '#a371f7' : '#6f42c1',
+    };
+
+    let maxLen = 0;
+    let labels = [];
+    const datasets = [];
+
+    ['windows', 'linux', 'macos'].forEach((plat) => {
+        const series = historyByPlatform[plat];
+        if (!series || series.length === 0) return;
+        if (series.length > maxLen) {
+            maxLen = series.length;
+            labels = series.map((d) => new Date(d.timestamp).toLocaleDateString());
+        }
+        datasets.push({
+            label: I18n.t('platform_' + plat),
+            data: series.map((d) => d.total),
+            borderColor: platformColors[plat],
+            backgroundColor: 'transparent',
+            borderWidth: 2.5,
+            pointRadius: 3,
+            tension: 0.36,
+            fill: false,
+        });
+    });
+
+    if (datasets.length === 0) return null;
+
+    const maxValue = Math.max(
+        1,
+        ...datasets.flatMap((ds) => ds.data),
+    );
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: { color: colors.legendColor },
+                },
+            },
+            scales: {
+                x: {
+                    ticks: { color: colors.tickColor, maxTicksLimit: 8 },
+                    grid: { color: colors.gridColor },
+                },
+                y: {
+                    beginAtZero: true,
+                    suggestedMax: Math.ceil(maxValue * 1.15),
+                    ticks: { color: colors.tickColor, precision: 0 },
+                    grid: { color: colors.gridColor },
+                },
+            },
+        },
+    });
+
+    window.__pvsChart = chart;
+    return chart;
+}
+
 function initTrendChartFilters(chart) {
     const controls = document.querySelectorAll('.sq-legend-filter[data-dataset-index]');
     if (!chart || controls.length === 0) return;

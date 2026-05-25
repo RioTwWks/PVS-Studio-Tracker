@@ -1,0 +1,53 @@
+{# Platform filter — shared across Issues, Trends, Code #}
+<div class="sq-platform-switcher mb-3" role="group" aria-label="Platform filter">
+    {% set pf = platform_filter|default('windows') %}
+    {% set branch_q = '&branch=' ~ (active_branch|urlencode) if active_branch else '' %}
+    <a href="?platform_filter=windows{{ branch_q }}"
+       class="sq-platform-btn {% if pf == 'windows' %}active{% endif %}"
+       data-i18n="platform_windows">Windows</a>
+    <a href="?platform_filter=linux{{ branch_q }}"
+       class="sq-platform-btn {% if pf == 'linux' %}active{% endif %}"
+       data-i18n="platform_linux">Linux</a>
+    <a href="?platform_filter=macos{{ branch_q }}"
+       class="sq-platform-btn {% if pf == 'macos' %}active{% endif %}"
+       data-i18n="platform_macos">macOS</a>
+    <a href="?platform_filter=all{{ branch_q }}"
+       class="sq-platform-btn {% if pf == 'all' %}active{% endif %}"
+       data-i18n="platform_all">All</a>
+    <a href="?platform_filter=common{{ branch_q }}"
+       class="sq-platform-btn {% if pf == 'common' %}active{% endif %}"
+       data-i18n="platform_common">Common</a>
+</div>
+
+<style>
+.sq-platform-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.sq-platform-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--sq-border);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--sq-text-secondary);
+    font-size: 13px;
+    background: var(--sq-bg-secondary);
+}
+.sq-platform-btn:hover {
+    background: var(--sq-bg-hover);
+    color: var(--sq-text-primary);
+}
+.sq-platform-btn.active {
+    background: var(--sq-primary, #0d6efd);
+    color: #fff;
+    border-color: var(--sq-primary, #0d6efd);
+}
+.sq-platform-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--sq-bg-tertiary);
+    margin-left: 4px;
+}
+</style>

@@ -28,7 +28,7 @@
                 <span class="sq-branch-inline">
                     <i class="bi bi-diagram-3"></i>
                     <select class="sq-select-inline" id="branch-switcher"
-                            onchange="window.location.href='?branch=' + encodeURIComponent(this.value)">
+                            onchange="window.location.href='?branch=' + encodeURIComponent(this.value) + '&platform_filter=' + encodeURIComponent('{{ platform_filter|default('windows') }}')">
                         {% for b in branches %}
                         <option value="{{ b }}" {% if b == active_branch %}selected{% endif %}>{{ b }}</option>
                         {% endfor %}

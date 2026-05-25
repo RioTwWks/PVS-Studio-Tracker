@@ -172,8 +172,7 @@ def normalize_file_path_for_display(
     if not source_root:
         return file_path
     
-    # Нормализуем разделители
-    norm_file = file_path.replace("\\", "/").lstrip("/")
+    norm_file = file_path.replace("\\", "/")
     norm_root = source_root.replace("\\", "/").rstrip("/")
     
     # Убираем префикс (регистронезависимо для кроссплатформенности)

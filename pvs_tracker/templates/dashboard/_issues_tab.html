@@ -1,5 +1,6 @@
     {# === Tab Content: Issues === #}
     <div class="sq-project-tab-content" id="tab-issues" style="display: none;">
+        {% include "dashboard/_platform_switcher.html" %}
         <div class="sq-card">
             <div class="sq-card-header sq-card-header-actions">
                 <div>
@@ -20,6 +21,7 @@
                     <form hx-get="/ui/issues" hx-target="#issues-table-full" hx-trigger="submit" hx-indicator="#issues-table-full" hx-swap="innerHTML" class="sq-filters-form">
                         <input type="hidden" name="project_id" value="{{ project.id }}">
                         <input type="hidden" name="branch" value="{{ active_branch }}">
+                        <input type="hidden" name="platform_filter" value="{{ platform_filter|default('windows') }}">
 
                         <div class="sq-filter-group">
                             <label class="sq-filter-label" data-i18n="severity_label">Severity</label>
@@ -57,7 +59,7 @@
 
             <div class="sq-card-body sq-card-no-padding">
                 <div id="issues-table-full"
-                    data-issues-url="/ui/issues?project_id={{ project.id }}{% if active_branch %}&branch={{ active_branch }}{% endif %}"
+                    data-issues-url="/ui/issues?project_id={{ project.id }}&platform_filter={{ platform_filter|default('windows')|urlencode }}{% if active_branch %}&branch={{ active_branch|urlencode }}{% endif %}"
                     data-issues-loaded="false">
                     <div class="sq-loading">
                         <div class="spinner-border text-primary" role="status">

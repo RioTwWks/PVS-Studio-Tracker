@@ -38,6 +38,15 @@
                     <small class="text-muted" data-i18n="default_source_root_linux_hint">Used when project has no custom Linux source root</small>
                 </div>
 
+                <div class="sq-form-group">
+                    <label class="sq-form-label">
+                        <i class="bi bi-apple"></i> <span data-i18n="default_source_root_macos">Default Source Root (macOS)</span>
+                    </label>
+                    <input type="text" id="global-root-macos" class="sq-input"
+                           value="{{ settings.default_source_root_macos or '' }}"
+                           placeholder="/Users/dev/projects/src">
+                </div>
+
                 <div class="sq-form-actions mt-4">
                     <button type="button" class="sq-btn sq-btn-primary" onclick="saveGlobalSettings()">
                         <i class="bi bi-check-lg"></i> <span data-i18n="save_settings">Save Settings</span>
@@ -78,12 +87,15 @@ async function saveGlobalSettings() {
     try {
         const resp = await fetch('/api/v2/settings/global', {
             method: 'PATCH',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + (localStorage.getItem('token') || ''),
             },
             body: JSON.stringify({
                 default_source_root_win: document.getElementById('global-root-win').value || null,
                 default_source_root_linux: document.getElementById('global-root-linux').value || null,
+                default_source_root_macos: document.getElementById('global-root-macos').value || null,
             })
         });
         
