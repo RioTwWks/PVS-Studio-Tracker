@@ -232,8 +232,16 @@ def update_last_changeset(session: Session, project: Project, changeset: str) ->
     session.refresh(project)
 
 
-def set_analysis_queued(session: Session, project: Project, build_id: Optional[int]) -> None:
-    project.last_jenkins_build_id = build_id
+def set_analysis_queued(
+    session: Session,
+    project: Project,
+    trigger: Optional[object],
+) -> None:
+    from pvs_tracker.jenkins_service import JenkinsTriggerResult
+
+    if isinstance(trigger, JenkinsTriggerResult):
+        project.last_jenkins_build_id = trigger.build_number
+        project.last_jenkins_build_url = trigger.console_url
     project.last_analysis_at = datetime.utcnow()
     session.add(project)
     session.commit()

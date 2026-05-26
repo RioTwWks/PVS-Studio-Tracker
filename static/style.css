@@ -1153,6 +1153,19 @@ a:hover {
   will-change: opacity, transform;
 }
 
+.sq-toast-link,
+.sq-jenkins-build-link {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
+.sq-toast-link:hover,
+.sq-jenkins-build-link:hover {
+    opacity: 0.9;
+}
+
 .sq-toast-success {
   background: linear-gradient(135deg, #198754 0%, #157347 100%);
 }

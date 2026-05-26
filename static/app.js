@@ -763,15 +763,26 @@ function sqDismissToast(toastEl) {
     setTimeout(remove, SQ_MOTION_MS + 80);
 }
 
+function sqEscapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Toast справа сверху (без класса bootstrap .toast — иначе display:none без .show)
-function showToast(message, type = 'info', durationMs = 5000) {
+function showToast(message, type = 'info', durationMs = 5000, linkUrl = null, linkText = null) {
     const toastEl = document.createElement('div');
     toastEl.className = `sq-toast sq-toast-${type}`;
     toastEl.setAttribute('role', 'alert');
     toastEl.setAttribute('aria-live', 'polite');
     toastEl.setAttribute('aria-atomic', 'true');
+    let bodyHtml = sqEscapeHtml(message);
+    if (linkUrl) {
+        const label = sqEscapeHtml(linkText || 'Console');
+        bodyHtml += ` <a href="${sqEscapeHtml(linkUrl)}" target="_blank" rel="noopener noreferrer" class="sq-toast-link">${label}</a>`;
+    }
     toastEl.innerHTML = `
-        <span class="sq-toast-body">${message}</span>
+        <span class="sq-toast-body">${bodyHtml}</span>
         <button type="button" class="sq-toast-close" data-sq-toast-close aria-label="Close">
             <i class="bi bi-x-lg"></i>
         </button>`;
@@ -849,7 +860,13 @@ function fireCiToast(detail) {
     }
     _lastCiToastMessage = message;
     _lastCiToastAt = now;
-    showToast(message, detail?.type || 'success', detail?.durationMs || 5000);
+    showToast(
+        message,
+        detail?.type || 'success',
+        detail?.durationMs || 5000,
+        detail?.url || null,
+        detail?.linkText || null,
+    );
 }
 
 function consumeCiToastPayload(root) {
@@ -863,6 +880,8 @@ function consumeCiToastPayload(root) {
     fireCiToast({
         key: el.getAttribute('data-ci-toast-key') || '',
         type: el.getAttribute('data-ci-toast-type') || 'success',
+        url: el.getAttribute('data-ci-toast-url') || null,
+        linkText: el.getAttribute('data-ci-toast-link-text') || null,
     });
     el.remove();
 }
@@ -879,6 +898,8 @@ function handleCiToastFromResponseText(html) {
     fireCiToast({
         key: el.getAttribute('data-ci-toast-key') || '',
         type: el.getAttribute('data-ci-toast-type') || 'success',
+        url: el.getAttribute('data-ci-toast-url') || null,
+        linkText: el.getAttribute('data-ci-toast-link-text') || null,
     });
     return true;
 }

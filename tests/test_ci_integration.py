@@ -11,7 +11,17 @@ from sqlmodel.pool import StaticPool
 
 from pvs_tracker.main import app
 from pvs_tracker.models import Project
+from pvs_tracker.jenkins_service import JenkinsTriggerResult, jenkins_job_console_url
 from pvs_tracker.project_ci import create_ci_project, slug_from_name
+
+
+def _jenkins_result(build_number: int = 42) -> JenkinsTriggerResult:
+    return JenkinsTriggerResult(
+        build_number=build_number,
+        queue_id=14018,
+        console_url=jenkins_job_console_url("Test_FastAPI", build_number),
+        display_label=f"#{build_number}",
+    )
 
 
 @pytest.fixture(name="session")
@@ -112,7 +122,7 @@ def test_dashboard_syncs_selected_branch(client: TestClient, session: Session):
 @patch("pvs_tracker.jenkins_service.get_jenkins_service")
 def test_trigger_analysis_uses_selected_branch(mock_jenkins, client: TestClient, session: Session):
     mock_svc = MagicMock()
-    mock_svc.trigger_build.return_value = 99
+    mock_svc.trigger_build.return_value = _jenkins_result(99)
     mock_jenkins.return_value = mock_svc
 
     project = create_ci_project(
@@ -150,7 +160,7 @@ def test_trigger_analysis_uses_selected_branch(mock_jenkins, client: TestClient,
 @patch("pvs_tracker.jenkins_service.get_jenkins_service")
 def test_trigger_analysis_htmx(mock_jenkins, client: TestClient, session: Session):
     mock_svc = MagicMock()
-    mock_svc.trigger_build.return_value = 42
+    mock_svc.trigger_build.return_value = _jenkins_result(42)
     mock_jenkins.return_value = mock_svc
 
     project = create_ci_project(
@@ -174,6 +184,15 @@ def test_trigger_analysis_htmx(mock_jenkins, client: TestClient, session: Sessio
         )
     assert r.status_code == 200
     assert "project-ci-panel" in r.text or "Jenkins" in r.text
+    assert "last_jenkins_build_url" not in r.text or "/console" in r.text or "ci-toast-url" in r.text
+    session.refresh(project)
+    assert project.last_jenkins_build_url is not None
+    assert "/42/console" in project.last_jenkins_build_url
+
+
+def test_jenkins_job_console_url():
+    url = jenkins_job_console_url("Test_FastAPI", 7)
+    assert url.endswith("/job/Test_FastAPI/7/console")
 
 
 def test_resolve_assignee_fallback_to_display_name():

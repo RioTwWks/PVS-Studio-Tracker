@@ -14,8 +14,14 @@
                 {% else %}
                 <span class="badge bg-info">jira on</span>
                 {% endif %}
-                {% if project.last_jenkins_build_id %}
-                <span class="badge bg-primary">build #{{ project.last_jenkins_build_id }}</span>
+                {% if project.last_jenkins_build_url %}
+                <a href="{{ project.last_jenkins_build_url }}" target="_blank" rel="noopener noreferrer"
+                   class="badge bg-primary text-decoration-none">
+                    <i class="bi bi-terminal"></i>
+                    {% if project.last_jenkins_build_id %}#{{ project.last_jenkins_build_id }}{% else %}Jenkins{% endif %}
+                </a>
+                {% elif project.last_jenkins_build_id %}
+                <span class="badge bg-primary">#{{ project.last_jenkins_build_id }}</span>
                 {% endif %}
             </h5>
             <small class="text-muted">

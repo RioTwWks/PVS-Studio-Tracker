@@ -64,6 +64,8 @@ def _ci_panel_response(
     active_branch: str = "",
     ci_toast_key: Optional[str] = None,
     ci_toast_type: str = "success",
+    ci_toast_url: Optional[str] = None,
+    ci_toast_link_text: Optional[str] = None,
 ) -> HTMLResponse:
     ctx = project_form_context(project, edit=True, edit_id=project.id, load_jira=False)
     ctx["group_choices"] = GROUP_CHOICES
@@ -74,11 +76,18 @@ def _ci_panel_response(
     )
     ctx["ci_toast_key"] = ci_toast_key
     ctx["ci_toast_type"] = ci_toast_type
+    ctx["ci_toast_url"] = ci_toast_url
+    ctx["ci_toast_link_text"] = ci_toast_link_text
     headers: dict[str, str] = {}
-    if ci_toast_key:
-        headers["HX-Trigger"] = json.dumps(
-            {"ciToast": {"key": ci_toast_key, "type": ci_toast_type}}
-        )
+    if ci_toast_key or ci_toast_url:
+        payload: dict[str, str] = {"type": ci_toast_type}
+        if ci_toast_key:
+            payload["key"] = ci_toast_key
+        if ci_toast_url:
+            payload["url"] = ci_toast_url
+        if ci_toast_link_text:
+            payload["linkText"] = ci_toast_link_text
+        headers["HX-Trigger"] = json.dumps({"ciToast": payload})
     return templates.TemplateResponse(
         request, "dashboard/_ci_panel.html", ctx, headers=headers
     )
@@ -341,13 +350,19 @@ def trigger_analysis(
         raise HTTPException(status_code=400, detail="Unsupported CVS")
     if not commit_id:
         raise HTTPException(status_code=500, detail="Could not resolve commit/changeset")
-    build_id = trigger_jenkins_build(project, commit_id, first_scan, True, [])
-    set_analysis_queued(session, project, build_id)
+    trigger = trigger_jenkins_build(project, commit_id, first_scan, True, [])
+    if not trigger:
+        raise HTTPException(status_code=500, detail="Jenkins trigger failed")
+    set_analysis_queued(session, project, trigger)
+    session.refresh(project)
+    link_label = trigger.display_label
     return _ci_panel_response(
         request,
         project,
         session,
         active_branch=active_branch,
         ci_toast_key="ci_toast_analysis_started",
+        ci_toast_url=trigger.console_url,
+        ci_toast_link_text=link_label,
     )
 

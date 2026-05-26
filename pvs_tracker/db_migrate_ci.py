@@ -35,6 +35,7 @@ PROJECT_CI_COLUMNS: dict[str, str] = {
     "last_processed_changeset": "VARCHAR DEFAULT ''",
     "release_version": "VARCHAR DEFAULT ''",
     "last_jenkins_build_id": "INTEGER",
+    "last_jenkins_build_url": "VARCHAR",
     "last_analysis_at": "DATETIME",
 }
 

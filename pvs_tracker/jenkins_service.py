@@ -3,13 +3,82 @@
 from __future__ import annotations
 
 import logging
+import time
+from dataclasses import dataclass
 from typing import Any, Optional
+from urllib.parse import quote
+
+from jenkinsapi.custom_exceptions import NotBuiltYet
+from jenkinsapi.queue import QueueItem
 
 from pvs_tracker.ci_config import ci_settings
 from pvs_tracker.models import Project
 from pvs_tracker.project_ci import project_analysis_branch, project_repo_path
 
 logger = logging.getLogger(__name__)
+
+# Сколько ждать появления номера сборки перед ссылкой на очередь (сек).
+_BUILD_WAIT_SECONDS = 12.0
+_BUILD_POLL_INTERVAL = 1.0
+
+
+@dataclass(frozen=True)
+class JenkinsTriggerResult:
+    """Результат постановки job в очередь Jenkins."""
+
+    build_number: Optional[int]
+    queue_id: Optional[int]
+    console_url: str
+    display_label: str
+
+
+def jenkins_job_console_url(job_name: str, build_number: int) -> str:
+    """Прямая ссылка на /console для известного номера сборки."""
+    base = ci_settings.JENKINS_URL.rstrip("/")
+    segments = [p for p in job_name.split("/") if p]
+    job_path = "/".join(f"job/{quote(seg)}" for seg in segments)
+    return f"{base}/{job_path}/{build_number}/console"
+
+
+def _queue_item_web_url(queue_item: QueueItem) -> str:
+    url = (queue_item.baseurl or "").rstrip("/")
+    if "/api/" in url:
+        url = url.replace("/api/", "/")
+    return f"{url}/"
+
+
+def _build_console_url(queue_item: QueueItem) -> JenkinsTriggerResult:
+    """Дождаться старта сборки и вернуть URL консоли (или страницы очереди)."""
+    queue_id = int(queue_item.queue_id)
+    deadline = time.monotonic() + _BUILD_WAIT_SECONDS
+
+    while time.monotonic() < deadline:
+        try:
+            queue_item.poll()
+            build_number = queue_item.get_build_number()
+            build = queue_item.get_build()
+            console_url = f"{build.baseurl.rstrip('/')}/console"
+            return JenkinsTriggerResult(
+                build_number=build_number,
+                queue_id=queue_id,
+                console_url=console_url,
+                display_label=f"#{build_number}",
+            )
+        except NotBuiltYet:
+            time.sleep(_BUILD_POLL_INTERVAL)
+
+    queue_url = _queue_item_web_url(queue_item)
+    logger.info(
+        "Build not started within %.0fs, linking to queue item %s",
+        _BUILD_WAIT_SECONDS,
+        queue_id,
+    )
+    return JenkinsTriggerResult(
+        build_number=None,
+        queue_id=queue_id,
+        console_url=queue_url,
+        display_label=f"queue #{queue_id}",
+    )
 
 _jenkins_service: Optional["JenkinsService"] = None
 
@@ -41,7 +110,7 @@ class JenkinsService:
         first_scan: bool | str = False,
         linux_build: bool = False,
         modified_files: Optional[list[str]] = None,
-    ) -> Optional[int]:
+    ) -> Optional[JenkinsTriggerResult]:
         if isinstance(first_scan, str):
             first_scan_bool = first_scan.upper() == "YES"
         else:
@@ -57,12 +126,18 @@ class JenkinsService:
             )
             files = self._prepare_file_uploads(project, modified_files or [])
             job = self.jenkins[ci_settings.JENKINS_JOB_NAME]
-            build = job.invoke(
+            queue_item = job.invoke(
                 build_params=build_params,
                 files={k: v for k, v in files.items() if v},
             )
-            logger.info("Jenkins build started for %s: %s", project.name, build)
-            return int(build) if build is not None else None
+            result = _build_console_url(queue_item)
+            logger.info(
+                "Jenkins build for %s: %s -> %s",
+                project.name,
+                result.display_label,
+                result.console_url,
+            )
+            return result
         except Exception as e:
             logger.error("Jenkins trigger failed: %s", e, exc_info=True)
             return None
@@ -137,7 +212,7 @@ def trigger_jenkins_build(
     first_scan: bool | str = False,
     linux_build: bool = False,
     modified_files: Optional[list[str]] = None,
-) -> Optional[int]:
+) -> Optional[JenkinsTriggerResult]:
     return get_jenkins_service().trigger_build(
         project, commit_id, first_scan, linux_build, modified_files
     )

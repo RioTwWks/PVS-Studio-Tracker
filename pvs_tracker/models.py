@@ -107,6 +107,10 @@ class Project(SQLModel, table=True):
     last_processed_changeset: Optional[str] = Field(default="")
     release_version: Optional[str] = Field(default="")
     last_jenkins_build_id: Optional[int] = Field(default=None)
+    last_jenkins_build_url: Optional[str] = Field(
+        default=None,
+        description="Jenkins console (or queue) URL for the last triggered build",
+    )
     last_analysis_at: Optional[datetime] = Field(default=None)
 
     # Relationships

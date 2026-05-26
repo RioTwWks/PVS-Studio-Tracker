@@ -1,13 +1,24 @@
-{% if ci_toast_key %}
+{% if ci_toast_key or ci_toast_url %}
 <div id="ci-toast-payload" hidden
-     data-ci-toast-key="{{ ci_toast_key }}"
-     data-ci-toast-type="{{ ci_toast_type|default('success') }}"></div>
+     {% if ci_toast_key %}data-ci-toast-key="{{ ci_toast_key }}"{% endif %}
+     data-ci-toast-type="{{ ci_toast_type|default('success') }}"
+     {% if ci_toast_url %}data-ci-toast-url="{{ ci_toast_url }}"{% endif %}
+     {% if ci_toast_link_text %}data-ci-toast-link-text="{{ ci_toast_link_text }}"{% endif %}></div>
 {% endif %}
 <div class="sq-card">
     <div class="sq-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span><i class="bi bi-gear-wide-connected"></i> <span data-i18n="ci_management_title">Analysis management</span></span>
-        {% if project.last_jenkins_build_id %}
-        <span class="sq-badge bg-primary">build #{{ project.last_jenkins_build_id }}</span>
+        {% if project.last_jenkins_build_url %}
+        <a href="{{ project.last_jenkins_build_url }}" target="_blank" rel="noopener noreferrer"
+           class="sq-badge bg-primary text-decoration-none sq-jenkins-build-link"
+           title="{{ project.last_jenkins_build_url }}">
+            <i class="bi bi-terminal"></i>
+            <span data-i18n="ci_open_console">Console</span>
+            {% if project.last_jenkins_build_id %}<span class="ms-1">#{{ project.last_jenkins_build_id }}</span>{% endif %}
+            <i class="bi bi-box-arrow-up-right ms-1"></i>
+        </a>
+        {% elif project.last_jenkins_build_id %}
+        <span class="sq-badge bg-primary">#{{ project.last_jenkins_build_id }}</span>
         {% endif %}
     </div>
     <div class="sq-card-body">
