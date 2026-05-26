@@ -1,4 +1,15 @@
 <script>
+    /** Смена ветки проекта: сохраняется в БД через ?branch= на дашборде. */
+    function pvsSwitchBranch(branch) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('branch', branch);
+        if (!params.has('platform_filter')) {
+            params.set('platform_filter', 'windows');
+        }
+        const path = window.location.pathname;
+        window.location.href = path + '?' + params.toString();
+    }
+
     // SonarQube-style tab switching
     function switchProjectTab(tabName) {
         // Hide all tab contents

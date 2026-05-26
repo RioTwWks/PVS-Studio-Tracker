@@ -61,6 +61,7 @@ def _ci_panel_response(
     project: Project,
     session: Session,
     *,
+    active_branch: str = "",
     ci_toast_key: Optional[str] = None,
     ci_toast_type: str = "success",
 ) -> HTMLResponse:
@@ -68,6 +69,9 @@ def _ci_panel_response(
     ctx["group_choices"] = GROUP_CHOICES
     ctx["project"] = project
     ctx["is_admin"] = is_admin(request)
+    ctx["active_branch"] = active_branch or (
+        (project.git_branch or project.analysis_branch or "").strip()
+    )
     ctx["ci_toast_key"] = ci_toast_key
     ctx["ci_toast_type"] = ci_toast_type
     headers: dict[str, str] = {}
@@ -87,6 +91,9 @@ def _dashboard_settings_redirect(
     ci_error: Optional[str] = None,
 ) -> RedirectResponse:
     url = f"/ui/projects/{project.id}/dashboard?tab=settings&settings_tab={settings_tab}"
+    branch = (project.git_branch or project.analysis_branch or "").strip()
+    if branch:
+        url += f"&branch={quote(branch)}"
     if ci_error:
         url += f"&ci_error={quote(ci_error)}"
     return RedirectResponse(url=url, status_code=303)
@@ -217,7 +224,6 @@ async def project_ci_update(
     jira_project: str = Form(""),
     cvs_system: str = Form(...),
     tfs_path: str = Form(...),
-    another_branch: str = Form(...),
     sub_modules: Optional[str] = Form(None),
     life_time: str = Form(""),
     cmake_msbuild: str = Form("CMake"),
@@ -243,7 +249,7 @@ async def project_ci_update(
             jira_project=jira_project,
             cvs_system=cvs_system,
             tfs_path=tfs_path,
-            another_branch=another_branch,
+            include_branch=False,
             sub_modules=_checkbox(sub_modules),
             life_time=life_time,
             cmake_msbuild=cmake_msbuild,
@@ -307,13 +313,22 @@ def toggle_jira(
 
 @router.post("/ui/projects/{project_id}/trigger-analysis", response_class=HTMLResponse)
 def trigger_analysis(
-    request: Request, project_id: int, session: Session = Depends(get_session)
+    request: Request,
+    project_id: int,
+    session: Session = Depends(get_session),
+    branch: str = Form(""),
 ) -> HTMLResponse:
     if not is_admin(request):
         raise HTTPException(status_code=403, detail="Admin only")
     project = get_project_by_id(session, project_id)
     if not project:
         raise HTTPException(status_code=404)
+    from pvs_tracker.dashboard_context import sync_project_branch
+    from pvs_tracker.project_ci import project_analysis_branch
+
+    active_branch = (branch or project_analysis_branch(project)).strip() or "main"
+    sync_project_branch(session, project, active_branch)
+    session.refresh(project)
     has_cs = bool(project.last_processed_changeset and project.last_processed_changeset.strip())
     first_scan = "YES" if not has_cs else "NO"
     if has_cs:
@@ -329,6 +344,10 @@ def trigger_analysis(
     build_id = trigger_jenkins_build(project, commit_id, first_scan, True, [])
     set_analysis_queued(session, project, build_id)
     return _ci_panel_response(
-        request, project, session, ci_toast_key="ci_toast_analysis_started"
+        request,
+        project,
+        session,
+        active_branch=active_branch,
+        ci_toast_key="ci_toast_analysis_started",
     )
 

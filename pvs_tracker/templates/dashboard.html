@@ -20,23 +20,27 @@
             <h1 class="sq-project-title">
                 <i class="bi bi-folder2"></i> {{ project.name }}
             </h1>
-            {% if history and history|length > 0 %}
-            {% set latest = history[-1] %}
             <p class="sq-project-meta">
+                {% if history and history|length > 0 %}
+                {% set latest = history[-1] %}
                 <i class="bi bi-calendar3"></i> <span data-i18n="last_analysis">Last analysis</span>: {{ latest.timestamp }}
+                {% else %}
+                <i class="bi bi-diagram-3"></i> <span data-i18n="project_branch">Branch</span>:
+                {% endif %}
                 {% if branches and branches|length > 0 %}
                 <span class="sq-branch-inline">
-                    <i class="bi bi-diagram-3"></i>
+                    {% if history and history|length > 0 %} · {% endif %}
                     <select class="sq-select-inline" id="branch-switcher"
-                            onchange="window.location.href='?branch=' + encodeURIComponent(this.value) + '&platform_filter=' + encodeURIComponent('{{ platform_filter|default('windows') }}')">
+                            onchange="pvsSwitchBranch(this.value)">
                         {% for b in branches %}
                         <option value="{{ b }}" {% if b == active_branch %}selected{% endif %}>{{ b }}</option>
                         {% endfor %}
                     </select>
                 </span>
+                {% elif active_branch %}
+                <strong>{{ active_branch }}</strong>
                 {% endif %}
             </p>
-            {% endif %}
         </div>
         {% if is_admin %}
         <div class="sq-project-header-right">

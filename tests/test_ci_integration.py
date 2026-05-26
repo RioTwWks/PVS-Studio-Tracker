@@ -88,6 +88,65 @@ def test_toggle_disabled_htmx(client: TestClient, session: Session):
     assert updated.disabled is True
 
 
+def test_dashboard_syncs_selected_branch(client: TestClient, session: Session):
+    project = create_ci_project(
+        session,
+        {
+            "name": "BranchSync",
+            "author_email": "a@b.com",
+            "cvs_system": "Git",
+            "repo_path": "https://x.git",
+            "pvs_check_conf_name": "R",
+            "pvs_check_arch": "x64",
+            "analysis_branch": "develop",
+            "git_branch": "develop",
+        },
+    )
+    r = client.get(f"/ui/projects/{project.id}/dashboard?branch=release/2.0")
+    assert r.status_code == 200
+    session.refresh(project)
+    assert project.git_branch == "release/2.0"
+    assert project.analysis_branch == "release/2.0"
+
+
+@patch("pvs_tracker.jenkins_service.get_jenkins_service")
+def test_trigger_analysis_uses_selected_branch(mock_jenkins, client: TestClient, session: Session):
+    mock_svc = MagicMock()
+    mock_svc.trigger_build.return_value = 99
+    mock_jenkins.return_value = mock_svc
+
+    project = create_ci_project(
+        session,
+        {
+            "name": "BranchAnalyze",
+            "author_email": "a@b.com",
+            "cvs_system": "Git",
+            "repo_path": "https://x.git",
+            "pvs_check_conf_name": "R",
+            "pvs_check_arch": "x64",
+            "analysis_branch": "main",
+            "git_branch": "main",
+            "last_processed_changeset": "abc123",
+        },
+    )
+    client.get(f"/ui/projects/{project.id}/dashboard?branch=feature/login")
+
+    with patch("pvs_tracker.project_manage.is_admin", return_value=True):
+        r = client.post(
+            f"/ui/projects/{project.id}/trigger-analysis",
+            data={"branch": "feature/login"},
+            headers={"HX-Request": "true"},
+        )
+    assert r.status_code == 200
+    session.refresh(project)
+    assert project.git_branch == "feature/login"
+    assert mock_svc.trigger_build.called
+    passed_project = mock_svc.trigger_build.call_args[0][0]
+    from pvs_tracker.project_ci import project_analysis_branch
+
+    assert project_analysis_branch(passed_project) == "feature/login"
+
+
 @patch("pvs_tracker.jenkins_service.get_jenkins_service")
 def test_trigger_analysis_htmx(mock_jenkins, client: TestClient, session: Session):
     mock_svc = MagicMock()

@@ -22,7 +22,8 @@ def project_repo_path(project: Project) -> str:
 
 
 def project_analysis_branch(project: Project) -> str:
-    branch = (project.analysis_branch or project.git_branch or "").strip()
+    """Текущая ветка CI (синхронизирована с git_branch на дашборде)."""
+    branch = (project.git_branch or project.analysis_branch or "").strip()
     return branch or "main"
 
 
@@ -36,6 +37,7 @@ def parse_sonar_form_fields(
     cvs_system: str = "Git",
     tfs_path: str = "",
     another_branch: str = "",
+    include_branch: bool = True,
     sub_modules: bool = False,
     life_time: str = "",
     cmake_msbuild: str = "CMake",
@@ -54,7 +56,7 @@ def parse_sonar_form_fields(
     if re.search(r"\s", name):
         raise ValueError("SonarQube Project Name не должен содержать пробелов")
     slug = (sonar_project_key or slug_from_name(name)).strip()
-    return {
+    data: dict[str, Any] = {
         "name": name,
         "slug": slug,
         "author_email": author_email.strip(),
@@ -62,8 +64,6 @@ def parse_sonar_form_fields(
         "jira_project": jira_project.strip(),
         "cvs_system": cvs_system.strip(),
         "repo_path": tfs_path.strip(),
-        "analysis_branch": another_branch.strip(),
-        "git_branch": another_branch.strip() or "main",
         "sub_modules": sub_modules,
         "life_time": life_time.strip() or None,
         "cmake_msbuild": cmake_msbuild.strip() or None,
@@ -77,6 +77,11 @@ def parse_sonar_form_fields(
         "disabled": disabled,
         "disable_jira": disable_jira,
     }
+    if include_branch:
+        branch_val = another_branch.strip() or "main"
+        data["analysis_branch"] = branch_val
+        data["git_branch"] = branch_val
+    return data
 
 
 def validate_ci_project_data(data: dict[str, Any]) -> tuple[bool, str]:
@@ -155,7 +160,7 @@ def create_ci_project(session: Session, data: dict[str, Any]) -> Project:
         group_name=str(data.get("group_name") or "Ungrouped").strip(),
         cvs_system=str(data["cvs_system"]).strip(),
         repo_path=str(data["repo_path"]).strip(),
-        analysis_branch=str(data.get("analysis_branch") or "").strip(),
+        analysis_branch=str(data.get("analysis_branch") or data.get("git_branch") or "").strip(),
         jira_project=str(data.get("jira_project") or "").strip(),
         sub_modules=bool(data.get("sub_modules")),
         life_time=data.get("life_time"),
@@ -174,8 +179,9 @@ def create_ci_project(session: Session, data: dict[str, Any]) -> Project:
     )
     if data.get("git_url"):
         project.git_url = str(data["git_url"])
-    if data.get("git_branch"):
-        project.git_branch = str(data["git_branch"])
+    branch = str(data.get("git_branch") or data.get("analysis_branch") or "").strip() or "main"
+    project.git_branch = branch
+    project.analysis_branch = branch
     session.add(project)
     session.commit()
     session.refresh(project)

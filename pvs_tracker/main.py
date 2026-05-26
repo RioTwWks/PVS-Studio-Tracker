@@ -465,33 +465,24 @@ async def ui_dashboard(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Collect all distinct branches from runs
+    from pvs_tracker.dashboard_context import (
+        list_project_branches,
+        resolve_active_branch,
+        sync_project_branch,
+    )
+
     all_runs = session.exec(
         select(Run)
         .where(Run.project_id == project_id, Run.status == "done")
         .order_by(Run.timestamp.desc()),
     ).all()
 
-    branches: list[str] = []
-    for r in all_runs:
-        b = (r.branch or "").strip()
-        if b and b not in branches:
-            branches.append(b)
-    default_branch = (project.git_branch or "").strip()
-    if default_branch and default_branch not in branches:
-        branches.append(default_branch)
-
-    # Determine active branch: explicit param > main > master > first available
-    if branch:
-        active_branch = branch
-    elif "main" in branches:
-        active_branch = "main"
-    elif "master" in branches:
-        active_branch = "master"
-    elif branches:
-        active_branch = branches[0]
-    else:
-        active_branch = ""
+    branches = list_project_branches(project, all_runs)
+    active_branch = resolve_active_branch(project, all_runs, branch)
+    if active_branch:
+        sync_project_branch(session, project, active_branch)
+        if active_branch not in branches:
+            branches.append(active_branch)
 
     from pvs_tracker.dashboard_history import build_dashboard_histories
     from pvs_tracker.platforms import normalize_platform_filter
@@ -529,6 +520,8 @@ async def ui_dashboard(
     err = ci_error.strip()
     form_ctx["flash_message"] = err or None
     form_ctx["flash_is_error"] = bool(err)
+    form_ctx["show_branch_field"] = False
+    form_ctx["active_branch"] = active_branch
 
     return templates.TemplateResponse(
         request,
@@ -1179,33 +1172,22 @@ def api_dashboard(project_id: int, branch: str = "", session: Session = Depends(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Collect all distinct branches from runs
+    from pvs_tracker.dashboard_context import (
+        list_project_branches,
+        resolve_active_branch,
+        sync_project_branch,
+    )
+
     all_runs = session.exec(
         select(Run)
         .where(Run.project_id == project_id, Run.status == "done")
         .order_by(Run.timestamp.desc()),
     ).all()
 
-    branches: list[str] = []
-    for r in all_runs:
-        b = (r.branch or "").strip()
-        if b and b not in branches:
-            branches.append(b)
-    default_branch = (project.git_branch or "").strip()
-    if default_branch and default_branch not in branches:
-        branches.append(default_branch)
-
-    # Determine active branch: explicit param > main > master > first available
-    if branch:
-        active_branch = branch
-    elif "main" in branches:
-        active_branch = "main"
-    elif "master" in branches:
-        active_branch = "master"
-    elif branches:
-        active_branch = branches[0]
-    else:
-        active_branch = ""
+    branches = list_project_branches(project, all_runs)
+    active_branch = resolve_active_branch(project, all_runs, branch)
+    if active_branch:
+        sync_project_branch(session, project, active_branch)
 
     # Filter runs by active branch
     run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")

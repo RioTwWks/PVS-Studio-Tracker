@@ -55,7 +55,7 @@ class Project(SQLModel, table=True):
     )
     git_branch: Optional[str] = Field(
         default="main",
-        description="Default branch to use (main, master, etc.)",
+        description="Active project branch (CI, upload, dashboard switcher; synced with analysis_branch)",
     )
     git_credentials_type: Optional[str] = Field(
         default=None,

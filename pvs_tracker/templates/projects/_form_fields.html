@@ -71,6 +71,7 @@
            value="{{ tfs_path }}" placeholder="https://... или $/path">
 </div>
 
+{% if show_branch_field is not defined or show_branch_field %}
 <div class="row g-3">
     <div class="col-md-6">
         <label class="sq-form-label" for="ANOTHER_BRANCH">Ветка *</label>
@@ -83,6 +84,22 @@
         <small class="text-muted">Пусто — без ограничения ({{ current_date }})</small>
     </div>
 </div>
+{% else %}
+<div class="sq-form-group mb-3">
+    <label class="sq-form-label" data-i18n="project_branch">Branch</label>
+    <p class="mb-0">
+        <strong>{{ active_branch or project.git_branch or '—' }}</strong>
+        <span class="text-muted ms-2" data-i18n="branch_switch_in_header">Switch branch in the project header.</span>
+    </p>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label class="sq-form-label" for="LIFE_TIME">Время жизни проекта</label>
+        <input type="month" id="LIFE_TIME" name="life_time" class="sq-input" value="{{ life_time }}">
+        <small class="text-muted">Пусто — без ограничения ({{ current_date }})</small>
+    </div>
+</div>
+{% endif %}
 
 <div class="row g-3 align-items-center">
     <div class="col-md-4">
