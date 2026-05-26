@@ -30,7 +30,7 @@
                 {% if branches and branches|length > 0 %}
                 <span class="sq-branch-inline">
                     {% if history and history|length > 0 %} · {% endif %}
-                    <select class="sq-select-inline" id="branch-switcher"
+                    <select class="sq-select-inline" id="branch-switcher" name="branch"
                             onchange="pvsSwitchBranch(this.value)">
                         {% for b in branches %}
                         <option value="{{ b }}" {% if b == active_branch %}selected{% endif %}>{{ b }}</option>
