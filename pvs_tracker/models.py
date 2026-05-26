@@ -126,9 +126,14 @@ class User(SQLModel, table=True):
     username: str = Field(unique=True, index=True)
     first_name: Optional[str] = Field(default=None, max_length=100)
     last_name: Optional[str] = Field(default=None, max_length=100)
+    display_name: Optional[str] = Field(default=None, max_length=200)
     email: Optional[str] = Field(default=None)
     notify_api_uploads: bool = Field(default=False)
-    password_hash: str = Field(description="Hashed password (bcrypt)")
+    password_hash: Optional[str] = Field(
+        default=None,
+        description="Hashed password (bcrypt); None for LDAP-only accounts",
+    )
+    auth_provider: str = Field(default="local", description="local | ldap")
     role: UserRole = Field(default=UserRole.VIEWER)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)

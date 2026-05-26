@@ -16,9 +16,17 @@ from pvs_tracker.models import (
     RunReport, CodeSnapshotFile, UserProjectNotification,
 )
 from pvs_tracker.auth_service import (
-    require_auth, require_admin, require_role, create_user,
-    authenticate_user, create_access_token, get_current_user,
-    can_access_project, can_modify_project
+    require_auth,
+    require_admin,
+    require_role,
+    create_user,
+    authenticate_credentials,
+    create_access_token,
+    get_current_user,
+    establish_session,
+    get_auth_settings_public,
+    can_access_project,
+    can_modify_project,
 )
 from pvs_tracker.quality_gate import (
     evaluate_quality_gate,
@@ -48,8 +56,11 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
+    password: Optional[str] = Field(default=None, min_length=6)
 
 
 class ProfileUpdate(BaseModel):
@@ -174,6 +185,24 @@ def log_activity(
     session.add(log)
 
 
+def _serialize_user_admin(user: User) -> dict:
+    """Build API response for admin user list / edit."""
+    role = user.role.value if hasattr(user.role, "value") else user.role
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "role": role,
+        "auth_provider": user.auth_provider,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "last_login": user.last_login,
+    }
+
+
 def _serialize_user_profile(session: Session, user: User) -> dict:
     """Build API response for current user profile."""
     notification_rows = session.exec(
@@ -182,19 +211,10 @@ def _serialize_user_profile(session: Session, user: User) -> dict:
         )
     ).all()
     notification_project_ids = [row for row in notification_rows]
-    return {
-        "id": user.id,
-        "username": user.username,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "email": user.email,
-        "notify_api_uploads": user.notify_api_uploads,
-        "notification_project_ids": notification_project_ids,
-        "role": user.role,
-        "is_active": user.is_active,
-        "created_at": user.created_at,
-        "last_login": user.last_login,
-    }
+    data = _serialize_user_admin(user)
+    data["notify_api_uploads"] = user.notify_api_uploads
+    data["notification_project_ids"] = notification_project_ids
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -202,16 +222,19 @@ def _serialize_user_profile(session: Session, user: User) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/auth/login")
-async def api_login(body: LoginRequest, db: Session = Depends(lambda: None)):
-    """Authenticate user and return JWT token."""
+async def api_login(body: LoginRequest, request: Request):
+    """Authenticate user and return JWT token (also sets session cookie)."""
     from sqlmodel import Session
     from pvs_tracker.db import engine
+
     with Session(engine) as db_session:
-        user = authenticate_user(db_session, body.username, body.password)
+        user = authenticate_credentials(db_session, body.username, body.password)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
+        establish_session(request, user)
         token = create_access_token(data={"sub": str(user.id), "username": user.username})
+        role = user.role.value if hasattr(user.role, "value") else user.role
         return {
             "access_token": token,
             "token_type": "bearer",
@@ -219,7 +242,7 @@ async def api_login(body: LoginRequest, db: Session = Depends(lambda: None)):
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
-                "role": user.role,
+                "role": role,
             },
         }
 
@@ -318,61 +341,65 @@ async def update_my_notifications(
     return {"enabled": enabled, "project_ids": body.project_ids}
 
 
-@router.get("/users", dependencies=[Depends(require_admin)])
-async def list_users(session: Session = Depends(lambda s: None)):
+@router.get("/users")
+async def list_users(
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
     """List all users (admin only)."""
-    from sqlmodel import Session
-    from pvs_tracker.db import engine
-    with Session(engine) as db_session:
-        users = db_session.exec(select(User).order_by(User.username)).all()
-        return [
-            {
-                "id": u.id,
-                "username": u.username,
-                "email": u.email,
-                "role": u.role,
-                "is_active": u.is_active,
-                "created_at": u.created_at,
-            }
-            for u in users
-        ]
+    users = session.exec(select(User).order_by(User.username)).all()
+    return [_serialize_user_admin(u) for u in users]
 
 
-@router.post("/users", dependencies=[Depends(require_admin)])
-async def create_user_api(body: UserCreate, session: Session = Depends(lambda s: None)):
-    """Create a new user (admin only)."""
-    from sqlmodel import Session
-    from pvs_tracker.db import engine
-    with Session(engine) as db_session:
-        # Check if username already exists
-        existing = db_session.exec(select(User).where(User.username == body.username)).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Username already exists")
-        
-        user = create_user(db_session, body.username, body.password, body.email, body.role)
-        return {"id": user.id, "username": user.username, "role": user.role}
+@router.post("/users")
+async def create_user_api(
+    body: UserCreate,
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Create a new local user (admin only)."""
+    existing = session.exec(select(User).where(User.username == body.username.strip())).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    user = create_user(session, body.username, body.password, body.email, body.role)
+    return _serialize_user_admin(user)
 
 
-@router.patch("/users/{user_id}", dependencies=[Depends(require_admin)])
-async def update_user_api(user_id: int, body: UserUpdate, session: Session = Depends(lambda s: None)):
+@router.patch("/users/{user_id}")
+async def update_user_api(
+    user_id: int,
+    body: UserUpdate,
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
     """Update user (admin only)."""
-    from sqlmodel import Session
-    from pvs_tracker.db import engine
-    with Session(engine) as db_session:
-        user = db_session.get(User, user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        if body.email is not None:
-            user.email = body.email
-        if body.role is not None:
-            user.role = body.role
-        if body.is_active is not None:
-            user.is_active = body.is_active
-        
-        db_session.add(user)
-        db_session.commit()
-        return {"id": user.id, "username": user.username, "role": user.role, "is_active": user.is_active}
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if body.email is not None:
+        user.email = body.email.strip() if body.email and body.email.strip() else None
+    if body.first_name is not None:
+        user.first_name = body.first_name or None
+    if body.last_name is not None:
+        user.last_name = body.last_name or None
+    if body.role is not None:
+        user.role = body.role
+    if body.is_active is not None:
+        user.is_active = body.is_active
+    if body.password is not None:
+        if user.auth_provider != "local":
+            raise HTTPException(
+                status_code=400,
+                detail="Password can only be set for local accounts",
+            )
+        user.password_hash = hash_password(body.password)
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return _serialize_user_admin(user)
 
 
 # ---------------------------------------------------------------------------
@@ -1201,8 +1228,14 @@ async def export_issues_csv_api(
 
 
 # ============================================================================
-# Global Settings API — FIXED
+# Auth / Global Settings API
 # ============================================================================
+
+@router.get("/settings/auth")
+async def get_auth_settings_api(_admin: User = Depends(require_admin)):
+    """Read-only authentication configuration (admin only)."""
+    return get_auth_settings_public()
+
 
 @router.get("/settings/global")
 async def get_global_settings_api(

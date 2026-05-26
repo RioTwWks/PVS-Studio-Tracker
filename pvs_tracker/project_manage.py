@@ -13,9 +13,10 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
 from pvs_tracker.admin_utils import is_admin
+from pvs_tracker.auth_service import get_current_user, require_auth
 from pvs_tracker.db import get_session
 from pvs_tracker.jenkins_service import trigger_jenkins_build
-from pvs_tracker.models import Project
+from pvs_tracker.models import Project, User
 from pvs_tracker.project_ci import (
     clone_ci_project,
     create_ci_project,
@@ -38,11 +39,11 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 router = APIRouter(tags=["project-manage"])
 
 
-def _require_auth(request: Request) -> str:
-    user = request.session.get("user")
+def _require_auth(request: Request) -> User:
+    user = get_current_user(request, None)
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
-    return str(user)
+    return user
 
 
 def _checkbox(value: Optional[str]) -> bool:
@@ -52,7 +53,7 @@ def _checkbox(value: Optional[str]) -> bool:
 def _template_ctx(request: Request, ctx: dict) -> dict:
     """Контекст для страниц с base.html: сессия пользователя в шапке."""
     out = dict(ctx)
-    out["current_user"] = request.session.get("user")
+    out["current_user"] = get_current_user(request, None)
     return out
 
 

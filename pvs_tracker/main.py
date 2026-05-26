@@ -38,6 +38,14 @@ from pvs_tracker.code_viewer import merge_code_snapshot, router as code_viewer_r
 from pvs_tracker.api import router as api_v2_router
 from pvs_tracker.quality_gate import create_default_quality_gate, evaluate_quality_gate
 from pvs_tracker.security import hash_password
+from pvs_tracker.auth_service import (
+    authenticate_credentials,
+    clear_session,
+    establish_session,
+    get_current_user as get_current_user_model,
+    require_admin,
+    require_auth,
+)
 
 # ---------------------------------------------------------------------------
 # App & DB
@@ -49,7 +57,14 @@ _logging.getLogger("spnego").setLevel(_logging.WARNING)
 _logging.getLogger("spnego._gss").setLevel(_logging.WARNING)
 
 app = FastAPI(title="PVS-Studio Tracker")
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "dev-change-me"))
+_session_https = os.getenv("SESSION_HTTPS_ONLY", "false").lower() in ("1", "true", "yes")
+_session_same_site = os.getenv("SESSION_SAME_SITE", "lax")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "dev-change-me"),
+    https_only=_session_https,
+    same_site=_session_same_site,
+)
 
 BASE_DIR = os.path.dirname(__file__)
 
@@ -173,6 +188,8 @@ def _migrate_database() -> None:
                     "ALTER TABLE run ADD COLUMN commit_author_email VARCHAR",
                     "ALTER TABLE issue ADD COLUMN author_name VARCHAR",
                     "ALTER TABLE issue ADD COLUMN author_email VARCHAR",
+                    "ALTER TABLE user ADD COLUMN display_name VARCHAR",
+                    "ALTER TABLE user ADD COLUMN auth_provider VARCHAR DEFAULT 'local'",
                 ):
                     try:
                         conn.execute(text(col_sql))
@@ -293,6 +310,7 @@ def _initialize_default_data() -> None:
                 username="admin",
                 email="admin@localhost",
                 password_hash=hash_password("admin"),
+                auth_provider="local",
                 role=UserRole.ADMIN,
                 is_active=True,
             )
@@ -361,20 +379,9 @@ if os.path.isdir(STATIC_DIR):
 # ---------------------------------------------------------------------------
 
 
-def get_current_user(request: Request) -> str | None:
-    return request.session.get("user")
-
-
-def require_auth(user: str | None = Depends(get_current_user)) -> str:
-    if not user:
-        raise HTTPException(401, "Authentication required")
-    return user
-
-
-def require_admin_user(user: str = Depends(require_auth)) -> str:
-    if user != "admin":
-        raise HTTPException(403, "Admin access required")
-    return user
+def _ui_current_user(request: Request) -> User | None:
+    """Current User for Jinja templates (session or JWT)."""
+    return get_current_user_model(request, None)
 
 
 # ---------------------------------------------------------------------------
@@ -393,21 +400,27 @@ async def login(
     username: str = Form(...),
     password: str = Form(...),
 ):
-    # MVP: simple bypass auth — accept any non-empty credentials.
-    # Replace with real LDAP (see auth.py) when ready.
-    if not username or not password:
+    if not username.strip() or not password:
         return templates.TemplateResponse(
             request,
             "login.html",
             {"error": "Username and password are required"},
         )
-    request.session["user"] = username
+    with Session(engine) as session:
+        user = authenticate_credentials(session, username, password)
+    if not user:
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {"error": "Invalid username or password"},
+        )
+    establish_session(request, user)
     return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/logout")
 async def logout(request: Request):
-    request.session.clear()
+    clear_session(request)
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -425,7 +438,7 @@ async def home(request: Request, session: Session = Depends(get_session)):
         request,
         "home.html",
         {
-            "current_user": get_current_user(request),
+            "current_user": _ui_current_user(request),
             "projects_by_group": projects_by_group,
         },
     )
@@ -457,7 +470,7 @@ async def create_project_ui(
             request,
             "home.html",
             {
-                "current_user": get_current_user(request),
+                "current_user": _ui_current_user(request),
                 "projects_by_group": list_ci_projects_grouped(session),
                 "error": "Project name is required",
             },
@@ -583,7 +596,7 @@ async def ui_dashboard(
         request,
         "dashboard.html",
         {
-            "current_user": get_current_user(request),
+            "current_user": _ui_current_user(request),
             "project": project,
             "history": history,
             "history_by_platform": history_by_platform,
@@ -730,7 +743,7 @@ async def ui_issues(
     classifier_map = {c.id: c for c in classifiers}
 
     empty_vars = {
-        "current_user": get_current_user(request),
+        "current_user": _ui_current_user(request),
         "issues": [],
         "total": 0,
         "page": page,
@@ -802,7 +815,7 @@ async def ui_issues(
     next_page = page + 1
 
     template_vars = {
-        "current_user": get_current_user(request),
+        "current_user": _ui_current_user(request),
         "issues": issues,
         "total": total,
         "page": page,
@@ -880,7 +893,7 @@ async def upload_report_ui(
                 request,
                 "home.html",
                 {
-                    "current_user": get_current_user(request),
+                    "current_user": _ui_current_user(request),
                     "projects": session.exec(select(Project).order_by(Project.name)).all(),
                     "error": str(exc),
                 },
@@ -1011,7 +1024,7 @@ async def upload_report_ui(
             run.status = "failed"
             session.commit()
         return templates.TemplateResponse(request, "home.html", {
-            "current_user": get_current_user(request),
+            "current_user": _ui_current_user(request),
             "projects": session.exec(select(Project).order_by(Project.name)).all(),
             "error": f"Failed to parse report: {str(e)}",
         })
@@ -1026,20 +1039,20 @@ async def profile_settings_page(
     return templates.TemplateResponse(
         request,
         "profile_settings.html",
-        {"current_user": get_current_user(request)},
+        {"current_user": _ui_current_user(request)},
     )
 
 
 @app.get("/ui/settings/quality-gates", response_class=HTMLResponse)
 async def quality_gates_settings_page(
     request: Request,
-    _admin: str = Depends(require_admin_user),
+    _admin: User = Depends(require_admin),
 ):
     """Quality gates and PVS warnings catalog (admin only)."""
     return templates.TemplateResponse(
         request,
         "quality_gates_settings.html",
-        {"current_user": get_current_user(request)},
+        {"current_user": _ui_current_user(request)},
     )
 
 
@@ -1070,7 +1083,7 @@ async def global_settings_page(
         request,
         "global_settings.html",
         {
-            "current_user": get_current_user(request),
+            "current_user": _ui_current_user(request),
             "settings": settings,
             "theme": theme,
         },
@@ -1397,7 +1410,7 @@ async def update_source_roots(
 async def delete_project_ui(
     project_id: int,
     session: Session = Depends(get_session),
-    _admin: str = Depends(require_admin_user),
+    _admin: User = Depends(require_admin),
 ):
     """Delete a project and its stored analysis data from the UI."""
     project = session.get(Project, project_id)

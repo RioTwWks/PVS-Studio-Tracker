@@ -32,15 +32,16 @@ description: >-
 - No `config.py` — env in `db.py`, `main.py`, `auth_service.py`, `webhooks.py`, `notifications.py`
 - Reports stored in DB (`RunReport`), not `reports/` folder
 
-## Auth (do not assume LDAP is active)
+## Auth
 
 | Layer | Behavior |
 |-------|----------|
-| UI `POST /login` | MVP: non-empty credentials → `session["user"]` = username string |
-| UI protected | upload, create project, profile, global/QG settings — `require_auth` |
+| UI `POST /login` | `authenticate_credentials` → session `user_id` + `User` row |
+| LDAP | `auth.py` — `LDAP_*` in `.env`, SIMPLE/NTLM; new users → Viewer |
+| UI protected | upload, create project, profile, global/QG settings — `require_auth` / `require_admin` |
 | UI open | dashboard, `/ui/issues`, code viewer (current code) |
-| API v2 | JWT + `User` table via `auth_service.py` |
-| `auth.py` | LDAP stub, **not** used by `main.py` |
+| API v2 | JWT + session cookie + `auth_service.py` |
+| Users admin UI | `/ui/settings/global` → tab Users & Permissions |
 
 ## Incremental diff (authoritative)
 
