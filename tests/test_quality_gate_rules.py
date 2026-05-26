@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from collections.abc import Iterator
 import pytest
 from sqlmodel import Session, select
 
@@ -14,7 +15,7 @@ from pvs_tracker.quality_gate import (
 
 
 @pytest.fixture()
-def db_session() -> Session:
+def db_session() -> Iterator[Session]:
     with Session(main.engine) as session:
         yield session
 
