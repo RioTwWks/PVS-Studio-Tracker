@@ -14,15 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 def _issue_description(issue: Issue, project: Project, run: Run) -> str:
-    author = run.commit_author_name or "—"
-    author_email = run.commit_author_email or "—"
+    commit_author = run.commit_author_name or "—"
+    commit_author_email = run.commit_author_email or "—"
+    issue_author = issue.author_name or "—"
+    issue_author_email = issue.author_email or "—"
     lines = [
         f"PVS-Studio [{issue.rule_code}] {issue.severity}",
         f"File: {issue.file_path}:{issue.line}",
         f"Message: {issue.message}",
         f"Fingerprint: {issue.fingerprint}",
         f"Project: {project.name}",
-        f"Commit: {run.commit or 'n/a'} ({author} <{author_email}>)",
+        f"Issue author: {issue_author} <{issue_author_email}>",
+        f"Commit: {run.commit or 'n/a'} ({commit_author} <{commit_author_email}>)",
         f"Branch: {run.branch or 'n/a'}",
         f"Run: {run.id}",
     ]
@@ -47,19 +50,7 @@ def sync_run_issues_to_jira(session: Session, project_id: int, run_id: int) -> N
         logger.warning("Jira project not found: %s", project.jira_project)
         return
 
-    assignee = jira.resolve_assignee_from_run(run)
-    if assignee:
-        logger.info(
-            "Jira assignee for run %s: %s (commit %s)",
-            run_id,
-            assignee,
-            run.commit or "n/a",
-        )
-    else:
-        logger.warning(
-            "No commit author for run %s — Jira issue will be unassigned",
-            run_id,
-        )
+    run_assignee = jira.resolve_assignee_from_run(run)
 
     new_issues = session.exec(
         select(Issue).where(Issue.run_id == run_id, Issue.status == "new")
@@ -73,6 +64,7 @@ def sync_run_issues_to_jira(session: Session, project_id: int, run_id: int) -> N
             session.add(issue)
             continue
         summary = f"[PVS] {issue.rule_code}: {issue.message[:120]}"
+        assignee = jira.resolve_assignee_from_issue(issue, run) or run_assignee
         key = jira.create_bug(
             jira_key,
             summary,

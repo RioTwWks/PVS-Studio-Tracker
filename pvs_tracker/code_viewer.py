@@ -19,9 +19,10 @@ from sqlmodel import Session, select, func
 from pvs_tracker.db import get_session
 from pvs_tracker.git_integration import fetch_source_file
 from pvs_tracker.models import ErrorClassifier, Issue, Project, Run, GlobalSettings
-from pvs_tracker.file_resolver import (  # 🔑 Для нормализации путей
+from pvs_tracker.file_resolver import (
     get_effective_source_root,
     normalize_file_path_for_display,
+    paths_refer_to_same_file,
 )
 
 router = APIRouter()
@@ -76,6 +77,7 @@ async def view_code(
     line: int = Query(None, ge=1),
     run_id: int = Query(None, ge=1),
     platform: str = Query("windows"),
+    branch: str = Query(""),
     context: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ):
@@ -99,12 +101,20 @@ async def view_code(
             commit = run.commit
             plat = run.target_platform or plat
     else:
-        run = get_latest_run(session, project_id, "", plat)
+        run = get_latest_run(session, project_id, branch, plat)
         if run:
             commit = run.commit
             plat = run.target_platform or plat
 
     target_platform = plat
+    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+    effective_root = get_effective_source_root(
+        project.source_root_win,
+        project.source_root_linux,
+        global_settings,
+        project.source_root_macos,
+        platform=target_platform,
+    )
 
     # Fetch source file using fallback strategy
     lines = []
@@ -167,42 +177,46 @@ async def view_code(
         }
         lang = lang_map.get(ext, "cpp")
 
-    # Determine run & warnings
-    if run_id:
-        run = session.get(Run, run_id)
-    else:
-        run = session.exec(
-            select(Run).where(Run.project_id == project_id, Run.status == "done")
-            .order_by(Run.timestamp.desc()).limit(1)
-        ).first()
-
-    # Build warnings by line mapping (filtered by current visible range)
-    warnings_by_line = {}
+    # Build warnings by line mapping (same run as file tree / Issues tab)
+    warnings_by_line: dict[int, list[Issue]] = {}
     classifier_map = {}
-    if run:
-        normalized_file_path = file_path.replace("\\", "/")
-        issues = session.exec(
+    if run and total_lines > 0:
+        visible_start = line_offset + 1
+        visible_end = line_offset + total_lines
+
+        run_issues = session.exec(
             select(Issue).where(
                 Issue.run_id == run.id,
-                Issue.file_path.in_([file_path, normalized_file_path]),
-                Issue.status.in_(["new", "existing"]),
+                Issue.status.in_(["new", "existing", "fixed"]),
             )
         ).all()
 
-        # Fetch classifiers for lookup
-        classifier_ids = {i.classifier_id for i in issues if i.classifier_id}
+        matched_issues = [
+            issue
+            for issue in run_issues
+            if paths_refer_to_same_file(issue.file_path, file_path, effective_root)
+        ]
+
+        classifier_ids = {i.classifier_id for i in matched_issues if i.classifier_id}
         if classifier_ids:
-            classifiers = session.exec(select(ErrorClassifier).where(ErrorClassifier.id.in_(classifier_ids))).all()
+            classifiers = session.exec(
+                select(ErrorClassifier).where(ErrorClassifier.id.in_(classifier_ids))
+            ).all()
             classifier_map = {c.id: c for c in classifiers}
 
-        # 🔑 Фильтруем предупреждения только для видимого диапазона строк
-        visible_start = line_offset + 1
-        visible_end = line_offset + total_lines
-        for issue in issues:
-            if visible_start <= issue.line <= visible_end:
-                # Сдвигаем номер строки для отображения относительно offset
-                display_line = issue.line - line_offset
-                warnings_by_line.setdefault(display_line, []).append(issue)
+        for issue in matched_issues:
+            start_ln = issue.line or 0
+            if start_ln <= 0:
+                continue
+            end_ln = issue.end_line if issue.end_line and issue.end_line >= start_ln else start_ln
+            for ln in range(start_ln, end_ln + 1):
+                if not (visible_start <= ln <= visible_end):
+                    continue
+                display_line = ln - line_offset
+                if display_line >= 1:
+                    bucket = warnings_by_line.setdefault(display_line, [])
+                    if issue not in bucket:
+                        bucket.append(issue)
 
     if isinstance(content, str) and not lines:
         lines = content.splitlines(keepends=True)
@@ -221,6 +235,8 @@ async def view_code(
             "target_line": line,
             "target_display_line": target_display_line,
             "run_id": run.id if run else None,
+            "run_commit_author_name": run.commit_author_name if run else None,
+            "run_commit_author_email": run.commit_author_email if run else None,
             "error": error,
             "classifier_map": classifier_map,
             "source_type": source_type,
@@ -266,7 +282,7 @@ async def code_viewer_page(
             select(Issue.file_path, func.count(Issue.id))
             .where(
                 Issue.run_id == run.id,
-                Issue.status.in_(["new", "existing"]),
+                Issue.status.in_(["new", "existing", "fixed"]),
             )
             .group_by(Issue.file_path)
             .order_by(func.count(Issue.id).desc())
@@ -281,7 +297,7 @@ async def code_viewer_page(
         issues = session.exec(
             select(Issue).where(
                 Issue.run_id == run.id,
-                Issue.status.in_(["new", "existing"]),
+                Issue.status.in_(["new", "existing", "fixed"]),
             )
         ).all()
         for issue in issues:

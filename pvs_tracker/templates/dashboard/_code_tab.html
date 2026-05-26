@@ -119,6 +119,14 @@
                 file_path: filePath,
                 platform: platform,
             });
+            const branch = window.PvsDashboard?.branch;
+            if (branch) {
+                params.set('branch', branch);
+            }
+            const runId = window.PvsDashboard?.codeRunId;
+            if (runId) {
+                params.set('run_id', String(runId));
+            }
             
             const url = `/ui/file?${params.toString()}`;
             console.log("рџ”— Fetching:", url);
@@ -140,18 +148,6 @@
                 if (window.CodeViewer) {
                     window.CodeViewer.reset();
                     window.CodeViewer.init(codeViewer);
-                }
-                
-                // рџ”‘ РРќРР¦РРђР›РР—РђР¦РРЇ PRISM.JS Р”Р›РЇ Р”РРќРђРњРР§Р•РЎРљРћР“Рћ РљРћРќРўР•РќРўРђ
-                if (typeof Prism !== 'undefined') {
-                    // РќРµР±РѕР»СЊС€Р°СЏ Р·Р°РґРµСЂР¶РєР° С‡С‚РѕР±С‹ DOM С‚РѕС‡РЅРѕ РѕС‚СЂРµРЅРґРµСЂРёР»СЃСЏ
-                    setTimeout(() => {
-                        const codeEl = content.querySelector('code[class*="language-"]');
-                        if (codeEl) {
-                            Prism.highlightElement(codeEl);
-                            console.log("рџЋЁ Prism highlighted code");
-                        }
-                    }, 50);
                 }
             } else {
                 content.innerHTML = `<div class="sq-alert sq-alert-danger">${I18n.t('failed_to_load_code')}</div>`;

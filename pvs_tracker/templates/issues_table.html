@@ -35,6 +35,7 @@
         {{ sort_header("Type", "type", "sq-col-type", "type") }}
         {{ sort_header("Priority", "priority", "sq-col-priority", "priority") }}
         {{ sort_header("File", "file", "sq-col-file", "file") }}
+        <th class="sq-col-author" data-i18n="issue_author">Author</th>
         {% if show_platform_badge %}
         <th class="sq-col-platform" data-i18n="platform_column">Platform</th>
         {% endif %}
@@ -50,7 +51,7 @@
         {% endfor %}
     {% else %}
         <tr>
-            <td colspan="{% if show_platform_badge %}10{% else %}9{% endif %}" class="sq-empty-row">
+            <td colspan="{% if show_platform_badge %}11{% else %}10{% endif %}" class="sq-empty-row">
                 {% if total > 0 %}
                     <div class="alert alert-warning">…</div>
                 {% else %}
@@ -66,7 +67,7 @@
     hx-swap="outerHTML"
     hx-target="this"
     hx-include="none">
-    <td colspan="9" class="text-center py-2">
+    <td colspan="{% if show_platform_badge %}11{% else %}10{% endif %}" class="text-center py-2">
         <div class="sq-loading" data-i18n="loading_data">Loading...</div>
     </td>
 </tr>

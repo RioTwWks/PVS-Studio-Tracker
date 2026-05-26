@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from pvs_tracker.ci_config import ci_settings
-from pvs_tracker.models import Run
+from pvs_tracker.models import Issue, Run
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +76,9 @@ class JiraService:
                 logger.warning("Jira search failed: %s", e)
         return None
 
-    def resolve_assignee_from_run(self, run: Run) -> Optional[str]:
-        """Resolve Jira assignee from commit author on the run (not project owner)."""
-        email = (run.commit_author_email or "").strip()
-        name = (run.commit_author_name or "").strip()
+    def _resolve_assignee(self, *, email: str, name: str) -> Optional[str]:
+        email = (email or "").strip()
+        name = (name or "").strip()
         queries: list[str] = []
         if email:
             queries.append(email)
@@ -109,6 +108,23 @@ class JiraService:
         if email and "@" in email:
             return email.split("@", 1)[0]
         return email or None
+
+    def resolve_assignee_from_run(self, run: Run) -> Optional[str]:
+        """Resolve Jira assignee from commit author on the run (not project owner)."""
+        return self._resolve_assignee(
+            email=run.commit_author_email or "",
+            name=run.commit_author_name or "",
+        )
+
+    def resolve_assignee_from_issue(self, issue: Issue, run: Run) -> Optional[str]:
+        """
+        Resolve Jira assignee for a specific warning.
+
+        Prefer the issue author (who introduced it), fallback to the run commit author.
+        """
+        email = (issue.author_email or "").strip() or (run.commit_author_email or "")
+        name = (issue.author_name or "").strip() or (run.commit_author_name or "")
+        return self._resolve_assignee(email=email, name=name)
 
     def _assignee_field(self, assignee: str) -> dict[str, str]:
         """Build assignee payload for Jira Server (name) or Cloud (accountId)."""

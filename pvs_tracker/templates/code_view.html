@@ -46,8 +46,15 @@
         {% for ln in range(1, total_lines + 1) %}
           <div class="sq-annotation-row{% if ln in warnings_by_line %} sq-line-with-warning{% endif %}" data-line="{{ ln }}">
             {% for issue in warnings_by_line.get(ln, []) %}
-              <span class="sq-annotation-badge sq-sev-{{ issue.severity|lower }}" title="{{ issue.message }}">
+              {% set issue_author = issue.author_name or issue.author_email or run_commit_author_name or run_commit_author_email %}
+              <span
+                class="sq-annotation-badge sq-sev-{{ issue.severity|lower }}"
+                title="{{ issue.message }}{% if issue_author %} | Author: {{ issue_author }}{% endif %}"
+              >
                 {{ issue.rule_code }}
+                {% if issue_author %}
+                  <span class="sq-annotation-author">{{ issue_author }}</span>
+                {% endif %}
               </span>
             {% endfor %}
           </div>

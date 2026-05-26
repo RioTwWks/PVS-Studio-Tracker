@@ -22,6 +22,13 @@
             <span class="sq-file-path" title="{{ issue.file_path }}">{{ display_path }}</span>
         {% endif %}
     </td>
+    <td class="sq-author-cell">
+        {% if issue.author_name or issue.author_email %}
+            <span class="sq-issue-author" title="{{ issue.author_email or '' }}">{{ issue.author_name or issue.author_email }}</span>
+        {% else %}
+            <span class="sq-empty">—</span>
+        {% endif %}
+    </td>
     {% if show_platform_badge %}
     <td>
         {% set plat = issue_platforms.get(issue.id, '') if issue_platforms is defined else '' %}
@@ -64,7 +71,7 @@
 
 {% if issue.status != 'ignored' and issue.file_path and not issue.file_path.startswith('__analysis__/') %}
 <tr class="sq-inline-code-row" id="code-row-{{ issue.id }}">
-    <td colspan="{% if show_platform_badge %}10{% else %}9{% endif %}" class="sq-inline-code-cell">
+    <td colspan="{% if show_platform_badge %}11{% else %}10{% endif %}" class="sq-inline-code-cell">
         <div class="sq-inline-code-wrapper">
             <div class="sq-inline-code-header">
                 <span>{{ display_path }}:{{ issue.line }}</span>

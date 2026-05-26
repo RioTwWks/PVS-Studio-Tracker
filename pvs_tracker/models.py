@@ -300,6 +300,14 @@ class Issue(SQLModel, table=True):
         index=True,
         description="Linked Jira issue key (e.g. PROJ-123)",
     )
+    author_name: Optional[str] = Field(
+        default=None,
+        description="Author who introduced the issue (from commit on new issues)",
+    )
+    author_email: Optional[str] = Field(
+        default=None,
+        description="Author email (from commit on new issues)",
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships

@@ -171,6 +171,8 @@ def _migrate_database() -> None:
                     "ALTER TABLE errorclassifier ADD COLUMN synced_at DATETIME",
                     "ALTER TABLE run ADD COLUMN commit_author_name VARCHAR",
                     "ALTER TABLE run ADD COLUMN commit_author_email VARCHAR",
+                    "ALTER TABLE issue ADD COLUMN author_name VARCHAR",
+                    "ALTER TABLE issue ADD COLUMN author_email VARCHAR",
                 ):
                     try:
                         conn.execute(text(col_sql))
@@ -181,6 +183,67 @@ def _migrate_database() -> None:
             pass  # Migration failed, continue anyway
 
         _backfill_cross_platform_fps(session)
+        _backfill_issue_authors(session)
+
+
+def _backfill_issue_authors(session: Session) -> None:
+    """Backfill issue author_name/email for legacy rows with missing data.
+
+    Rules (SonarQube-like):
+    - new: author is current run commit author
+    - existing/fixed: author is previous run issue author (same fingerprint), otherwise fallback to current run author
+    - first run (no prev): fallback to current run author
+    """
+    runs = session.exec(
+        select(Run).where(Run.status == "done").order_by(Run.timestamp.asc())
+    ).all()
+
+    # (project_id, target_platform) -> last done run
+    last_done: dict[tuple[int, str], Run] = {}
+
+    for run in runs:
+        key = (run.project_id, run.target_platform or "windows")
+        prev_run = last_done.get(key)
+
+        prev_issue_author: dict[str, tuple[Optional[str], Optional[str]]] = {}
+        if prev_run:
+            prev_issues = session.exec(
+                select(Issue).where(Issue.run_id == prev_run.id)
+            ).all()
+            for pi in prev_issues:
+                if pi.fingerprint:
+                    prev_issue_author[pi.fingerprint] = (pi.author_name, pi.author_email)
+
+        issues = session.exec(select(Issue).where(Issue.run_id == run.id)).all()
+        for issue in issues:
+            # Fill only when both are missing.
+            if issue.author_name is not None and issue.author_email is not None:
+                continue
+
+            source_name: Optional[str] = None
+            source_email: Optional[str] = None
+
+            if issue.status == "new" or prev_run is None:
+                source_name = run.commit_author_name
+                source_email = run.commit_author_email
+            else:
+                prev = prev_issue_author.get(issue.fingerprint or "")
+                if prev and (prev[0] is not None or prev[1] is not None):
+                    source_name, source_email = prev
+                else:
+                    source_name = run.commit_author_name
+                    source_email = run.commit_author_email
+
+            if source_name is not None and issue.author_name is None:
+                issue.author_name = source_name
+            if source_email is not None and issue.author_email is None:
+                issue.author_email = source_email
+
+            session.add(issue)
+
+        last_done[key] = run
+
+    session.commit()
 
 
 def _backfill_cross_platform_fps(session: Session) -> None:

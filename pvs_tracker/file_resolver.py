@@ -158,6 +158,52 @@ def get_effective_source_root(
 
     return None
 
+def _normalize_path_key(path: str) -> str:
+    return path.replace("\\", "/").strip().lower()
+
+
+def _path_suffix_keys(path: str) -> set[str]:
+    """All suffix segments for fuzzy file path comparison."""
+    norm = _normalize_path_key(path)
+    if not norm:
+        return set()
+    parts = norm.split("/")
+    return {"/".join(parts[i:]) for i in range(len(parts)) if parts[i]}
+
+
+def paths_refer_to_same_file(
+    issue_path: str,
+    requested_path: str,
+    source_root: Optional[str] = None,
+) -> bool:
+    """
+    Check whether two file paths refer to the same source file.
+
+    Handles absolute vs relative paths and differing source_root prefixes.
+    """
+    left = issue_path or ""
+    right = requested_path or ""
+    if source_root:
+        left = normalize_file_path_for_display(left, source_root)
+        right = normalize_file_path_for_display(right, source_root)
+
+    left_key = _normalize_path_key(left)
+    right_key = _normalize_path_key(right)
+    if not left_key or not right_key:
+        return False
+    if left_key == right_key:
+        return True
+
+    left_suffixes = _path_suffix_keys(left_key)
+    right_suffixes = _path_suffix_keys(right_key)
+    if left_suffixes & right_suffixes:
+        longest = max(left_suffixes & right_suffixes, key=len)
+        if longest.count("/") >= 1:
+            return True
+
+    return False
+
+
 def normalize_file_path_for_display(
     file_path: str,
     source_root: Optional[str],

@@ -2023,6 +2023,22 @@ a:hover {
   width: 90px;
 }
 
+.sq-col-author {
+    width: 9rem;
+}
+
+.sq-author-cell {
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sq-issue-author {
+    font-size: 0.85rem;
+    color: var(--sq-text-secondary, #6c757d);
+}
+
 .sq-col-file {
   min-width: 200px;
 }
@@ -2366,15 +2382,20 @@ Code Viewer (SonarQube-style)
 
 .sq-code-viewer-body {
   display: flex;
+  flex-direction: row;
+  align-items: stretch;
   overflow: hidden;
   position: relative;
   max-height: 75vh;
+  min-height: 0;
 }
 
 /* Scroll Master Wrapper (Gutter + Code) */
 .sq-scroll-master-wrapper {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -2404,7 +2425,9 @@ Code Viewer (SonarQube-style)
 
 /* Code Area */
 .sq-code-scroll-area {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
   position: relative;
   background: var(--sq-bg-secondary);
@@ -2441,25 +2464,34 @@ Code Viewer (SonarQube-style)
   line-height: 0 !important;
 }
 
-/* Annotations Panel */
+/* Annotations — shrink-wrap content, capped so code keeps most of the row */
 .sq-annotations-panel {
-  flex: 0 0 140px;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: min(300px, 36%);
+  min-width: 108px;
   border-left: 1px solid var(--sq-border);
   background: var(--sq-bg-secondary);
-  padding: 8px 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
 
-.sq-annotations-panel::-webkit-scrollbar { 
-  display: none; 
+.sq-annotations-panel::-webkit-scrollbar {
+  height: 4px;
+}
+
+.sq-annotations-panel::-webkit-scrollbar-thumb {
+  background: var(--sq-border);
+  border-radius: 2px;
 }
 
 .sq-annotation-row {
   height: 19.5px;
   min-height: 19.5px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   justify-content: flex-end;
   align-items: center;
@@ -2470,13 +2502,40 @@ Code Viewer (SonarQube-style)
 .sq-annotation-badge {
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
   cursor: help;
   white-space: nowrap;
   border: 1px solid var(--sq-border-light);
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.sq-annotation-author {
+  font-weight: 500;
+  color: var(--sq-text-secondary, #6c757d);
+  opacity: 0.95;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14em;
+}
+
+/* Code tab: full file viewer — vertical scroll in code pane */
+#code-viewer-content .sq-code-viewer-body {
+  max-height: min(75vh, 640px);
+}
+
+#code-viewer-content .sq-scroll-master-wrapper,
+#code-viewer-content .sq-code-scroll-area {
+  min-height: 0;
+}
+
+#code-viewer-content .sq-code-scroll-area {
+  overflow: auto !important;
 }
 
 .sq-sev-high { 
@@ -2703,7 +2762,8 @@ Code Viewer (SonarQube-style)
 
 .sq-inline-code-content .sq-annotations-panel {
   padding: 0 6px !important;
-  overflow: hidden !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
 }
 
 .sq-inline-code-content .sq-annotation-row {
@@ -2887,7 +2947,8 @@ Code Viewer (SonarQube-style)
 
 .sq-inline-code-content .sq-annotations-panel {
   padding: 0 6px !important;
-  overflow: hidden !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
 }
 
 .sq-inline-code-content .sq-code-block {

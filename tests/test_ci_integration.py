@@ -220,6 +220,44 @@ def test_resolve_assignee_from_run():
     assert assignee == "ivan.petrov"
 
 
+def test_resolve_assignee_from_issue_prefers_issue_author():
+    from pvs_tracker.jira_service import JiraService
+    from pvs_tracker.models import Issue, Run
+
+    jira = JiraService()
+    run = Run(
+        project_id=1,
+        report_file="r.json",
+        commit="abc",
+        commit_author_name="Run Author",
+        commit_author_email="run.author@company.local",
+    )
+    issue = Issue(
+        run_id=1,
+        fingerprint="fp1",
+        file_path="a.cpp",
+        line=1,
+        rule_code="V001",
+        severity="High",
+        message="msg",
+        status="new",
+        author_name="Issue Author",
+        author_email="issue.author@company.local",
+    )
+
+    with patch.object(
+        JiraService, "client", new_callable=PropertyMock
+    ) as mock_client_prop:
+        mock_client = MagicMock()
+        mock_user = MagicMock()
+        mock_user.name = "issue.author"
+        mock_client.search_users.return_value = [mock_user]
+        mock_client_prop.return_value = mock_client
+        assignee = jira.resolve_assignee_from_issue(issue, run)
+
+    assert assignee == "issue.author"
+
+
 def test_analysis_callback(client: TestClient, session: Session):
     project = create_ci_project(
         session,

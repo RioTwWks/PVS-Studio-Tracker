@@ -1,5 +1,6 @@
 from sqlmodel import Session, select
 
+from pvs_tracker.issue_author import resolve_issue_author
 from pvs_tracker.models import ErrorClassifier, GlobalSettings, Issue, Project, Run
 from pvs_tracker.platforms import compute_cross_platform_fp
 from pvs_tracker.security import calculate_technical_debt
@@ -32,6 +33,8 @@ def _build_issue(
     end_col_val: int,
     cwe_val: int | None,
     cross_fp: str,
+    author_name: str | None,
+    author_email: str | None,
 ) -> Issue:
     return Issue(
         run_id=run_id,
@@ -49,6 +52,8 @@ def _build_issue(
         end_column=end_col_val,
         cwe_id=cwe_val,
         technical_debt_minutes=tech_debt,
+        author_name=author_name,
+        author_email=author_email,
     )
 
 
@@ -110,6 +115,14 @@ def classify_and_store(
             platform=platform,  # type: ignore[arg-type]
         )
 
+        author_name, author_email = resolve_issue_author(
+            session,
+            run,
+            iss["status"],
+            iss["fingerprint"],
+            prev_run,
+        )
+
         session.add(
             _build_issue(
                 run_id,
@@ -123,6 +136,8 @@ def classify_and_store(
                 end_col_val,
                 cwe_val,
                 cross_fp,
+                author_name,
+                author_email,
             )
         )
 
@@ -133,6 +148,14 @@ def classify_and_store(
                 select(Issue).where(Issue.fingerprint == fp, Issue.run_id == prev_run.id)
             ).first()
             if prev_issue and prev_issue.status not in ("ignored", "fixed"):
+                author_name, author_email = resolve_issue_author(
+                    session,
+                    run,
+                    "fixed",
+                    fp,
+                    prev_run,
+                    prev_issue=prev_issue,
+                )
                 session.add(
                     Issue(
                         run_id=run_id,
@@ -150,6 +173,8 @@ def classify_and_store(
                         end_column=prev_issue.end_column,
                         cwe_id=prev_issue.cwe_id,
                         technical_debt_minutes=0,
+                        author_name=author_name,
+                        author_email=author_email,
                     )
                 )
 
@@ -223,6 +248,14 @@ def add_issues_to_existing_run(
             platform=platform,  # type: ignore[arg-type]
         )
 
+        author_name, author_email = resolve_issue_author(
+            session,
+            run,
+            status,
+            fp,
+            prev_run,
+        )
+
         session.add(
             _build_issue(
                 run_id,
@@ -236,6 +269,8 @@ def add_issues_to_existing_run(
                 end_col_val,
                 cwe_val,
                 cross_fp,
+                author_name,
+                author_email,
             )
         )
 

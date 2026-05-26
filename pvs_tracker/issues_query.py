@@ -30,6 +30,8 @@ def _apply_text_filters(
             if like in i.file_path.lower()
             or like in i.rule_code.lower()
             or like in i.message.lower()
+            or like in (i.author_name or "").lower()
+            or like in (i.author_email or "").lower()
         ]
     return result
 

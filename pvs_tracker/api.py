@@ -1030,6 +1030,8 @@ async def list_issues_api(
                     "resolution": i.resolution,
                     "cwe_id": i.cwe_id,
                     "technical_debt_minutes": i.technical_debt_minutes,
+                    "author_name": i.author_name,
+                    "author_email": i.author_email,
                     "created_at": i.created_at,
                 }
                 for i in issues

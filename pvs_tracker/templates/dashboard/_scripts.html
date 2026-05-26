@@ -274,6 +274,7 @@
         projectId: {{ project.id }},
         branch: {{ active_branch|tojson }},
         platformFilter: {{ platform_filter|default('windows')|tojson }},
+        codeRunId: null,
         _fileTreeLoaded: false,
 
         metricsQuery() {
@@ -420,6 +421,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const data = await response.json();
+                this.codeRunId = data.run_id || null;
                 if (typeof renderFileTree === 'function') {
                     container.innerHTML = renderFileTree(data.files || []);
                 }
