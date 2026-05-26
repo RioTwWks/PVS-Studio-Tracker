@@ -37,7 +37,7 @@
         {{ sort_header("File", "file", "sq-col-file", "file") }}
         <th class="sq-col-author" data-i18n="issue_author">Author</th>
         {% if show_platform_badge %}
-        <th class="sq-col-platform" data-i18n="platform_column">Platform</th>
+        {{ sort_header("Platform", "platform", "sq-col-platform", "platform_column") }}
         {% endif %}
         <th class="sq-col-line" data-i18n="line">Line</th>
         <th class="sq-col-message" data-i18n="message">Message</th>

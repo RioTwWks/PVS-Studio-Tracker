@@ -1,6 +1,6 @@
     {# === Tab Content: Code === #}
     <div class="sq-project-tab-content" id="tab-code" style="display: none;">
-        {% with platform_switcher_os_only=true %}
+        {% with platform_switcher_os_only=true, platform_switcher_independent=true, code_platform='windows' %}
         {% include "dashboard/_platform_switcher.html" %}
         {% endwith %}
         <div class="sq-file-browser-container">
@@ -110,9 +110,7 @@
         
         try {
             const projectId = String(window.PvsDashboard?.projectId || '{{ project.id }}');
-            const platform = window.PvsDashboard?.codeOsPlatform?.()
-                || window.PvsDashboard?.platformFilter
-                || 'windows';
+            const platform = window.PvsDashboard?.codePlatform || 'windows';
 
             const params = new URLSearchParams({
                 project_id: projectId,

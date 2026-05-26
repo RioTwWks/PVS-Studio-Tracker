@@ -6,7 +6,8 @@ from sqlmodel import Session, select
 
 from pvs_tracker.dashboard_history import build_dashboard_histories
 from pvs_tracker.models import Project, Run
-from pvs_tracker.platforms import normalize_platform_filter
+from pvs_tracker.platforms import PlatformFilter, normalize_platform_filter
+from pvs_tracker.run_queries import get_latest_run
 
 
 def list_project_branches(project: Project, all_runs: list[Run]) -> list[str]:
@@ -80,3 +81,33 @@ def build_platform_metrics(
         "latest": latest,
         "issues_total": latest["total"] if latest else 0,
     }
+
+
+def build_quality_gate_result(
+    session: Session,
+    project_id: int,
+    branch: str,
+    platform_filter: PlatformFilter,
+    history: list[dict],
+) -> dict:
+    """Quality gate evaluation for overview (matches dashboard logic)."""
+    from pvs_tracker.quality_gate import evaluate_quality_gate
+
+    qg_result: dict = {
+        "status": "passed",
+        "conditions": [],
+        "summary": {"new_in_gate": 0},
+    }
+    latest_for_qg: Run | None = None
+    if platform_filter in ("windows", "linux", "macos"):
+        latest_for_qg = get_latest_run(session, project_id, branch, platform_filter)
+    elif history:
+        run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
+        if branch:
+            run_query = run_query.where(Run.branch == branch)
+        latest_for_qg = session.exec(
+            run_query.order_by(Run.timestamp.desc()).limit(1)
+        ).first()
+    if latest_for_qg and latest_for_qg.id is not None:
+        qg_result = evaluate_quality_gate(session, project_id, latest_for_qg.id)
+    return qg_result

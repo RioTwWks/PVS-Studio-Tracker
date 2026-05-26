@@ -549,24 +549,17 @@ async def ui_dashboard(
 
     from pvs_tracker.dashboard_history import build_dashboard_histories
     from pvs_tracker.platforms import normalize_platform_filter
-    from pvs_tracker.run_queries import get_latest_run
 
     pf = normalize_platform_filter(platform_filter)
     history, history_by_platform = build_dashboard_histories(
         session, project_id, active_branch, pf
     )
 
-    qg_result: dict = {"status": "passed", "conditions": [], "summary": {"new_in_gate": 0}}
-    latest_for_qg = None
-    if pf in ("windows", "linux", "macos"):
-        latest_for_qg = get_latest_run(session, project_id, active_branch, pf)
-    elif history:
-        run_query = select(Run).where(Run.project_id == project_id, Run.status == "done")
-        if active_branch:
-            run_query = run_query.where(Run.branch == active_branch)
-        latest_for_qg = session.exec(run_query.order_by(Run.timestamp.desc()).limit(1)).first()
-    if latest_for_qg and latest_for_qg.id is not None:
-        qg_result = evaluate_quality_gate(session, project_id, latest_for_qg.id)
+    from pvs_tracker.dashboard_context import build_quality_gate_result
+
+    qg_result = build_quality_gate_result(
+        session, project_id, active_branch, pf, history
+    )
 
     quality_gates = session.exec(select(QualityGate).order_by(QualityGate.name)).all()
 
@@ -628,6 +621,49 @@ def api_platform_metrics(
     ).all()
     active_branch = resolve_active_branch(project, all_runs, branch)
     return build_platform_metrics(session, project_id, active_branch, platform_filter)
+
+
+@app.get("/ui/projects/{project_id}/overview-fragment", response_class=HTMLResponse)
+async def ui_overview_fragment(
+    project_id: int,
+    request: Request,
+    branch: str = "",
+    platform_filter: str = "windows",
+    session: Session = Depends(get_session),
+):
+    """HTML fragment: overview KPI for selected platform filter."""
+    from pvs_tracker.dashboard_context import (
+        build_platform_metrics,
+        build_quality_gate_result,
+        resolve_active_branch,
+    )
+    from pvs_tracker.platforms import normalize_platform_filter
+
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    all_runs = session.exec(
+        select(Run)
+        .where(Run.project_id == project_id, Run.status == "done")
+        .order_by(Run.timestamp.desc()),
+    ).all()
+    active_branch = resolve_active_branch(project, all_runs, branch)
+    pf = normalize_platform_filter(platform_filter)
+    metrics = build_platform_metrics(session, project_id, active_branch, pf)
+    qg_result = build_quality_gate_result(
+        session, project_id, active_branch, pf, metrics["history"]
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard/_overview_content.html",
+        {
+            "history": metrics["history"],
+            "qg_result": qg_result,
+            "platform_filter": pf,
+        },
+    )
 
 
 @app.get("/ui/projects/{project_id}/trends-fragment", response_class=HTMLResponse)

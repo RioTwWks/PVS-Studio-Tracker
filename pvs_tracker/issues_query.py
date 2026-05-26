@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlmodel import Session, select
 
 from pvs_tracker.models import Issue, Project
-from pvs_tracker.platforms import PlatformFilter, normalize_platform_filter
+from pvs_tracker.platforms import PLATFORMS, PlatformFilter, normalize_platform_filter
 from pvs_tracker.run_queries import common_cross_fps, get_analysis_set_runs, get_latest_run
 
 
@@ -36,13 +36,18 @@ def _apply_text_filters(
     return result
 
 
+_PLATFORM_SORT_ORDER: dict[str, int] = {p: i for i, p in enumerate(PLATFORMS)}
+
+
 def _sort_issues(
     issues: list[Issue],
     sort_by: str,
     order: str,
     classifier_map: dict,
+    issue_platforms: dict[int, str] | None = None,
 ) -> list[Issue]:
     reverse = order == "desc"
+    platforms = issue_platforms or {}
 
     def sort_key(issue: Issue):
         clf = classifier_map.get(issue.classifier_id)
@@ -56,6 +61,9 @@ def _sort_issues(
             return clf.type if clf else ""
         if sort_by == "priority":
             return clf.priority if clf else ""
+        if sort_by == "platform":
+            plat = platforms.get(issue.id, "")
+            return (_PLATFORM_SORT_ORDER.get(plat, len(PLATFORMS)), plat)
         return issue.file_path
 
     return sorted(issues, key=sort_key, reverse=reverse)
@@ -92,7 +100,7 @@ def resolve_issues_for_filter(
             return [], None, {}, {}, False
         issues = session.exec(select(Issue).where(Issue.run_id == run.id)).all()
         issues = _apply_text_filters(issues, severity, status_filter, q)
-        issues = _sort_issues(issues, sort_by, order, classifier_map)
+        issues = _sort_issues(issues, sort_by, order, classifier_map, issue_platforms)
         return issues, run.id, issue_platforms, issue_run_ids, False
 
     if pf == "all":
@@ -105,7 +113,7 @@ def resolve_issues_for_filter(
                 issue_platforms[issue.id] = plat
                 issue_run_ids[issue.id] = run.id
                 merged.append(issue)
-        merged = _sort_issues(merged, sort_by, order, classifier_map)
+        merged = _sort_issues(merged, sort_by, order, classifier_map, issue_platforms)
         primary = next(iter(runs.values())).id if runs else None
         return merged, primary, issue_platforms, issue_run_ids, True
 
@@ -131,6 +139,8 @@ def resolve_issues_for_filter(
             issue_platforms[issue.id] = plat
             issue_run_ids[issue.id] = run.id
             merged_common.append(issue)
-    merged_common = _sort_issues(merged_common, sort_by, order, classifier_map)
+    merged_common = _sort_issues(
+        merged_common, sort_by, order, classifier_map, issue_platforms
+    )
     primary = next(iter(runs.values())).id if runs else None
     return merged_common, primary, issue_platforms, issue_run_ids, True

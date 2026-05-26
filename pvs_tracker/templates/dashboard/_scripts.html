@@ -274,6 +274,7 @@
         projectId: {{ project.id }},
         branch: {{ active_branch|tojson }},
         platformFilter: {{ platform_filter|default('windows')|tojson }},
+        codePlatform: 'windows',
         codeRunId: null,
         _fileTreeLoaded: false,
 
@@ -288,20 +289,19 @@
         },
 
         codeOsPlatform() {
-            const pf = this.platformFilter;
-            if (pf === 'windows' || pf === 'linux' || pf === 'macos') {
-                return pf;
-            }
-            return 'windows';
+            return this.codePlatform;
         },
 
         syncPlatformButtons() {
             document.querySelectorAll('[data-platform-filter]').forEach((btn) => {
                 const filter = btn.dataset.platformFilter;
-                const osOnly = !!btn.closest('[data-platform-switcher-os-only]');
-                const active = osOnly
-                    ? filter === this.codeOsPlatform()
-                    : filter === this.platformFilter;
+                if (btn.closest('[data-platform-switcher-code]')) {
+                    const active = filter === this.codePlatform;
+                    btn.classList.toggle('active', active);
+                    btn.setAttribute('aria-pressed', String(active));
+                    return;
+                }
+                const active = filter === this.platformFilter;
                 btn.classList.toggle('active', active);
                 btn.setAttribute('aria-pressed', String(active));
             });
@@ -409,7 +409,7 @@
             }
             container.innerHTML = `<div class="sq-loading">${I18n.t('loading_file_structure')}</div>`;
 
-            const params = new URLSearchParams({ platform: this.codeOsPlatform() });
+            const params = new URLSearchParams({ platform: this.codePlatform });
             if (this.branch) {
                 params.append('branch', this.branch);
             }
@@ -437,18 +437,39 @@
             }
         },
 
-        reloadCodeTreeIfVisible() {
-            const codeTab = document.getElementById('tab-code');
-            if (!codeTab || codeTab.style.display === 'none') {
-                this._fileTreeLoaded = false;
+        async reloadOverview() {
+            const container = document.getElementById('overview-platform-content');
+            if (!container) {
                 return;
             }
+            const query = this.metricsQuery();
+            const resp = await fetch(
+                `/ui/projects/${this.projectId}/overview-fragment?${query}`,
+            );
+            if (!resp.ok) {
+                return;
+            }
+            container.innerHTML = await resp.text();
+            if (typeof I18n !== 'undefined' && typeof I18n.applyLanguage === 'function') {
+                I18n.applyLanguage(I18n.getPreferredLang());
+            }
+        },
+
+        async setCodePlatform(platform) {
+            if (!['windows', 'linux', 'macos'].includes(platform)) {
+                return;
+            }
+            if (platform === this.codePlatform) {
+                return;
+            }
+            this.codePlatform = platform;
+            this.syncPlatformButtons();
             const viewer = document.getElementById('inline-code-viewer');
             if (viewer) {
                 viewer.style.display = 'none';
             }
             this._fileTreeLoaded = false;
-            return this.loadFileTree(true);
+            await this.loadFileTree(true);
         },
 
         async setPlatformFilter(platformFilter) {
@@ -473,9 +494,9 @@
             }
 
             await Promise.all([
+                this.reloadOverview(),
                 this.reloadIssues(),
                 this.reloadTrends(),
-                this.reloadCodeTreeIfVisible(),
             ]);
         },
     };
@@ -486,6 +507,10 @@
             return;
         }
         event.preventDefault();
+        if (btn.closest('[data-platform-switcher-code]')) {
+            window.PvsDashboard.setCodePlatform(btn.dataset.platformFilter);
+            return;
+        }
         window.PvsDashboard.setPlatformFilter(btn.dataset.platformFilter);
     });
 

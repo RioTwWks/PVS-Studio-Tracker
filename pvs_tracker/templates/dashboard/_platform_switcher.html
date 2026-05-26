@@ -1,16 +1,21 @@
-{# Platform filter — buttons (no full page reload). Set platform_switcher_os_only=true for Code tab. #}
+{# Platform filter — buttons (no full page reload).
+   platform_switcher_os_only: only Windows/Linux/macOS (Code tab).
+   platform_switcher_independent: Code tab OS choice, not tied to global filter. #}
 {% set os_only = platform_switcher_os_only|default(false) %}
+{% set independent = platform_switcher_independent|default(false) %}
 {% set pf = platform_filter|default('windows') %}
-{% set code_pf = pf if pf in ['windows', 'linux', 'macos'] else 'windows' %}
+{% set code_pf = code_platform|default(pf if pf in ['windows', 'linux', 'macos'] else 'windows') %}
+{% set active_pf = code_pf if independent else (code_pf if os_only else pf) %}
 <div class="sq-platform-switcher mb-3" role="group" aria-label="Platform filter"
-     data-platform-switcher{% if os_only %} data-platform-switcher-os-only{% endif %}>
-    <button type="button" class="sq-platform-btn {% if (code_pf if os_only else pf) == 'windows' %}active{% endif %}"
+     data-platform-switcher
+     {% if independent %}data-platform-switcher-code{% elif os_only %}data-platform-switcher-os-only{% endif %}>
+    <button type="button" class="sq-platform-btn {% if active_pf == 'windows' %}active{% endif %}"
             data-platform-filter="windows" data-i18n="platform_windows">Windows</button>
-    <button type="button" class="sq-platform-btn {% if (code_pf if os_only else pf) == 'linux' %}active{% endif %}"
+    <button type="button" class="sq-platform-btn {% if active_pf == 'linux' %}active{% endif %}"
             data-platform-filter="linux" data-i18n="platform_linux">Linux</button>
-    <button type="button" class="sq-platform-btn {% if (code_pf if os_only else pf) == 'macos' %}active{% endif %}"
+    <button type="button" class="sq-platform-btn {% if active_pf == 'macos' %}active{% endif %}"
             data-platform-filter="macos" data-i18n="platform_macos">macOS</button>
-    {% if not os_only %}
+    {% if not os_only and not independent %}
     <button type="button" class="sq-platform-btn {% if pf == 'all' %}active{% endif %}"
             data-platform-filter="all" data-i18n="platform_all">All</button>
     <button type="button" class="sq-platform-btn {% if pf == 'common' %}active{% endif %}"
