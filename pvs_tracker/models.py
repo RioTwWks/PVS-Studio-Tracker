@@ -378,3 +378,11 @@ class GlobalSettings(SQLModel, table=True):
         description="Глобальный корень исходников для macOS (используется, если не задан в проекте)",
     )
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ProjectGroup(SQLModel, table=True):
+    """Настраиваемые группы проектов для UI."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True, index=True, max_length=100)
+    display_order: int = Field(default=0, description="Порядок отображения (меньше = выше)")
+    created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -10,7 +10,7 @@ from typing import Any, Optional
 from sqlmodel import Session, select
 
 from pvs_tracker.models import Project
-from pvs_tracker.project_groups import group_name_from_id
+from pvs_tracker.project_groups import get_group_name_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +22,13 @@ def project_repo_path(project: Project) -> str:
 
 
 def project_analysis_branch(project: Project) -> str:
-    """Текущая ветка CI (синхронизирована с git_branch на дашборде)."""
     branch = (project.git_branch or project.analysis_branch or "").strip()
     return branch or "main"
 
 
 def parse_sonar_form_fields(
     *,
+    session: Session,   # <--- новый параметр
     group_id: str | int,
     author_email: str,
     sonar_project_name: str,
@@ -56,11 +56,15 @@ def parse_sonar_form_fields(
     if re.search(r"\s", name):
         raise ValueError("SonarQube Project Name не должен содержать пробелов")
     slug = (sonar_project_key or slug_from_name(name)).strip()
+    
+    # Получаем имя группы по ID, используя переданную сессию
+    group_name = get_group_name_by_id(session, int(group_id))
+    
     data: dict[str, Any] = {
         "name": name,
         "slug": slug,
         "author_email": author_email.strip(),
-        "group_name": group_name_from_id(group_id),
+        "group_name": group_name,   # вместо group_name_from_id
         "jira_project": jira_project.strip(),
         "cvs_system": cvs_system.strip(),
         "repo_path": tfs_path.strip(),
@@ -128,14 +132,25 @@ def get_projects_by_repo_branch(
 
 
 def list_ci_projects_grouped(session: Session) -> dict[str, list[Project]]:
+    from pvs_tracker.models import ProjectGroup
     projects = list(session.exec(select(Project).order_by(Project.name)).all())
+    
+    groups = session.exec(select(ProjectGroup).order_by(ProjectGroup.display_order, ProjectGroup.name)).all()
+    group_names = [g.name for g in groups]
+    
+    if not group_names:
+        group_names = sorted({p.group_name or "Ungrouped" for p in projects})
+    
     grouped: dict[str, list[Project]] = {}
     for p in projects:
         key = p.group_name or "Ungrouped"
         grouped.setdefault(key, []).append(p)
-    # Сортируем группы по имени (алфавитный порядок)
-    sorted_items = sorted(grouped.items(), key=lambda x: x[0])
-    return dict(sorted_items)
+    
+    ordered = {name: grouped.get(name, []) for name in group_names if name in grouped}
+    for name, projs in grouped.items():
+        if name not in ordered:
+            ordered[name] = projs
+    return ordered
 
 
 def apply_ci_fields(project: Project, data: dict[str, Any]) -> None:

@@ -221,6 +221,44 @@ def _migrate_database() -> None:
                 except Exception as e:
                     _logging.warning("Failed to remove NOT NULL from password_hash: %s", e)
 
+                # === Создание таблицы ProjectGroup и заполнение начальными данными ===
+                try:
+                    with engine.connect() as conn:
+                        # Проверяем существование таблицы
+                        res = conn.exec_driver_sql(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='projectgroup'"
+                        ).fetchone()
+                        if not res:
+                            # Создаём таблицу
+                            conn.exec_driver_sql("""
+                                CREATE TABLE projectgroup (
+                                    id INTEGER PRIMARY KEY,
+                                    name VARCHAR(100) NOT NULL UNIQUE,
+                                    display_order INTEGER NOT NULL DEFAULT 0,
+                                    created_at DATETIME NOT NULL
+                                )
+                            """)
+                            # Индекс
+                            conn.exec_driver_sql("CREATE INDEX ix_projectgroup_name ON projectgroup (name)")
+                            conn.commit()
+
+                            # Заполняем уникальными значениями group_name из существующих проектов
+                            existing_groups = conn.exec_driver_sql(
+                                "SELECT DISTINCT group_name FROM project WHERE group_name IS NOT NULL AND group_name != ''"
+                            ).fetchall()
+                            group_names = {row[0] for row in existing_groups}
+                            # Добавляем стандартные группы, если их нет
+                            default_groups = ["QA", "QD", "QF", "QG", "QS", "QW", "Other_Projects", "Ungrouped"]
+                            for gn in sorted(set(default_groups) | group_names):
+                                order = default_groups.index(gn) if gn in default_groups else 999
+                                conn.exec_driver_sql(
+                                    "INSERT INTO projectgroup (name, display_order, created_at) VALUES (?, ?, ?)",
+                                    (gn, order, datetime.utcnow())
+                                )
+                            conn.commit()
+                except Exception as e:
+                    _logging.warning("ProjectGroup migration failed: %s", e)
+
         except Exception:
             pass  # Migration failed, continue anyway
 
@@ -343,6 +381,26 @@ def _initialize_default_data() -> None:
             session.commit()
 
 
+def _sync_project_groups(session: Session) -> None:
+    from pvs_tracker.models import ProjectGroup
+    # Все уникальные имена групп из проектов
+    project_groups = session.exec(select(Project.group_name).distinct()).all()
+    group_names = {gn for gn in project_groups if gn and gn.strip()}
+    # Стандартные группы (должны быть)
+    default_groups = ["QA", "QD", "QF", "QG", "QS", "QW", "Other_Projects", "Ungrouped"]
+    group_names.update(default_groups)
+    
+    # Существующие группы в БД
+    existing = {g.name for g in session.exec(select(ProjectGroup)).all()}
+    
+    # Добавляем недостающие
+    for name in group_names:
+        if name not in existing:
+            order = default_groups.index(name) if name in default_groups else 999
+            session.add(ProjectGroup(name=name, display_order=order))
+    session.commit()
+
+
 def _load_error_classifiers(session: Session) -> None:
     """Load error classifier data from Actual_warnings.csv if not already present."""
     # Check if classifiers are already loaded
@@ -371,6 +429,9 @@ def _load_error_classifiers(session: Session) -> None:
 
 _migrate_database()
 _initialize_default_data()
+
+with Session(engine) as session:
+    _sync_project_groups(session)
 
 with Session(engine) as _lang_session:
     from pvs_tracker.warnings_catalog import backfill_classifier_languages
@@ -603,10 +664,11 @@ async def ui_dashboard(
 
     from pvs_tracker.admin_utils import is_admin
     from pvs_tracker.project_form_context import project_form_context
-    from pvs_tracker.project_groups import GROUP_CHOICES
+    from pvs_tracker.project_groups import get_group_choices, get_group_id_by_name
 
     form_ctx = project_form_context(project, edit=True, edit_id=project.id, load_jira=False)
-    form_ctx["group_choices"] = GROUP_CHOICES
+    form_ctx["group_choices"] = get_group_choices(session)
+    form_ctx["group_id"] = get_group_id_by_name(session, project.group_name or "Ungrouped")
     form_ctx["is_admin"] = is_admin(request)
     sub = (settings_tab or "params").strip().lower()
     if sub not in ("params", "sources", "quality"):
@@ -1085,24 +1147,26 @@ async def quality_gates_settings_page(
 async def global_settings_page(
     request: Request,
     session: Session = Depends(get_session),
-    _user: str = Depends(require_auth),
+    tab: str = Query("general", pattern="^(general|groups)$"),
+    _user: User = Depends(require_auth),
 ):
-    """Global settings page."""
+    """Global settings page with tabs."""
     # Get or create global settings
     settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
     if not settings:
-        # 🔑 Создаём с явным указанием полей (без default_git_branch)
-        settings = GlobalSettings(
-            id=1,
-            default_source_root_win=None,
-            default_source_root_linux=None,
-        )
+        settings = GlobalSettings(id=1)
         session.add(settings)
         session.commit()
         session.refresh(settings)
     
-    # Get current theme from cookie or default
+    # Get theme from cookie
     theme = request.cookies.get("theme", "light")
+    
+    # Load groups if needed
+    groups = []
+    if tab == "groups":
+        from pvs_tracker.models import ProjectGroup
+        groups = session.exec(select(ProjectGroup).order_by(ProjectGroup.display_order, ProjectGroup.name)).all()
     
     return templates.TemplateResponse(
         request,
@@ -1111,6 +1175,8 @@ async def global_settings_page(
             "current_user": _ui_current_user(request),
             "settings": settings,
             "theme": theme,
+            "active_tab": tab,
+            "groups": groups,
         },
     )
 

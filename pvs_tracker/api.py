@@ -13,7 +13,7 @@ from pvs_tracker.models import (
     Project, Run, Issue, ErrorClassifier, User, UserRole,
     ProjectMember, QualityGate, QualityGateCondition, QualityGateRule, GlobalSettings,
     IssueComment, ActivityLog, MetricSnapshot, IssueResolution,
-    RunReport, CodeSnapshotFile, UserProjectNotification,
+    RunReport, CodeSnapshotFile, UserProjectNotification, ProjectGroup
 )
 from pvs_tracker.auth_service import (
     require_auth,
@@ -42,6 +42,71 @@ from pvs_tracker.security import hash_password
 
 router = APIRouter(prefix="/api/v2")
 
+
+class ProjectGroupCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    display_order: int = Field(default=0)
+
+class ProjectGroupUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    display_order: Optional[int] = None
+
+@router.get("/admin/groups")
+async def list_groups(
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    groups = session.exec(select(ProjectGroup).order_by(ProjectGroup.display_order, ProjectGroup.name)).all()
+    return [{"id": g.id, "name": g.name, "display_order": g.display_order} for g in groups]
+
+@router.post("/admin/groups")
+async def create_group(
+    body: ProjectGroupCreate,
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    existing = session.exec(select(ProjectGroup).where(ProjectGroup.name == body.name)).first()
+    if existing:
+        raise HTTPException(400, "Group already exists")
+    group = ProjectGroup(name=body.name, display_order=body.display_order)
+    session.add(group)
+    session.commit()
+    return {"id": group.id, "name": group.name, "display_order": group.display_order}
+
+@router.put("/admin/groups/{group_id}")
+async def update_group(
+    group_id: int,
+    body: ProjectGroupUpdate,
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    group = session.get(ProjectGroup, group_id)
+    if not group:
+        raise HTTPException(404, "Group not found")
+    if body.name is not None:
+        group.name = body.name
+    if body.display_order is not None:
+        group.display_order = body.display_order
+    session.add(group)
+    session.commit()
+    return {"id": group.id, "name": group.name, "display_order": group.display_order}
+
+@router.delete("/admin/groups/{group_id}")
+async def delete_group(
+    group_id: int,
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    group = session.get(ProjectGroup, group_id)
+    if not group:
+        raise HTTPException(404, "Group not found")
+    # Проверяем, используется ли группа в проектах
+    projects = session.exec(select(Project).where(Project.group_name == group.name)).all()
+    if projects:
+        raise HTTPException(409, f"Group is used by {len(projects)} project(s). Move them first.")
+    session.delete(group)
+    session.commit()
+    return {"status": "deleted"}
 
 # ---------------------------------------------------------------------------
 # Pydantic schemas

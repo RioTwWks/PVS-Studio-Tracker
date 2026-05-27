@@ -10,13 +10,13 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from urllib.parse import quote
 from fastapi.templating import Jinja2Templates
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from pvs_tracker.admin_utils import is_admin
 from pvs_tracker.auth_service import get_current_user, require_auth
 from pvs_tracker.db import get_session
 from pvs_tracker.jenkins_service import trigger_jenkins_build
-from pvs_tracker.models import Project, User
+from pvs_tracker.models import Project, User, ProjectGroup
 from pvs_tracker.project_ci import (
     clone_ci_project,
     create_ci_project,
@@ -27,7 +27,7 @@ from pvs_tracker.project_ci import (
     set_analysis_queued,
 )
 from pvs_tracker.project_form_context import project_form_context
-from pvs_tracker.project_groups import GROUP_CHOICES
+from pvs_tracker.project_groups import get_group_choices, get_group_id_by_name
 from pvs_tracker.repository_service import get_head_commit_git, get_latest_changeset_tfvc
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,6 @@ def _checkbox(value: Optional[str]) -> bool:
 
 
 def _template_ctx(request: Request, ctx: dict) -> dict:
-    """Контекст для страниц с base.html: сессия пользователя в шапке."""
     out = dict(ctx)
     out["current_user"] = get_current_user(request, None)
     return out
@@ -69,7 +68,8 @@ def _ci_panel_response(
     ci_toast_link_text: Optional[str] = None,
 ) -> HTMLResponse:
     ctx = project_form_context(project, edit=True, edit_id=project.id, load_jira=False)
-    ctx["group_choices"] = GROUP_CHOICES
+    ctx["group_choices"] = get_group_choices(session)
+    ctx["group_id"] = get_group_id_by_name(session, project.group_name or "Ungrouped")
     ctx["project"] = project
     ctx["is_admin"] = is_admin(request)
     ctx["active_branch"] = active_branch or (
@@ -115,10 +115,12 @@ def projects_manage_redirect() -> RedirectResponse:
 
 
 @router.get("/ui/projects/new", response_class=HTMLResponse)
-def project_new_form(request: Request) -> HTMLResponse:
+def project_new_form(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
     _require_auth(request)
     ctx = project_form_context(None)
-    ctx["group_choices"] = GROUP_CHOICES
+    ctx["group_choices"] = get_group_choices(session)
+    from pvs_tracker.project_groups import get_group_id_by_name
+    ctx["group_id"] = get_group_id_by_name(session, "Ungrouped")  # по умолчанию
     ctx["form_action"] = "/ui/projects/create"
     return templates.TemplateResponse(
         request, "projects/project_form.html", _template_ctx(request, ctx)
@@ -133,8 +135,13 @@ def project_edit_form(
     if not project:
         raise HTTPException(status_code=404)
     ctx = project_form_context(project, edit=True, edit_id=project.id, load_jira=False)
-    ctx["group_choices"] = GROUP_CHOICES
+    
+    # Передаём динамический список групп
+    from pvs_tracker.project_groups import get_group_choices, get_group_id_by_name
+    ctx["group_choices"] = get_group_choices(session)
+    ctx["group_id"] = get_group_id_by_name(session, project.group_name or "Ungrouped")
     ctx["form_action"] = f"/ui/projects/{project_id}/ci"
+    
     return templates.TemplateResponse(
         request, "projects/project_form.html", _template_ctx(request, ctx)
     )
@@ -148,7 +155,9 @@ def project_clone_form(
     if not project:
         raise HTTPException(status_code=404)
     ctx = project_form_context(project, clone=True)
-    ctx["group_choices"] = GROUP_CHOICES
+    ctx["group_choices"] = get_group_choices(session)
+    from pvs_tracker.project_groups import get_group_id_by_name
+    ctx["group_id"] = get_group_id_by_name(session, project.group_name or "Ungrouped")
     ctx["form_action"] = "/ui/projects/create"
     return templates.TemplateResponse(
         request, "projects/project_form.html", _template_ctx(request, ctx)
@@ -183,6 +192,7 @@ async def project_create_submit(
     _require_auth(request)
     try:
         data = parse_sonar_form_fields(
+            session=session,   # <--- передаём session
             group_id=group_id,
             author_email=author_email,
             sonar_project_name=sonar_project_name,
@@ -207,7 +217,7 @@ async def project_create_submit(
         project = create_ci_project(session, data)
     except ValueError as e:
         ctx = project_form_context(None)
-        ctx["group_choices"] = GROUP_CHOICES
+        ctx["group_choices"] = get_group_choices(session)   # <--- динамический список
         ctx["form_action"] = "/ui/projects/create"
         ctx["error"] = str(e)
         return templates.TemplateResponse(
@@ -252,6 +262,7 @@ async def project_ci_update(
         raise HTTPException(status_code=404)
     try:
         data = parse_sonar_form_fields(
+            session=session,   # <--- передаём session
             group_id=group_id,
             author_email=author_email,
             sonar_project_name=sonar_project_name,
@@ -259,7 +270,8 @@ async def project_ci_update(
             jira_project=jira_project,
             cvs_system=cvs_system,
             tfs_path=tfs_path,
-            include_branch=False,
+            another_branch=project.analysis_branch or project.git_branch or "",  # сохраняем существующую ветку
+            include_branch=False,   # не перезаписываем git_branch/analysis_branch
             sub_modules=_checkbox(sub_modules),
             life_time=life_time,
             cmake_msbuild=cmake_msbuild,
@@ -366,4 +378,3 @@ def trigger_analysis(
         ci_toast_url=trigger.console_url,
         ci_toast_link_text=link_label,
     )
-
