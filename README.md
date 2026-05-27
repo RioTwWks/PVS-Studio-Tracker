@@ -63,7 +63,7 @@
 - **Email (SMTP)** — письма подписчикам после успешной API-загрузки (`notifications.py`, см. `.env.example`)
 - **CSV экспорт** — выгрузка всех проблем с метаданными (CWE, technical debt, resolution)
 - **RESTful API v2** — полный CRUD для проектов, пользователей, quality gates, проблем
-- **LDAP (planned)** — заготовка в `auth.py`; UI использует MVP session login, API v2 — JWT/`auth_service.py`
+- **LDAP** — `auth.py` (SIMPLE/NTLM через `.env`); UI и API v2 — сессия + JWT через `auth_service.py` и таблицу `User`
 
 ### 🌐 Интерфейс
 - **Дашборд проекта** — вкладки: Overview, Issues, Code, Trends, **Analysis / CI**, Upload, **Settings** (подвкладки: параметры CI, source roots, quality gate)
@@ -529,7 +529,7 @@ curl -X POST http://localhost:8080/api/v1/issues/<fingerprint>/ignore
 Для продакшена замените:
 - `SECRET_KEY` и `JWT_SECRET_KEY` — на случайные криптографические строки
 - БД — на PostgreSQL (`postgresql://user:pass@host/dbname`)
-- UI Auth — сейчас MVP session; LDAP — подключение через `auth.py` + `main.py`
+- UI Auth — session cookie + `User` в БД; LDAP — `LDAP_*` в `.env`, управление пользователями в Global Settings
 - Настройте `WEBHOOK_URL` для CI/CD (`report_uploaded`, `quality_gate_evaluated`)
 
 ## Структура проекта
@@ -578,7 +578,7 @@ pytest tests/test_smoke.py -v  # smoke тесты
 - **bcrypt** — безопасное хеширование паролей
 - **Jinja2**, **HTMX**, **Bootstrap 5**, **Chart.js**, **Prism.js**
 - **Inline Code Viewer** — SonarQube-style code inspection с файловым браузером и синтаксической подсветкой
-- **ldap3** (заготовка LDAP в `auth.py`)
+- **ldap3** (LDAP в `auth.py`)
 - **httpx** — асинхронные HTTP запросы для webhooks
 - **pytest**, **ruff**, **mypy**
 

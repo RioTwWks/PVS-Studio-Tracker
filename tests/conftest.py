@@ -20,6 +20,13 @@ from pvs_tracker.models import SQLModel  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
+def _disable_ldap_by_default(request, monkeypatch):
+    """Prevent accidental LDAP bind during tests unless ldap_enabled fixture is used."""
+    if "ldap_enabled" not in request.fixturenames:
+        monkeypatch.setenv("LDAP_ENABLED", "false")
+
+
+@pytest.fixture(autouse=True)
 def isolated_db():
     SQLModel.metadata.drop_all(main.engine)
     SQLModel.metadata.create_all(main.engine)
@@ -79,7 +86,11 @@ def pvs_sample_json():
 
 
 @pytest.fixture
-def ldap_mock(mocker):
-    conn = mocker.patch("ldap3.Connection")
-    conn.bind.return_value = True
-    return conn
+def ldap_mock():
+    from unittest.mock import MagicMock, patch
+
+    mock_conn = MagicMock()
+    mock_conn.bind.return_value = True
+    mock_conn.entries = []
+    with patch("pvs_tracker.auth.Connection", return_value=mock_conn):
+        yield mock_conn

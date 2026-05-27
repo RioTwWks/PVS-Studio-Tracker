@@ -5,110 +5,325 @@
 <div class="sq-container">
     <div class="sq-page-header">
         <h1 class="sq-page-title"><i class="bi bi-globe"></i> <span data-i18n="global_settings">Global Settings</span></h1>
-        <p class="sq-page-subtitle" data-i18n="global_settings_subtitle">Application-wide defaults for source roots and analysis</p>
+        <p class="sq-page-subtitle" data-i18n="global_settings_subtitle">Application-wide defaults, users, and security</p>
     </div>
 
-    <div class="sq-card">
-        <div class="sq-card-header">
-            <i class="bi bi-folder2"></i> <span data-i18n="default_source_roots">Default Source Roots</span>
-        </div>
-        <div class="sq-card-body">
-            <p class="text-muted mb-4">
-                <span data-i18n="default_source_roots_desc">These paths are used as fallback when a project has no custom source root configured.</span>
-            </p>
-
-            <form id="global-settings-form">
-                <div class="sq-form-group">
-                    <label class="sq-form-label">
-                        <i class="bi bi-windows"></i> <span data-i18n="default_source_root_win">Default Source Root (Windows)</span>
-                    </label>
-                    <input type="text" id="global-root-win" class="sq-input" 
-                           value="{{ settings.default_source_root_win or '' }}"
-                           placeholder="C:\Projects\src">
-                    <small class="text-muted" data-i18n="default_source_root_win_hint">Used when project has no custom Windows source root</small>
-                </div>
-
-                <div class="sq-form-group">
-                    <label class="sq-form-label">
-                        <i class="bi bi-ubuntu"></i> <span data-i18n="default_source_root_linux">Default Source Root (Linux)</span>
-                    </label>
-                    <input type="text" id="global-root-linux" class="sq-input" 
-                           value="{{ settings.default_source_root_linux or '' }}"
-                           placeholder="/home/user/projects/src">
-                    <small class="text-muted" data-i18n="default_source_root_linux_hint">Used when project has no custom Linux source root</small>
-                </div>
-
-                <div class="sq-form-group">
-                    <label class="sq-form-label">
-                        <i class="bi bi-apple"></i> <span data-i18n="default_source_root_macos">Default Source Root (macOS)</span>
-                    </label>
-                    <input type="text" id="global-root-macos" class="sq-input"
-                           value="{{ settings.default_source_root_macos or '' }}"
-                           placeholder="/Users/dev/projects/src">
-                </div>
-
-                <div class="sq-form-actions mt-4">
-                    <button type="button" class="sq-btn sq-btn-primary" onclick="saveGlobalSettings()">
-                        <i class="bi bi-check-lg"></i> <span data-i18n="save_settings">Save Settings</span>
-                    </button>
-                    <span id="global-settings-status" class="sq-form-status ms-3"></span>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    {# Theme Preview #}
-    <div class="sq-card mt-4">
-        <div class="sq-card-header">
-            <i class="bi bi-palette"></i> <span data-i18n="theme_preview">Theme Preview</span>
-        </div>
-        <div class="sq-card-body">
-            <p class="text-muted"><span data-i18n="current_theme">Current theme:</span> <strong id="current-theme-display">{{ theme }}</strong></p>
-            <button class="sq-btn sq-btn-outline" onclick="ThemeManager.toggle()">
-                <i class="bi bi-moon-stars"></i> <span data-i18n="toggle_theme">Toggle Theme</span>
+    <ul class="nav nav-tabs sq-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-general" type="button">
+                <i class="bi bi-folder2"></i> <span data-i18n="settings_tab_general">General</span>
             </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-users" type="button">
+                <i class="bi bi-people"></i> <span data-i18n="settings_tab_users">Users &amp; Permissions</span>
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-general">
+            <div class="sq-card">
+                <div class="sq-card-header">
+                    <i class="bi bi-folder2"></i> <span data-i18n="default_source_roots">Default Source Roots</span>
+                </div>
+                <div class="sq-card-body">
+                    <p class="text-muted mb-4">
+                        <span data-i18n="default_source_roots_desc">These paths are used as fallback when a project has no custom source root configured.</span>
+                    </p>
+                    <form id="global-settings-form">
+                        <div class="sq-form-group">
+                            <label class="sq-form-label">
+                                <i class="bi bi-windows"></i> <span data-i18n="default_source_root_win">Default Source Root (Windows)</span>
+                            </label>
+                            <input type="text" id="global-root-win" class="sq-input"
+                                   value="{{ settings.default_source_root_win or '' }}"
+                                   placeholder="C:\Projects\src">
+                        </div>
+                        <div class="sq-form-group">
+                            <label class="sq-form-label">
+                                <i class="bi bi-ubuntu"></i> <span data-i18n="default_source_root_linux">Default Source Root (Linux)</span>
+                            </label>
+                            <input type="text" id="global-root-linux" class="sq-input"
+                                   value="{{ settings.default_source_root_linux or '' }}"
+                                   placeholder="/home/user/projects/src">
+                        </div>
+                        <div class="sq-form-group">
+                            <label class="sq-form-label">
+                                <i class="bi bi-apple"></i> <span data-i18n="default_source_root_macos">Default Source Root (macOS)</span>
+                            </label>
+                            <input type="text" id="global-root-macos" class="sq-input"
+                                   value="{{ settings.default_source_root_macos or '' }}"
+                                   placeholder="/Users/dev/projects/src">
+                        </div>
+                        <div class="sq-form-actions mt-4">
+                            <button type="button" class="sq-btn sq-btn-primary" onclick="saveGlobalSettings()">
+                                <i class="bi bi-check-lg"></i> <span data-i18n="save_settings">Save Settings</span>
+                            </button>
+                            <span id="global-settings-status" class="sq-form-status ms-3"></span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-users">
+            <div class="sq-card mb-4">
+                <div class="sq-card-header">
+                    <i class="bi bi-shield-lock"></i> <span data-i18n="settings_auth_header">Authentication</span>
+                </div>
+                <div class="sq-card-body">
+                    <p class="text-muted mb-2" data-i18n="settings_auth_desc">LDAP connection is configured via server environment variables (.env).</p>
+                    <dl class="row mb-0" id="auth-settings-dl">
+                        <dt class="col-sm-3">LDAP</dt>
+                        <dd class="col-sm-9" id="auth-ldap-status">—</dd>
+                        <dt class="col-sm-3" data-i18n="settings_auth_method">Method</dt>
+                        <dd class="col-sm-9" id="auth-ldap-method">—</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="sq-card mb-4">
+                <div class="sq-card-header">
+                    <i class="bi bi-key"></i> <span data-i18n="settings_roles_header">Global roles</span>
+                </div>
+                <div class="sq-card-body">
+                    <ul class="mb-0">
+                        <li><strong>Admin</strong> — <span data-i18n="role_admin_desc">full access, user management, quality gates</span></li>
+                        <li><strong>User</strong> — <span data-i18n="role_user_desc">upload reports, manage assigned projects</span></li>
+                        <li><strong>Viewer</strong> — <span data-i18n="role_viewer_desc">read-only access (default for new LDAP users)</span></li>
+                    </ul>
+                    <p class="text-muted mt-3 mb-0" data-i18n="settings_project_perms_hint">Project-level roles can override global role in project settings.</p>
+                </div>
+            </div>
+
+            <div class="sq-card">
+                <div class="sq-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i class="bi bi-people"></i> <span data-i18n="settings_users_header">Users</span></span>
+                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="openCreateUserModal()">
+                        <i class="bi bi-person-plus"></i> <span data-i18n="settings_create_user">Create local user</span>
+                    </button>
+                </div>
+                <div class="sq-card-body">
+                    <div id="users-status" class="sq-form-status mb-2"></div>
+                    <div class="table-responsive">
+                        <table class="sq-table">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="col_username">Username</th>
+                                    <th data-i18n="col_display_name">Name</th>
+                                    <th data-i18n="email">Email</th>
+                                    <th data-i18n="col_role">Role</th>
+                                    <th data-i18n="col_provider">Provider</th>
+                                    <th data-i18n="col_active">Active</th>
+                                    <th data-i18n="col_last_login">Last login</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <tr><td colspan="8" class="text-muted" data-i18n="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-// Load settings on page load
+const apiFetch = (url, options = {}) => fetch(url, {
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options,
+});
+
+function getUserModal() {
+    const el = document.getElementById('userModal');
+    if (!el) return null;
+    return bootstrap.Modal.getOrCreateInstance(el);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Update theme display
-    const theme = document.documentElement.getAttribute('data-theme') || 'light';
-    document.getElementById('current-theme-display').textContent = theme;
+    const userModalEl = document.getElementById('userModal');
+    if (userModalEl) {
+        userModalEl.addEventListener('hidden.bs.modal', () => {
+            document.querySelectorAll('.modal-backdrop').forEach((node) => node.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        });
+    }
+    document.querySelector('[data-bs-target="#tab-users"]')?.addEventListener('shown.bs.tab', () => {
+        loadAuthSettings();
+        loadUsers();
+    });
 });
 
 async function saveGlobalSettings() {
     const status = document.getElementById('global-settings-status');
-    status.textContent = I18n.t('saving');
+    status.textContent = typeof I18n !== 'undefined' ? I18n.t('saving') : 'Saving...';
     status.style.color = '#6c757d';
-    
     try {
-        const resp = await fetch('/api/v2/settings/global', {
+        const resp = await apiFetch('/api/v2/settings/global', {
             method: 'PATCH',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + (localStorage.getItem('token') || ''),
-            },
             body: JSON.stringify({
                 default_source_root_win: document.getElementById('global-root-win').value || null,
                 default_source_root_linux: document.getElementById('global-root-linux').value || null,
                 default_source_root_macos: document.getElementById('global-root-macos').value || null,
-            })
+            }),
         });
-        
         if (resp.ok) {
-            status.textContent = '✓ ' + I18n.t('saved_successfully');
+            status.textContent = '✓ ' + (typeof I18n !== 'undefined' ? I18n.t('saved_successfully') : 'Saved');
             status.style.color = '#198754';
         } else {
             const err = await resp.json();
-            status.textContent = '✗ ' + (err.detail || I18n.t('error_saving_settings'));
+            status.textContent = '✗ ' + (err.detail || 'Error');
             status.style.color = '#dc3545';
         }
     } catch (e) {
-        status.textContent = '✗ ' + I18n.t('network_error') + ': ' + e.message;
+        status.textContent = '✗ ' + e.message;
+        status.style.color = '#dc3545';
+    }
+}
+
+async function loadAuthSettings() {
+    try {
+        const resp = await apiFetch('/api/v2/settings/auth');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        document.getElementById('auth-ldap-status').textContent = data.ldap_enabled ? 'Enabled' : 'Disabled';
+        document.getElementById('auth-ldap-method').textContent = (data.ldap_auth_method || 'simple').toUpperCase();
+    } catch (_) { /* ignore */ }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+}
+
+function formatDate(iso) {
+    if (!iso) return '—';
+    try {
+        return new Date(iso).toLocaleString();
+    } catch (_) {
+        return iso;
+    }
+}
+
+async function loadUsers() {
+    const tbody = document.getElementById('users-table-body');
+    const status = document.getElementById('users-status');
+    try {
+        const resp = await apiFetch('/api/v2/users');
+        if (!resp.ok) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-danger">Access denied</td></tr>';
+            return;
+        }
+        const users = await resp.json();
+        if (!users.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-muted">No users</td></tr>';
+            return;
+        }
+        tbody.innerHTML = users.map((u) => {
+            const name = u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || '—';
+            return '<tr>' +
+                '<td>' + escapeHtml(u.username) + '</td>' +
+                '<td>' + escapeHtml(name) + '</td>' +
+                '<td>' + escapeHtml(u.email || '—') + '</td>' +
+                '<td>' + escapeHtml(u.role) + '</td>' +
+                '<td>' + escapeHtml(u.auth_provider) + '</td>' +
+                '<td>' + (u.is_active ? '✓' : '✗') + '</td>' +
+                '<td>' + escapeHtml(formatDate(u.last_login)) + '</td>' +
+                '<td><button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="openEditUserModal(' + u.id + ')"><i class="bi bi-pencil"></i></button></td>' +
+                '</tr>';
+        }).join('');
+        status.textContent = '';
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-danger">' + escapeHtml(e.message) + '</td></tr>';
+    }
+}
+
+function openCreateUserModal() {
+    document.getElementById('userModalTitle').textContent = typeof I18n !== 'undefined' ? I18n.t('settings_create_user') : 'Create user';
+    document.getElementById('edit-user-id').value = '';
+    document.getElementById('user-username').value = '';
+    document.getElementById('user-password').value = '';
+    document.getElementById('user-email').value = '';
+    document.getElementById('user-role').value = 'viewer';
+    document.getElementById('user-active').checked = true;
+    document.getElementById('user-new-password').value = '';
+    document.getElementById('field-username-group').classList.remove('d-none');
+    document.getElementById('field-password-group').classList.remove('d-none');
+    document.getElementById('field-reset-password-group').classList.add('d-none');
+    getUserModal()?.show();
+}
+
+async function openEditUserModal(userId) {
+    const resp = await apiFetch('/api/v2/users');
+    if (!resp.ok) return;
+    const users = await resp.json();
+    const u = users.find((x) => x.id === userId);
+    if (!u) return;
+    document.getElementById('userModalTitle').textContent = u.username;
+    document.getElementById('edit-user-id').value = u.id;
+    document.getElementById('user-username').value = u.username;
+    document.getElementById('user-email').value = u.email || '';
+    document.getElementById('user-role').value = u.role;
+    document.getElementById('user-active').checked = u.is_active;
+    document.getElementById('user-new-password').value = '';
+    document.getElementById('field-username-group').classList.add('d-none');
+    document.getElementById('field-password-group').classList.add('d-none');
+    const resetGroup = document.getElementById('field-reset-password-group');
+    if (u.auth_provider === 'local') {
+        resetGroup.classList.remove('d-none');
+    } else {
+        resetGroup.classList.add('d-none');
+    }
+    getUserModal()?.show();
+}
+
+async function saveUserModal() {
+    const status = document.getElementById('users-status');
+    const editId = document.getElementById('edit-user-id').value;
+    try {
+        if (!editId) {
+            const body = {
+                username: document.getElementById('user-username').value.trim(),
+                password: document.getElementById('user-password').value,
+                email: document.getElementById('user-email').value.trim() || null,
+                role: document.getElementById('user-role').value,
+            };
+            const resp = await apiFetch('/api/v2/users', { method: 'POST', body: JSON.stringify(body) });
+            if (!resp.ok) {
+                const err = await resp.json();
+                status.textContent = err.detail || 'Error';
+                status.style.color = '#dc3545';
+                return;
+            }
+        } else {
+            const body = {
+                email: document.getElementById('user-email').value.trim() || null,
+                role: document.getElementById('user-role').value,
+                is_active: document.getElementById('user-active').checked,
+            };
+            const newPwd = document.getElementById('user-new-password').value;
+            if (newPwd) body.password = newPwd;
+            const resp = await apiFetch('/api/v2/users/' + editId, { method: 'PATCH', body: JSON.stringify(body) });
+            if (!resp.ok) {
+                const err = await resp.json();
+                status.textContent = err.detail || 'Error';
+                status.style.color = '#dc3545';
+                return;
+            }
+        }
+        getUserModal()?.hide();
+        status.textContent = '✓ Saved';
+        status.style.color = '#198754';
+        loadUsers();
+    } catch (e) {
+        status.textContent = e.message;
         status.style.color = '#dc3545';
     }
 }
@@ -124,23 +339,55 @@ async function saveGlobalSettings() {
     font-size: 13px;
     font-weight: 500;
 }
-[data-theme="dark"] .sq-card {
-    background: var(--sq-bg-secondary);
-    border-color: var(--sq-border);
-}
-[data-theme="dark"] .sq-card-header {
-    background: var(--sq-bg-tertiary);
-    border-color: var(--sq-border);
-}
-[data-theme="dark"] .sq-input {
-    background: var(--sq-bg-secondary);
-    border-color: var(--sq-border);
-    color: var(--sq-text-primary);
-}
-[data-theme="dark"] .sq-input:focus {
-    border-color: var(--sq-border-focus);
-    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
-}
 </style>
 
+{% endblock %}
+
+{% block page_modals %}
+<div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle">User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-user-id">
+                <div class="sq-form-group" id="field-username-group">
+                    <label class="sq-form-label" for="user-username" data-i18n="col_username">Username</label>
+                    <input type="text" id="user-username" class="sq-input" minlength="3" maxlength="50">
+                </div>
+                <div class="sq-form-group" id="field-password-group">
+                    <label class="sq-form-label" for="user-password" data-i18n="password">Password</label>
+                    <input type="password" id="user-password" class="sq-input" minlength="6">
+                </div>
+                <div class="sq-form-group">
+                    <label class="sq-form-label" for="user-email" data-i18n="email">Email</label>
+                    <input type="email" id="user-email" class="sq-input">
+                </div>
+                <div class="sq-form-group">
+                    <label class="sq-form-label" for="user-role" data-i18n="col_role">Role</label>
+                    <select id="user-role" class="sq-input">
+                        <option value="viewer">Viewer</option>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-check" id="field-active-group">
+                    <input class="form-check-input" type="checkbox" id="user-active" checked>
+                    <label class="form-check-label" for="user-active" data-i18n="col_active">Active</label>
+                </div>
+                <div class="sq-form-group mt-3 d-none" id="field-reset-password-group">
+                    <label class="sq-form-label" for="user-new-password" data-i18n="settings_new_password">New password</label>
+                    <input type="password" id="user-new-password" class="sq-input" minlength="6" placeholder="">
+                    <small class="text-muted" data-i18n="settings_password_local_only">Local accounts only</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="sq-btn sq-btn-outline" data-bs-dismiss="modal" data-i18n="cancel">Cancel</button>
+                <button type="button" class="sq-btn sq-btn-primary" onclick="saveUserModal()" data-i18n="save_settings">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

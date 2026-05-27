@@ -52,6 +52,7 @@ def run_migration():
                 username="admin",
                 email="admin@localhost",
                 password_hash=hash_password("admin"),
+                auth_provider="local",
                 role=UserRole.ADMIN,
                 is_active=True,
             )

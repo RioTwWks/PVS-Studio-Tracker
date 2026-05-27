@@ -14,9 +14,9 @@
 | БД | SQLite (dev) / PostgreSQL (prod) |
 | ORM | SQLModel |
 | UI | Jinja2 + HTMX + Bootstrap 5 + Chart.js |
-| Auth UI (v1) | Session cookie; MVP — любые непустые логин/пароль |
-| Auth API (v2) | JWT + `User` в БД (`auth_service.py`) |
-| LDAP | Заготовка в `auth.py`, **не подключена** к `main.py` |
+| Auth UI (v1) | Session cookie + `User` в БД (`auth_service.py`) |
+| Auth API (v2) | JWT + session + `User` (`auth_service.py`) |
+| LDAP | `auth.py` (SIMPLE/NTLM), JIT Viewer, роли в UI |
 | Отчёты | PVS JSON; сырой JSON в `RunReport`, не папка `reports/` |
 | Очереди | `asyncio.create_task` для фоновых задач; без Redis/Celery |
 | Деплой | Нативная служба (примеры systemd/NSSM в §8), файлов юнитов в репо нет |
@@ -43,7 +43,7 @@ PVS-Studio-Tracker/
 │   ├── classifier_parser.py
 │   ├── code_viewer.py
 │   ├── file_resolver.py
-│   ├── auth.py              # LDAP stub (не используется main)
+│   ├── auth.py              # LDAP SIMPLE/NTLM
 │   ├── auth_service.py      # JWT, User, RBAC
 │   ├── security.py          # technical debt
 │   ├── quality_gate.py      # gate = набор rule_code (QualityGateRule)
