@@ -56,9 +56,9 @@
 ## 5. Безопасность и сессии
 
 - Секреты только из `.env`; не коммитить credentials.
-- UI session: `request.session["user"]` = **username string** (как в `main.py` сейчас).
-- API v2: JWT (`auth_service.py`), пароли bcrypt в `User`.
-- LDAP: реализация в `auth.py` — подключать к `POST /login` явно, не дублировать stub.
+- UI session: `user_id` + `user` (username) через `establish_session` в `auth_service.py`.
+- API v2: JWT (`auth_service.py`), пароли bcrypt в `User` (`security.py`).
+- LDAP: `auth.py` + `authenticate_credentials`; не дублировать bind-логику в роутах.
 - CSRF: для мутаций учитывать `Origin`/`Referer` в production.
 
 ---

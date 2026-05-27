@@ -4,12 +4,13 @@
 
 **Версия 0.2.0** — платформа для работы с отчётами PVS-Studio (`pyproject.toml`).
 
-**Документация для Cursor:** [CURSOR.md](CURSOR.md) · [.cursor/README.md](.cursor/README.md)
+**Документация:** [docs/](docs/README.md) · **Cursor:** [CURSOR.md](CURSOR.md) · [.cursor/README.md](.cursor/README.md)
 
 ## Возможности
 
 ### 📊 Анализ и отслеживание проблем
-- **Загрузка отчётов** — REST API `POST /api/v1/upload` принимает JSON-отчёт PVS-Studio, имя проекта, коммит и ветку
+- **Загрузка отчётов** — REST API `POST /api/v1/upload` и UI `/ui/upload`: JSON-отчёт, проект, коммит, ветка, платформа; опционально `.meta.json` (`commit`, автор коммита)
+- **Автор предупреждения** — для **new** issues сохраняется автор коммита анализа; для **existing**/**fixed** — наследование с предыдущего run (`issue_author.py`)
 - **Инкрементальная классификация** — каждое предупреждение получает стабильный fingerprint (SHA-256), что позволяет отслеживать статус: **new**, **existing**, **fixed**, **ignored**
 - **Технический долг** — автоматический расчёт времени устранения на основе серьёзности и приоритета правила
 - **CWE интеграция** — автоматическое извлечение и привязка CWE ID к предупреждениям
@@ -55,8 +56,8 @@
 ### 🔌 Интеграции
 - **SAST-оркестрация (CI)** — реестр проектов, TFS/Git webhook → Jenkins → upload в трекер (без SonarQube). Подробнее: [docs/jenkins-ci.md](docs/jenkins-ci.md)
 - **Единый проект** — SonarQube Project Name/Key (`name` / `slug`), параметры сборки и отчёты PVS на одном дашборде
-- **Главная** (`/`) — проекты по группам (QA, QD, …); цвет карточки: синий — норма, горчичный — Jira off, красный — анализ выключен
-- **Создание проекта** — `/ui/projects/new` (поля как в PVS_Sonar_WebHook_FastAPI: `sonar_project_name`, `sonar_project_key`, группа, CVS, PVS, CMake)
+- **Главная** (`/`) — проекты по настраиваемым группам (`ProjectGroup`); fallback QA/QD/…; цвет карточки: синий — норма, горчичный — Jira off, красный — анализ выключен
+- **Создание / редактирование проекта** — `/ui/projects/new`, `/ui/projects/{id}/edit`, clone (`/ui/projects/{id}/clone`); группы — API `GET/POST /api/v2/admin/groups`
 - **Inbound webhook** — `POST /webhook/inbound` (Basic auth)
 - **Jira sync** — создание Bug по `new` issues после upload (fingerprint в custom field)
 - **Webhook для CI/CD** — автоматические уведомления при оценке quality gate и `report_uploaded`
@@ -525,12 +526,23 @@ curl -X POST http://localhost:8080/api/v1/issues/<fingerprint>/ignore
 | `JIRA_URL`, `JIRA_USERNAME`, `JIRA_PASSWORD`, `JIRA_FINGERPRINT_FIELD` | — | Jira Bug после upload |
 | `SMTP_HOST`, `SMTP_PORT`, … | см. `.env.example` | Email подписчикам после `POST /api/v1/upload` |
 | `APP_BASE_URL` | `http://localhost:8080` | Ссылка на дашборд в письме |
+| `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, … | см. `.env.example` | Вход через Active Directory / LDAP |
 
 Для продакшена замените:
 - `SECRET_KEY` и `JWT_SECRET_KEY` — на случайные криптографические строки
 - БД — на PostgreSQL (`postgresql://user:pass@host/dbname`)
 - UI Auth — session cookie + `User` в БД; LDAP — `LDAP_*` в `.env`, управление пользователями в Global Settings
 - Настройте `WEBHOOK_URL` для CI/CD (`report_uploaded`, `quality_gate_evaluated`)
+
+## Документация
+
+| Документ | Назначение |
+|----------|------------|
+| [docs/README.md](docs/README.md) | Указатель по всей документации |
+| [docs/quick-reference.md](docs/quick-reference.md) | Команды API, curl, PowerShell |
+| [docs/jenkins-ci.md](docs/jenkins-ci.md) | Jenkins, webhook, `.meta.json` |
+| [docs/inline-code-viewer.md](docs/inline-code-viewer.md) | Просмотр исходников |
+| [CURSOR.md](CURSOR.md) | Краткий гид для Cursor |
 
 ## Структура проекта
 
@@ -544,8 +556,9 @@ pvs_tracker/
 ├── jenkins_service.py, inbound_webhooks.py, jira_sync.py, jira_service.py
 ├── repository_service.py, project_groups.py, admin_utils.py
 ├── auth_service.py             # JWT + User (API v2)
-├── incremental.py, platforms.py, dashboard_context.py, notifications.py
-├── quality_gate.py, webhooks.py, warnings_catalog.py
+├── incremental.py, issue_author.py, upload_metadata.py, platforms.py
+├── dashboard_context.py, notifications.py, quality_gate.py, webhooks.py
+├── warnings_catalog.py         # синхронизация каталога V-кодов с pvs-studio.com
 └── templates/
     ├── home.html               # группы проектов, цветовые карточки
     ├── projects/project_form.html, projects/_form_fields.html

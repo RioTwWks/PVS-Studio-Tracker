@@ -35,7 +35,8 @@ Task Progress:
 
 ## Auth (`auth_service.py`)
 
-- `Depends(require_auth)` → `User` (JWT Bearer **or** UI session if username exists in DB).
+- `Depends(require_auth)` → `User` (JWT Bearer **or** UI session via `user_id` / username in DB).
+- Admin-only project groups: `/api/v2/admin/groups` — см. существующие handlers в `api.py`.
 - `Depends(require_admin)` — global admin only.
 - `require_role(UserRole.USER)` — role hierarchy VIEWER < USER < ADMIN.
 

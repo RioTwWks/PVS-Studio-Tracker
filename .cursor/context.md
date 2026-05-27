@@ -51,7 +51,7 @@ graph TD
 | Branch switcher в UI | — | Фильтр графика/issues; **diff без branch** |
 | `target_platform` на Run | Один run на все ОС | Diff и метрики per OS; cross_platform_fp для сопоставления путей |
 | In-page platform switch | Reload dashboard | `platform-metrics` + `trends-fragment` + JS в `_scripts.html` |
-| Dual auth | Один механизм | UI MVP session; API v2 JWT + User table |
+| Unified login | Разные entrypoints | `authenticate_credentials` для UI и API v2; JWT + session cookie |
 | Webhook env URL | Per-project URL | `WEBHOOK_URL` глобально в v1 |
 | Email подписчики | Webhook per user | `UserProjectNotification` + SMTP только на `/api/v1/upload` |
 | Quality gate | Metric thresholds | Набор `rule_code`; fail при new в scope |
@@ -62,6 +62,8 @@ graph TD
 
 - **`/`** (`home.html`) — `<details>` по группам; цвет карточки: красный `disabled`, горчичный `disable_jira`, синий иначе (как PVS_Sonar list).
 - **`/ui/projects/new`** — форма Sonar-полей (`projects/_form_fields.html`, `static/project-form.js`).
+- **`/ui/projects/{id}/edit`** — редактирование проекта (POST → `/ui/projects/{id}/ci`).
+- **`/ui/projects/{id}/clone`** — клон с предзаполненной формой.
 - **`/ui/projects/manage`** — редирект 303 на `/`.
 
 ### Дашборд (`/ui/projects/{id}/dashboard`)
@@ -91,11 +93,13 @@ graph TD
 
 | Поверхность | Поведение |
 |-------------|-----------|
-| `POST /login` | Любые непустые credentials → `session["user"]` = **строка** username |
-| `/ui/upload`, create project, settings | `require_auth` → 401 без сессии |
-| Dashboard, `/ui/issues`, code viewer | **без** auth (открыты) |
-| `/api/v2/*` | JWT / session → `User` в БД; default `admin` при первом старте |
-| `auth.py` LDAP | Stub, не импортируется в `main.py` |
+| `POST /login`, `POST /api/v2/auth/login` | `authenticate_credentials`: локальный `User` (bcrypt) или LDAP (`LDAP_ENABLED`) |
+| Сессия UI | `user_id` + `user` (username) через `establish_session` |
+| LDAP JIT | Новый пользователь → `User` с `auth_provider=ldap`, роль **Viewer** |
+| `/ui/upload`, create/edit project, settings | `require_auth` → 401 без сессии |
+| Dashboard, `/ui/issues`, code viewer | **без** auth (открыты, read-only) |
+| `/api/v2/*` | JWT Bearer и/или session → `User`; admin из `migrate.py` |
+| Управление пользователями | `/ui/settings/global` (Users), API v2 `users`, `admin/groups` |
 
 ## Инкрементальный diff — важно
 
@@ -103,6 +107,18 @@ graph TD
 - Исчезнувшие FP → новые `Issue` с `status=fixed` в **текущем** `run_id`.
 - Сравнение prev run: последний `done` по проекту и **target_platform**, не по ветке UI.
 - `cross_platform_fp` учитывает source roots (project + GlobalSettings) при сопоставлении путей между ОС.
+
+## Upload metadata и автор issues
+
+- CI может передать `.meta.json` (`commit`, `commit_author_name`, `commit_author_email`) — парсер `upload_metadata.py`; поля формы имеют приоритет ниже файла.
+- `Run.commit_author_*` заполняются при upload; в webhook payload и Jira description.
+- `issue_author.resolve_issue_author`: **new** → автор коммита run; **existing** / **fixed** → наследование с prev issue (или run при первом анализе платформы).
+
+## Группы проектов
+
+- Таблица `ProjectGroup` + `project_groups.py`; fallback на константы QA/QD/… если таблица пуста.
+- CRUD: `GET/POST/PUT/DELETE /api/v2/admin/groups` (admin).
+- Формы create/edit/clone: `group_id` из БД.
 
 ## PVS JSON
 
@@ -114,7 +130,7 @@ graph TD
 ## Границы
 
 - ✅ Upload, diff (per platform), UI, API v2, CI/Jira/Jenkins, монолит project_manage, code viewer, webhooks, quality gates, CSV export
-- ❌ Сам анализ PVS, Docker/K8s, полноценный LDAP в UI (пока), diff по branch (TODO), отдельный Sonar-сервис (заменён трекером)
+- ❌ Сам анализ PVS, Docker/K8s, diff по branch (TODO), отдельный Sonar-сервис (заменён трекером)
 
 ## Для агентов Cursor
 

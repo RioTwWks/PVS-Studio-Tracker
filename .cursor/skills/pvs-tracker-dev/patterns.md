@@ -61,6 +61,10 @@ pytest tests/test_smoke.py -v
 pytest tests/test_profile_notifications.py -v
 pytest tests/test_platforms.py -v
 pytest tests/test_classifier.py tests/test_code_viewer.py -v
+pytest tests/test_auth_local.py tests/test_auth_ldap.py -v
+pytest tests/test_upload_metadata.py tests/test_issue_author.py -v
+pytest tests/test_warnings_catalog.py -v
+pytest tests/test_ci_integration.py -q
 ```
 
 Mocks: `ldap3`, `BackgroundTasks` / asyncio tasks as needed.

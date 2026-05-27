@@ -15,7 +15,8 @@ description: >-
 1. [.cursor/spec.md](../../spec.md) — routes, models, diff contract
 2. [.cursor/rules.md](../../rules.md) — hard limits
 3. [.cursor/context.md](../../context.md) — trade-offs
-4. [CURSOR.md](../../../CURSOR.md) — quick orientation
+4. [CURSOR.md](../../../CURSOR.md) — quick orientation  
+5. [docs/README.md](../../../docs/README.md) — user docs index
 
 ### Focused sub-skills
 
@@ -36,8 +37,12 @@ description: >-
 
 | Layer | Behavior |
 |-------|----------|
-| UI `POST /login` | `authenticate_credentials` → session `user_id` + `User` row |
-| LDAP | `auth.py` — `LDAP_*` in `.env`, SIMPLE/NTLM; new users → Viewer |
+| UI `POST /login` | `authenticate_credentials` → `establish_session` (`user_id` + username) |
+| LDAP | `auth.py` — `LDAP_*` in `.env`, SIMPLE/NTLM; JIT `User`, роль Viewer |
+| Upload metadata | `commit_metadata` file or form fields → `Run.commit_author_*` (`upload_metadata.py`) |
+| Issue author | `issue_author.resolve_issue_author` in `incremental.py` |
+| Project groups | `ProjectGroup` + `/api/v2/admin/groups`; `project_groups.get_group_choices` |
+| Warnings sync | `POST /api/v2/warnings/sync` → `warnings_catalog.py` |
 | UI protected | upload, create project, profile, global/QG settings — `require_auth` / `require_admin` |
 | UI open | dashboard, `/ui/issues`, code viewer (current code) |
 | API v2 | JWT + session cookie + `auth_service.py` |

@@ -11,6 +11,7 @@
 | [context.md](context.md) | Архитектурные решения и trade-offs |
 | [skills/pvs-tracker-dev/SKILL.md](skills/pvs-tracker-dev/SKILL.md) | Основной workflow агента |
 | [CURSOR.md](../CURSOR.md) | Краткий обзор для людей и агентов |
+| [docs/README.md](../docs/README.md) | Пользовательская документация (API, CI, code viewer) |
 
 ## Skills
 
@@ -39,7 +40,7 @@
 uvicorn pvs_tracker.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
-API v2 login: `POST /api/v2/auth/login` (пользователь `admin` создаётся при старте, пароль из БД). UI login (`POST /login`) пока принимает любые непустые credentials (MVP).
+Login: `POST /login` и `POST /api/v2/auth/login` — `authenticate_credentials` (локальный bcrypt или LDAP при `LDAP_ENABLED=true`). Admin: `migrate.py` → `admin`/`admin`.
 
 Профиль: `/ui/settings/profile`, `PATCH /api/v2/users/me`. Email после API upload: `notifications.py` + `SMTP_*` в `.env`.
 

@@ -45,10 +45,13 @@ PVS-Studio-Tracker/
 │   ├── file_resolver.py
 │   ├── auth.py              # LDAP SIMPLE/NTLM
 │   ├── auth_service.py      # JWT, User, RBAC
-│   ├── security.py          # technical debt
+│   ├── security.py          # bcrypt, technical debt
+│   ├── issue_author.py      # author on new/existing/fixed issues
+│   ├── upload_metadata.py   # CI .meta.json (commit author)
+│   ├── warnings_catalog.py  # sync classifier from pvs-studio.com
+│   ├── project_groups.py    # ProjectGroup for home UI
 │   ├── quality_gate.py      # gate = набор rule_code (QualityGateRule)
 │   ├── notifications.py     # SMTP после POST /api/v1/upload
-│   ├── warnings_catalog.py  # sync каталога PVS с api v2
 │   ├── webhooks.py
 │   ├── inbound_webhooks.py    # POST /webhook/inbound
 │   ├── jenkins_service.py
@@ -96,8 +99,9 @@ PVS-Studio-Tracker/
 См. `pvs_tracker/models.py`. Кратко:
 
 - **Project** — `name`, `slug` (Sonar Project Key), `group_name`, CI-поля (`repo_path`, `cvs_system`, `analysis_branch`, `disable_jira`, `disabled`, Jenkins/Jira metadata, PVS/CMake поля), `source_root_*`, `quality_gate_id`, …
-- **Run** — `project_id`, `commit`, `branch`, `target_platform` (`windows|linux|macos`), `status`, метрики …
-- **Issue** — `fingerprint`, `cross_platform_fp`, `file_path`, `line`, `rule_code`, `status` (`new|existing|fixed|ignored`), …
+- **Run** — `project_id`, `commit`, `branch`, `commit_author_name`, `commit_author_email`, `target_platform` (`windows|linux|macos`), `status`, метрики …
+- **Issue** — `fingerprint`, `cross_platform_fp`, `file_path`, `line`, `rule_code`, `status` (`new|existing|fixed|ignored`), `author_name`, `author_email`, `jira_issue_key`, …
+- **ProjectGroup** — `name`, `display_order`; группы для главной и форм проекта (CRUD `/api/v2/admin/groups`)
 - **QualityGate** + **QualityGateRule** — scope оценки: набор `rule_code`; fail при `new` в scope
 - **ErrorClassifier** — из `Actual_warnings.csv` при старте
 - **GlobalSettings** — дефолтные source roots
@@ -141,6 +145,12 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 **Ветка UI:** фильтр `?branch=` для графика и таблицы; diff **не** сравнивает по branch (только platform).
 
+### Upload metadata и автор issues
+
+- Опциональный файл `commit_metadata` (UTF-8 JSON) на `POST /ui/upload` и `POST /api/v1/upload`: ключи `commit`, `commit_author_name`, `commit_author_email` (`upload_metadata.py`).
+- Поля формы/upload сливаются с metadata; при конфликте приоритет у формы (см. `merge_commit_upload_fields`).
+- `issue_author.resolve_issue_author`: **new** → `Run.commit_author_*`; **existing** / **fixed** → из prev `Issue` (при первом run платформы — автор текущего коммита).
+
 ### Дашборд и платформы
 
 - Переключатель ОС: `windows` / `linux` / `macos` (`dashboard/_platform_switcher.html`).
@@ -157,10 +167,12 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 | Метод | Путь | Ответ | Auth |
 |-------|------|-------|------|
 | GET | `/`, `/login` | HTML | — |
-| POST | `/login` | 303 session | MVP любой login |
+| POST | `/login` | 303 session | `authenticate_credentials` (local/LDAP) |
 | GET | `/logout` | 303 | — |
 | GET | `/ui/projects/{id}/dashboard` | HTML | — |
+| GET | `/ui/projects/{id}/overview-fragment` | HTML partial (Overview KPI) | — |
 | GET | `/ui/projects/{id}/trends-fragment` | HTML partial (KPI + chart) | — |
+| GET | `/ui/projects/{id}/edit` | HTML форма проекта | session |
 | GET | `/ui/issues` | HTML / partial | — |
 | POST | `/ui/upload` | 303 | session `require_auth` |
 | POST | `/ui/projects` | redirect | session |
@@ -174,6 +186,7 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 | POST | `/ui/projects/{id}/delete` | 303 → `/` | admin |
 | GET | `/ui/projects/manage` | 303 → `/` | — |
 | POST | `/webhook/inbound` | JSON | Basic auth |
+| GET | `/webhook/inbound/health` | JSON | — |
 | POST | `/api/v1/projects/{slug}/analysis-callback` | JSON | — |
 | GET | `/ui/settings/profile` | HTML | session |
 | GET | `/ui/settings/quality-gates` | HTML | session admin |
@@ -184,13 +197,14 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 | GET | `/api/v1/projects/{id}/dashboard` | JSON | — |
 | GET | `/api/v1/projects/{id}/platform-metrics` | JSON | — |
 | POST | `/api/v1/issues/{fp}/ignore` | JSON | session |
+| GET | `/api/v1/issues/{issue_id}/snippet` | JSON | — |
 | PUT | `/api/v1/projects/{id}/source-roots` | JSON | session |
 
 Фильтры `/ui/issues`: `project_id`, `branch`, `severity`, `status_filter`, `q`, `page`, `sort_by`, `order`, `fragment`.
 
 ### API v2 (`api.py`, prefix `/api/v2`)
 
-JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`, `users/me` (GET/PATCH), `users/me/notifications` (GET/PUT), `projects`, `issues`, `quality-gates` (CRUD + `PUT` rule codes), `warnings` (+ sync), `export/csv`, `settings/global`, `activity`.
+JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`, `users/me` (GET/PATCH), `users/me/notifications` (GET/PUT), `users` (admin CRUD), `admin/groups` (CRUD `ProjectGroup`), `projects`, `issues`, `quality-gates` (CRUD + rules), `warnings` (`GET`, `POST /sync`, `POST /backfill-languages`), `export/csv`, `settings/global`, `activity`.
 
 Полный список — grep `@router` в `api.py`.
 
@@ -219,8 +233,9 @@ JWT Bearer и/или session → `User` из БД. Примеры: `auth/login`,
 | `JENKINS_*`, `JIRA_*` | `jenkins_service.py`, `jira_service.py` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_CACHE_DIR`, `SNAPSHOTS_DIR`, … | `git_integration.py` |
+| `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_USER_*`, … | `auth.py` |
 
-`python-dotenv` загружается в `auth_service.py` при импорте.
+`python-dotenv` загружается в `auth_service.py` и `auth.py` при импорте.
 
 ### Деплой (пример Linux)
 
@@ -251,6 +266,6 @@ EnvironmentFile=/opt/pvs-tracker/.env
 1. Читать `.cursor/rules.md` + этот файл.
 2. Минимальный diff; type hints; без `print()` в production (`logging`).
 3. Под-скиллы: `fix-parser`, `add-htmx-filter`, `add-api-route`.
-4. После изменений: `uvicorn pvs_tracker.main:app --reload` и целевой `pytest` (в т.ч. `tests/test_profile_notifications.py`, `tests/test_platforms.py`).
+4. После изменений: `uvicorn pvs_tracker.main:app --reload` и целевой `pytest` (в т.ч. `test_profile_notifications`, `test_platforms`, `test_auth_local`, `test_auth_ldap`, `test_upload_metadata`, `test_issue_author`, `test_warnings_catalog`).
 
 Фазы 1–6 из старого плана — **исторический** roadmap; проект уже реализован. Новые фичи — по `rules.md` и без banned stack (§1).

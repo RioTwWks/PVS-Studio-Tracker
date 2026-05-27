@@ -1,5 +1,7 @@
 # Jenkins + PVS-Studio Tracker (без SonarQube)
 
+[← Документация](README.md)
+
 ## Поток
 
 1. TFS/Git webhook → `POST /webhook/inbound` (Basic auth `WEBHOOK_USERNAME` / `WEBHOOK_PASSWORD`)
@@ -18,23 +20,83 @@
 | `SONAR_PROJECT_NAME` / `SONAR_PROJECT_KEY` | Алиасы тех же значений |
 | `COMMIT`, `FirstScan`, `LinuxBuildAgain` | Как раньше |
 
+## Метаданные коммита (`.meta.json`)
+
+Скрипт `pvs_snapshot.py` в корне репозитория при сборке снапшота (если в `base_dir` есть `.git`) записывает JSON рядом со снапшотом:
+
+| Поле | Описание |
+|------|----------|
+| `commit` | Хеш коммита (полный или короткий) |
+| `commit_author_name` | Имя автора из `git log` |
+| `commit_author_email` | Email автора |
+
+Пример файла `report.meta.json`:
+
+```json
+{
+  "commit": "a1b2c3d4e5f6789012345678901234567890abcd",
+  "commit_author_name": "Ivan Petrov",
+  "commit_author_email": "ivan@company.ru"
+}
+```
+
+Имя по умолчанию: для `snapshot.json.gz` → `snapshot.meta.json` (см. `default_metadata_path` в `pvs_snapshot.py`).
+
+### Загрузка в трекер
+
+Поле multipart: **`commit_metadata`** (не имя файла на диске — любой `.json`).
+
+Приоритет при слиянии (`upload_metadata.merge_commit_upload_fields`):
+
+1. Непустые поля формы (`commit`, `commit_author_name`, `commit_author_email`)
+2. Значения из JSON-файла
+
+Куда попадает в БД:
+
+- `Run.commit`, `Run.commit_author_name`, `Run.commit_author_email`
+- **new** issues → `Issue.author_*` от коммита run (`issue_author.py`)
+- Jira Bug → assignee из автора коммита run / issue
+
+Без metadata Jira-задачи могут остаться без исполнителя, даже если в проекте указан `author_email`.
+
+### Генерация metadata в pipeline
+
+```bash
+# Снапшот + metadata (из Git в WORKSPACE)
+python pvs_snapshot.py report.json snapshot.json.gz "${WORKSPACE}"
+
+# Явный путь metadata
+python pvs_snapshot.py report.json snapshot.json.gz "${WORKSPACE}" --metadata-out snapshot.meta.json
+```
+
+Флаги: `--skip-author` / `--no-metadata` — без автора или без файла metadata; `--commit` — явный ref для `git log`.
+
 ## Jira assignee
 
-При создании Bug assignee берётся из **автора коммита текущего run** (`commit_author_name` / `commit_author_email` в БД), а не из `author_email` проекта. Передавайте метаданные через `commit_metadata` (файл от `pvs_snapshot.py`) или поля формы upload — иначе задачи останутся без исполнителя.
+При создании Bug assignee берётся из **автора коммита текущего run** (`commit_author_name` / `commit_author_email`), а не из `author_email` проекта. Обязательно передавайте `commit_metadata` или поля формы upload.
 
 ## Upload после анализа
 
 ```bash
-python pvs_snapshot.py --report report.json --out-dir .
+python pvs_snapshot.py report.json snapshot.json.gz "${WORKSPACE}"
 
 curl -s -X POST "http://tracker:8080/api/v1/upload" \
   -F "file=@report.json" \
   -F "commit_metadata=@snapshot.meta.json" \
   -F "project_name=${TRACKER_PROJECT_NAME}" \
   -F "target_platform=windows" \
-  -F "branch=${ANOTHER_BRANCH}" \
-  -F "commit=${COMMIT}"
+  -F "branch=${ANOTHER_BRANCH}"
 ```
+
+Поля формы вместо файла (опционально):
+
+```bash
+  -F "commit=${COMMIT}" \
+  -F "commit_author_name=${GIT_AUTHOR_NAME}" \
+  -F "commit_author_email=${GIT_AUTHOR_EMAIL}"
+```
+
+UI: дашборд → **Upload** → поле «Метаданные коммита (.json)».
 
 ## Callback changeset
 
@@ -51,6 +113,8 @@ curl -s -X POST "http://tracker:8080/api/v1/projects/${TRACKER_PROJECT_SLUG}/ana
 
 Заголовки без изменений: `X-TFS-Repo-Type`, `X-TFS-Repo-Name`, и т.д.
 
+Проверка: `GET /webhook/inbound/health`
+
 ## Удалить из pipeline
 
 - Шаги Sonar Scanner / `sonar-scanner`
@@ -60,12 +124,18 @@ curl -s -X POST "http://tracker:8080/api/v1/projects/${TRACKER_PROJECT_SLUG}/ana
 
 | Экран | URL | Действия |
 |-------|-----|----------|
-| Список проектов | `/` | Группы QA/QD/…; цвет: синий / горчичный (Jira off) / красный (анализ off) |
-| Новый проект | `/ui/projects/new` | Те же поля, что в Sonar WebHook (`sonar_project_name`, `sonar_project_key`, …) |
-| Дашборд → Analysis / CI | `?tab=ci` | Enable/Disable, Jira on/pause, Run analysis (admin), Clone |
-| Дашборд → Settings → Parameters | `?tab=settings&settings_tab=params` | Редактирование CI-полей (`POST /ui/projects/{id}/ci`) |
+| Список проектов | `/` | Группы из `ProjectGroup` (или fallback QA/QD/…); цвет карточки |
+| Новый / редактирование | `/ui/projects/new`, `/ui/projects/{id}/edit` | Sonar-поля, группа |
+| Дашборд → Analysis / CI | `?tab=ci` | Enable/Disable, Jira, Run analysis, Clone |
+| Дашборд → Settings → Parameters | `?tab=settings&settings_tab=params` | `POST /ui/projects/{id}/ci` |
+| Upload | `?tab=upload` | JSON + `commit_metadata` |
 | Удаление | Шапка дашборда | `POST /ui/projects/{id}/delete` (admin) |
 
-После toggle Disable/Jira сервер возвращает фрагмент `#ci-toast-payload`; клиент показывает **toast** справа сверху (`static/app.js`, класс `sq-toast`).
+После toggle Disable/Jira сервер возвращает `#ci-toast-payload`; toast — `static/app.js` (`sq-toast`).
 
-Старый маршрут `/ui/projects/manage` → редирект на `/`.
+`/ui/projects/manage` → редирект на `/`.
+
+## См. также
+
+- [quick-reference.md](quick-reference.md) — curl для API
+- [README.md](../README.md) — переменные `JENKINS_*`, `JIRA_*` в `.env.example`

@@ -10,7 +10,8 @@ Incremental PVS-Studio report tracker (FastAPI + SQLModel + HTMX). This file is 
 | [.cursor/spec.md](.cursor/spec.md) | Routes, models, diff, env |
 | [.cursor/rules.md](.cursor/rules.md) | Code generation constraints |
 | [.cursor/context.md](.cursor/context.md) | Architecture decisions |
-| [README.md](README.md) | User-facing docs (features, API examples) |
+| [docs/README.md](docs/README.md) | User docs index (API, CI, code viewer) |
+| [README.md](README.md) | Product overview and install |
 
 ## Run
 
@@ -20,8 +21,9 @@ python migrate.py          # if upgrading DB
 uvicorn pvs_tracker.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
-- **UI login** (`/login`): any non-empty username/password → session cookie (MVP).
-- **API v2** (`POST /api/v2/auth/login`): DB user `admin` / `admin` created on first startup (change in production).
+- **Login** (`POST /login`, `POST /api/v2/auth/login`): `authenticate_credentials` — локальный `User` (bcrypt) или LDAP (`LDAP_ENABLED=true`, `auth.py`).
+- Сессия: `user_id` + `user` (username). Новые LDAP-пользователи → роль Viewer.
+- **API v2**: пользователь `admin` / `admin` создаётся при `migrate.py` / первом старте (сменить в production).
 
 ## Package layout
 
@@ -38,6 +40,11 @@ pvs_tracker/
 ├── dashboard_context.py # platform-scoped dashboard metrics
 ├── notifications.py     # SMTP on API upload
 ├── quality_gate.py      # rule-code quality gates
+├── issue_author.py      # author_name/email on issues (Sonar-style)
+├── upload_metadata.py   # .meta.json commit author from CI
+├── warnings_catalog.py  # sync ErrorClassifier from pvs-studio.com
+├── project_groups.py    # ProjectGroup + home grouping
+├── security.py          # bcrypt, technical debt helpers
 ├── code_viewer.py, webhooks.py, git_integration.py, ...
 ├── templates/
 │   ├── home.html        # grouped projects, color cards
@@ -52,12 +59,14 @@ static/app.js            # toast (sq-toast), i18n, inline code toggle
 
 - `POST /ui/upload` — form → **303** → `/ui/projects/{id}/dashboard`
 - `POST /api/v1/upload` — multipart JSON → JSON (session auth)
+- Опционально: `commit_metadata` (`.meta.json`) или поля формы — `commit`, `commit_author_name`, `commit_author_email` (`upload_metadata.py`)
 
 ### Incremental diff
 
 - Fingerprint: SHA-256[:16] of `file:line:code:message` (paths `\` → `/`).
 - **new** / **existing**: new `Issue` rows in the **current** run.
 - **fixed**: disappeared fingerprints → new `Issue` in **current** run with `status=fixed` (previous run rows unchanged).
+- **Author:** `issue_author.resolve_issue_author` — `new` → автор коммита run; `existing`/`fixed` → из prev issue.
 - `prev_fps` excludes `ignored` and `fixed` from the previous run.
 - Prev run: latest `done` for same `target_platform` (**not** by UI branch).
 - Upload form accepts `target_platform` (`windows` / `linux` / `macos`).
@@ -120,8 +129,9 @@ Full route tables: `.cursor/spec.md`.
 | `JIRA_*` | `jira_service.py`, `jira_sync.py` |
 | `SMTP_*`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_*`, `SNAPSHOTS_DIR` | `git_integration.py` |
+| `LDAP_*` | `auth.py` (via `auth_service.authenticate_credentials`) |
 
-See `.env.example`. CI/UI: [docs/jenkins-ci.md](docs/jenkins-ci.md).
+See `.env.example`. User docs: [docs/README.md](docs/README.md). CI: [docs/jenkins-ci.md](docs/jenkins-ci.md).
 
 ## Tests
 
@@ -129,6 +139,9 @@ See `.env.example`. CI/UI: [docs/jenkins-ci.md](docs/jenkins-ci.md).
 pytest
 pytest tests/test_smoke.py tests/test_parser.py -v
 pytest tests/test_ci_integration.py -q   # HTMX CI toggles, inbound webhook, Jira
+pytest tests/test_auth_local.py tests/test_auth_ldap.py -q
+pytest tests/test_upload_metadata.py tests/test_issue_author.py -q
+pytest tests/test_warnings_catalog.py -q
 ```
 
 ## Agent skills
@@ -140,6 +153,6 @@ pytest tests/test_ci_integration.py -q   # HTMX CI toggles, inbound webhook, Jir
 
 ## Known doc/code gaps (intentional notes)
 
-- UI routes for dashboard/issues are open without login; tighten when LDAP lands.
+- UI routes for dashboard/issues/code viewer are open without login (read-only).
 - Incremental diff ignores branch; UI branch filter is display-only for history.
-- UI `POST /login` is MVP (any credentials); profile API needs a matching `User` row in DB.
+- Diff по branch — не реализован (только `target_platform`).

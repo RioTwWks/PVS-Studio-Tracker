@@ -1,6 +1,6 @@
 {
   "agent_name": "pvs-tracker-dev",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "platform": "cursor",
   "skill_path": ".cursor/skills/pvs-tracker-dev/SKILL.md",
   "sub_skills": [
@@ -17,7 +17,10 @@
     "PVS-Studio JSON parsing (modern + legacy)",
     "Incremental fingerprint diff (fixed in current run)",
     "Jinja2 + HTMX server-driven UI (6 dashboard tabs)",
-    "auth_service JWT/RBAC + MVP UI session login",
+    "auth_service JWT/RBAC + LDAP/local unified login",
+    "upload metadata (.meta.json) and issue author attribution",
+    "ProjectGroup admin API and dynamic home grouping",
+    "warnings catalog sync (pvs-studio.com)",
     "Quality gates, webhooks (httpx), git code viewer",
     "MCP: filesystem, sqlite, fetch"
   ],
@@ -29,7 +32,7 @@
     "validation": "pydantic>=2.0",
     "templating": "jinja2>=3.1.3",
     "auth_api": "PyJWT + bcrypt (auth_service.py)",
-    "auth_ui": "SessionMiddleware + MVP login (main.py)",
+    "auth_ui": "SessionMiddleware + authenticate_credentials (main.py, LDAP optional)",
     "http_client": "httpx>=0.27.0",
     "ui_libs": ["htmx", "bootstrap@5.3", "chart.js"],
     "database_dev": "sqlite3",
@@ -39,7 +42,7 @@
 
   "operational_workflows": {
     "entrypoint": "uvicorn pvs_tracker.main:app",
-    "documentation": [".cursor/README.md", ".cursor/spec.md", "CURSOR.md"],
+    "documentation": [".cursor/README.md", ".cursor/spec.md", "CURSOR.md", "docs/README.md"],
     "mcp_usage": {
       "filesystem": "Modules under pvs_tracker/, templates/",
       "sqlite": "Schema and incremental debugging",

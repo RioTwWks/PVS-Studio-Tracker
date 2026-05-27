@@ -16,6 +16,11 @@
 | `jenkins_service.py`, `project_ci.py`, `project_manage.py` | CI UI + orchestration |
 | `jira_sync.py`, `jira_service.py` | Jira after upload |
 | `quality_gate.py` | Rule-code gate evaluation after upload |
+| `issue_author.py` | `author_name` / `author_email` on issues |
+| `upload_metadata.py` | CI `.meta.json` commit metadata on upload |
+| `warnings_catalog.py` | HTTP sync of `ErrorClassifier` from pvs-studio.com |
+| `project_groups.py` | `ProjectGroup` choices for forms and home |
+| `security.py` | bcrypt passwords, technical debt calculation |
 | `git_integration.py` | Clone/cache for code viewer |
 
 ## Preferred stack
@@ -47,8 +52,10 @@ From `.env.example` + code:
 | `JIRA_URL`, `JIRA_*` | `jira_service.py` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS`, `APP_BASE_URL` | `notifications.py` |
 | `GIT_CACHE_DIR`, `SNAPSHOTS_DIR`, `GIT_CACHE_TTL_MINUTES`, `GIT_TIMEOUT_SECONDS` | `git_integration.py` |
+| `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_USER_*`, `LDAP_AUTH_METHOD` | `auth.py` |
+| `SESSION_HTTPS_ONLY`, `SESSION_SAME_SITE` | `main.py` session middleware |
 
-`JWT_ALGORITHM` / `ACCESS_TOKEN_EXPIRE_MINUTES` in `.env.example` — token TTL hardcoded 24h in `auth_service.py` unless code updated.
+Token TTL: `ACCESS_TOKEN_EXPIRE_MINUTES` = 24h in `auth_service.py` (not from `.env` unless code changes).
 
 ## Deployment
 
