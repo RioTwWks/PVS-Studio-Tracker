@@ -1253,3 +1253,51 @@ window.toggleInlineCode = toggleInlineCode;
 window.showToast = showToast;
 window.sqCiPanelAfterRequest = sqCiPanelAfterRequest;
 window.fireCiToast = fireCiToast;
+
+// Сохранение состояния групп на главной странице
+(function() {
+    const groups = document.querySelectorAll('.sq-home-groups details');
+    if (!groups.length) return;
+
+    // Функция восстановления состояния
+    function restoreGroupState() {
+        groups.forEach(details => {
+            const id = details.id;
+            if (id) {
+                const savedState = localStorage.getItem(`group-${id}`);
+                if (savedState === 'open') {
+                    details.open = true;
+                } else {
+                    details.open = false; // закрыто по умолчанию
+                }
+            }
+        });
+    }
+
+    // Функция сохранения состояния при изменении
+    function bindToggleEvents() {
+        groups.forEach(details => {
+            details.addEventListener('toggle', function() {
+                const id = this.id;
+                if (id) {
+                    if (this.open) {
+                        localStorage.setItem(`group-${id}`, 'open');
+                    } else {
+                        localStorage.setItem(`group-${id}`, 'closed');
+                    }
+                }
+            });
+        });
+    }
+
+    // Восстанавливаем состояние после загрузки DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            restoreGroupState();
+            bindToggleEvents();
+        });
+    } else {
+        restoreGroupState();
+        bindToggleEvents();
+    }
+})();

@@ -133,7 +133,9 @@ def list_ci_projects_grouped(session: Session) -> dict[str, list[Project]]:
     for p in projects:
         key = p.group_name or "Ungrouped"
         grouped.setdefault(key, []).append(p)
-    return grouped
+    # Сортируем группы по имени (алфавитный порядок)
+    sorted_items = sorted(grouped.items(), key=lambda x: x[0])
+    return dict(sorted_items)
 
 
 def apply_ci_fields(project: Project, data: dict[str, Any]) -> None:
