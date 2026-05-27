@@ -196,6 +196,31 @@ def _migrate_database() -> None:
                         conn.commit()
                     except Exception:
                         pass
+
+                try:
+                    with engine.connect() as conn:
+                        # Проверяем, есть ли у колонки password_hash ограничение NOT NULL
+                        res = conn.exec_driver_sql("PRAGMA table_info(user)").fetchall()
+                        for col in res:
+                            if col[1] == "password_hash" and col[3] == 1:  # notnull = 1
+                                # Создаём временную таблицу без NOT NULL
+                                conn.exec_driver_sql("BEGIN TRANSACTION")
+                                # Скопируем структуру
+                                conn.exec_driver_sql("CREATE TABLE user_new (id INTEGER PRIMARY KEY, username VARCHAR NOT NULL, first_name VARCHAR, last_name VARCHAR, display_name VARCHAR, email VARCHAR, notify_api_uploads BOOLEAN, password_hash VARCHAR, auth_provider VARCHAR, role VARCHAR, is_active BOOLEAN, created_at DATETIME, last_login DATETIME)")
+                                # Скопируем данные
+                                conn.exec_driver_sql("INSERT INTO user_new SELECT id, username, first_name, last_name, display_name, email, notify_api_uploads, password_hash, auth_provider, role, is_active, created_at, last_login FROM user")
+                                # Удалим старую таблицу
+                                conn.exec_driver_sql("DROP TABLE user")
+                                # Переименуем новую
+                                conn.exec_driver_sql("ALTER TABLE user_new RENAME TO user")
+                                # Пересоздадим индексы и триггеры (если есть)
+                                conn.exec_driver_sql("CREATE INDEX ix_user_username ON user (username)")
+                                conn.exec_driver_sql("CREATE INDEX ix_user_auth_provider ON user (auth_provider)")
+                                conn.exec_driver_sql("COMMIT")
+                                break
+                except Exception as e:
+                    _logging.warning("Failed to remove NOT NULL from password_hash: %s", e)
+
         except Exception:
             pass  # Migration failed, continue anyway
 
