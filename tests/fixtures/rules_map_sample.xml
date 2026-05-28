@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PVS-Studio_Rules version="7.42">
+  <RuleSet lang="cpp">
+    <Rule group="64">
+      <Code>V501</Code>
+      <Name>Identical variable names hiding each other.</Name>
+    </Rule>
+    <Rule group="fails">
+      <Code>V010</Code>
+      <Name>Analysis for the project type is not supported.</Name>
+    </Rule>
+  </RuleSet>
+  <RuleSet lang="cs">
+    <Rule group="general">
+      <Code>V3041</Code>
+      <Name>Sample C# diagnostic.</Name>
+    </Rule>
+  </RuleSet>
+</PVS-Studio_Rules>

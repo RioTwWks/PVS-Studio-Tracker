@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 WARNINGS_PAGE_URL = "https://pvs-studio.com/en/docs/warnings/"
 WARNINGS_PRINT_URL = "https://pvs-studio.com/en/docs/warnings/print/"
 DOC_BASE_URL = "https://pvs-studio.com/en/docs/warnings/"
+RULES_MAP_URL = "https://files.pvs-studio.com/rules/RulesMap.xml"
 
 RULE_LINE_RE = re.compile(r"^- (V\d+)\.\s+(.+)$", re.MULTILINE)
 HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
@@ -183,6 +184,70 @@ def _dedupe_entries(entries: list[WarningEntry]) -> list[WarningEntry]:
     return list(seen.values())
 
 
+def _xml_local_tag(elem: ET.Element) -> str:
+    return elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+
+
+def _map_ruleset_lang(lang: Optional[str]) -> Optional[str]:
+    """Map RulesMap.xml RuleSet lang attribute to internal language code."""
+    if not lang:
+        return None
+    lower = lang.strip().lower()
+    if lower in ("cpp", "c++"):
+        return "cpp"
+    if lower in ("cs", "csharp", "c#"):
+        return "csharp"
+    if lower == "java":
+        return "java"
+    if lower in ("ecmascript", "javascript", "js", "typescript"):
+        return "js"
+    if lower == "go":
+        return "go"
+    return "other"
+
+
+def _child_text(parent: ET.Element, tag: str) -> Optional[str]:
+    child = parent.find(tag)
+    if child is None or child.text is None:
+        return None
+    return child.text.strip()
+
+
+def parse_rules_map_xml(xml_text: str) -> list[WarningEntry]:
+    """Parse official PVS-Studio RulesMap.xml (RuleSet / Rule / Code / Name)."""
+    entries: list[WarningEntry] = []
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        logger.warning("Failed to parse RulesMap XML")
+        return entries
+
+    for ruleset in root.iter():
+        if _xml_local_tag(ruleset) != "RuleSet":
+            continue
+        ruleset_lang = _map_ruleset_lang(ruleset.get("lang"))
+        for rule in ruleset:
+            if _xml_local_tag(rule) != "Rule":
+                continue
+            code = _child_text(rule, "Code")
+            name = _child_text(rule, "Name")
+            if not code or not name:
+                continue
+            code = code.upper()
+            if not code.startswith("V"):
+                continue
+            entries.append(
+                WarningEntry(
+                    rule_code=code,
+                    name=name,
+                    category=rule.get("group"),
+                    language=ruleset_lang,
+                )
+            )
+
+    return _dedupe_entries(entries)
+
+
 def find_xml_catalog_url(html: str, base_url: str = WARNINGS_PAGE_URL) -> Optional[str]:
     match = XML_HREF_RE.search(html)
     if not match:
@@ -197,6 +262,10 @@ def find_xml_catalog_url(html: str, base_url: str = WARNINGS_PAGE_URL) -> Option
 
 def parse_warnings_xml(xml_text: str) -> list[WarningEntry]:
     """Parse PVS warnings XML map when available."""
+    rules_map_entries = parse_rules_map_xml(xml_text)
+    if rules_map_entries:
+        return rules_map_entries
+
     entries: list[WarningEntry] = []
     try:
         root = ET.fromstring(xml_text)
@@ -241,13 +310,23 @@ async def fetch_warnings_page(client: httpx.AsyncClient, url: str) -> str:
 async def fetch_warning_entries() -> list[WarningEntry]:
     """Download and parse the full PVS warnings catalog."""
     async with httpx.AsyncClient() as client:
-        html = await fetch_warnings_page(client, WARNINGS_PRINT_URL)
-        xml_url = find_xml_catalog_url(html)
-        if xml_url:
+        for xml_url in (RULES_MAP_URL,):
             try:
                 xml_text = await fetch_warnings_page(client, xml_url)
                 xml_entries = parse_warnings_xml(xml_text)
-                if xml_entries:
+                if len(xml_entries) >= 100:
+                    logger.info("Loaded %d warnings from XML %s", len(xml_entries), xml_url)
+                    return xml_entries
+            except Exception as exc:
+                logger.warning("XML catalog fetch failed for %s: %s", xml_url, exc)
+
+        html = await fetch_warnings_page(client, WARNINGS_PRINT_URL)
+        xml_url = find_xml_catalog_url(html) or RULES_MAP_URL
+        if xml_url != RULES_MAP_URL:
+            try:
+                xml_text = await fetch_warnings_page(client, xml_url)
+                xml_entries = parse_warnings_xml(xml_text)
+                if len(xml_entries) >= 100:
                     logger.info("Loaded %d warnings from XML %s", len(xml_entries), xml_url)
                     return xml_entries
             except Exception as exc:

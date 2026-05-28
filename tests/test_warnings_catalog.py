@@ -8,6 +8,7 @@ from pvs_tracker.warnings_catalog import (
     _language_from_category,
     infer_language_from_rule_code,
     resolve_warning_language,
+    parse_rules_map_xml,
     parse_warnings_html,
     parse_warnings_markdown,
 )
@@ -57,6 +58,20 @@ def test_infer_language_from_rule_code() -> None:
 def test_resolve_warning_language_prefers_stored() -> None:
     assert resolve_warning_language("V501", stored_language="java") == "java"
     assert resolve_warning_language("V3041", category="General Analysis (C++)") == "cpp"
+
+
+def test_parse_rules_map_xml() -> None:
+    xml = (Path(__file__).parent / "fixtures" / "rules_map_sample.xml").read_text(
+        encoding="utf-8"
+    )
+    entries = parse_rules_map_xml(xml)
+    by_code = {e.rule_code: e for e in entries}
+    assert len(by_code) == 3
+    assert by_code["V501"].language == "cpp"
+    assert by_code["V501"].category == "64"
+    assert "Identical" in by_code["V501"].name
+    assert by_code["V3041"].language == "csharp"
+    assert by_code["V010"].language == "cpp"
 
 
 def test_dedupe_entries() -> None:
