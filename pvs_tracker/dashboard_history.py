@@ -66,6 +66,44 @@ def build_run_history(
     return history
 
 
+def _sum_history_points(points: list[dict]) -> dict:
+    """Merge per-platform history points into one All OS snapshot."""
+    anchor = max(points, key=lambda p: p["timestamp"])
+    return {
+        "timestamp": anchor["timestamp"],
+        "commit": anchor["commit"],
+        "branch": anchor["branch"],
+        "platform": "all",
+        "total": sum(p["total"] for p in points),
+        "new": sum(p["new"] for p in points),
+        "fixed": sum(p["fixed"] for p in points),
+    }
+
+
+def _build_all_combined_history(
+    history_by_platform: dict[str, list[dict]],
+    *,
+    wave_count: int = 2,
+) -> list[dict]:
+    """
+    All OS KPI: sum cumulative totals from each platform's trend history.
+    Uses the same metric definition as Windows/Linux/macOS filters.
+    """
+    if not history_by_platform:
+        return []
+    waves: list[dict] = []
+    for wave_idx in range(1, wave_count + 1):
+        points = [
+            h[-wave_idx]
+            for h in history_by_platform.values()
+            if len(h) >= wave_idx
+        ]
+        if points:
+            waves.append(_sum_history_points(points))
+    waves.sort(key=lambda p: p["timestamp"])
+    return waves
+
+
 def _fetch_runs(
     session: Session,
     project_id: int,
@@ -78,7 +116,9 @@ def _fetch_runs(
         q = q.where(Run.branch == active_branch)
     if target_platform:
         q = q.where(Run.target_platform == target_platform)
-    return session.exec(q.order_by(Run.timestamp.asc()).limit(limit)).all()
+    runs = session.exec(q.order_by(Run.timestamp.desc()).limit(limit)).all()
+    runs.reverse()
+    return runs
 
 
 def build_dashboard_histories(
@@ -96,8 +136,8 @@ def build_dashboard_histories(
             runs = _fetch_runs(session, project_id, active_branch, plat, limit)
             if runs:
                 history_by_platform[plat] = build_run_history(session, runs)
-        combined = history_by_platform.get("windows") or next(
-            iter(history_by_platform.values()), []
+        combined = _build_all_combined_history(
+            history_by_platform, wave_count=min(2, limit)
         )
         return combined, history_by_platform
 

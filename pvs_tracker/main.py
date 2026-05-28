@@ -656,15 +656,17 @@ async def ui_dashboard(
         if active_branch not in branches:
             branches.append(active_branch)
 
-    from pvs_tracker.dashboard_history import build_dashboard_histories
+    from pvs_tracker.dashboard_context import (
+        build_platform_metrics,
+        build_quality_gate_result,
+    )
     from pvs_tracker.platforms import normalize_platform_filter
 
     pf = normalize_platform_filter(platform_filter)
-    history, history_by_platform = build_dashboard_histories(
-        session, project_id, active_branch, pf
-    )
-
-    from pvs_tracker.dashboard_context import build_quality_gate_result
+    metrics = build_platform_metrics(session, project_id, active_branch, pf)
+    history = metrics["history"]
+    history_by_platform = metrics["history_by_platform"]
+    issues_total = metrics["issues_total"]
 
     qg_result = build_quality_gate_result(
         session, project_id, active_branch, pf, history
@@ -700,6 +702,7 @@ async def ui_dashboard(
             "branches": branches,
             "active_branch": active_branch,
             "platform_filter": pf,
+            "issues_total": issues_total,
             "qg_result": qg_result,
             "quality_gates": quality_gates,
             "upload_error": upload_error.strip() or None,

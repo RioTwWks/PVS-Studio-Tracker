@@ -69,6 +69,28 @@ def _sort_issues(
     return sorted(issues, key=sort_key, reverse=reverse)
 
 
+def count_issues_for_filter(
+    session: Session,
+    project: Project,
+    branch: str,
+    platform_filter: str,
+    severity: str = "",
+    status_filter: str = "",
+    q: str = "",
+) -> int:
+    """Issue count for dashboard badges — matches /ui/issues list length."""
+    issues, _, _, _, _ = resolve_issues_for_filter(
+        session,
+        project,
+        branch,
+        platform_filter,
+        severity=severity,
+        status_filter=status_filter,
+        q=q,
+    )
+    return len(issues)
+
+
 def resolve_issues_for_filter(
     session: Session,
     project: Project,

@@ -524,6 +524,7 @@
         }
 
         window.PvsDashboard.syncPlatformButtons();
+        window.PvsDashboard.updateIssueBadges({{ issues_total|default(0) }});
 
         const initialMetrics = {
             platform_filter: window.PvsDashboard.platformFilter,

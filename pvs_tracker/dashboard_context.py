@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlmodel import Session, select
 
 from pvs_tracker.dashboard_history import build_dashboard_histories
+from pvs_tracker.issues_query import count_issues_for_filter
 from pvs_tracker.models import Project, Run
 from pvs_tracker.platforms import PlatformFilter, normalize_platform_filter
 from pvs_tracker.run_queries import get_latest_run
@@ -74,12 +75,18 @@ def build_platform_metrics(
         session, project_id, branch, pf
     )
     latest = history[-1] if history else None
+    project = session.get(Project, project_id)
+    issues_total = (
+        count_issues_for_filter(session, project, branch, pf)
+        if project
+        else (latest["total"] if latest else 0)
+    )
     return {
         "platform_filter": pf,
         "history": history,
         "history_by_platform": history_by_platform,
         "latest": latest,
-        "issues_total": latest["total"] if latest else 0,
+        "issues_total": issues_total,
     }
 
 
