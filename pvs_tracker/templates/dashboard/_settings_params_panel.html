@@ -1,7 +1,7 @@
 {% if flash_message %}
 <div class="sq-alert {% if flash_is_error %}sq-alert-danger{% else %}sq-alert-success{% endif %} mb-3 py-2">{{ flash_message }}</div>
 {% endif %}
-<form method="post" action="/ui/projects/{{ project.id }}/ci" class="project-ci-form">
+<form method="post" action="{{ project_ui_path(project, 'ci') }}" class="project-ci-form">
     {# group_choices передаётся из main.ui_dashboard #}
     {% set edit_id = project.id %}
     {% set edit_proj = 'true' %}

@@ -1,6 +1,6 @@
 <div id="project-ci-actions" class="sq-ci-actions">
     <button type="button" class="sq-btn sq-btn-primary"
-            hx-post="/ui/projects/{{ project.id }}/toggle-disabled"
+            hx-post="{{ project_ui_path(project, 'toggle-disabled') }}"
             hx-target="#project-ci-panel"
             hx-swap="innerHTML"
             hx-on="htmx:afterRequest: sqCiPanelAfterRequest(event)">
@@ -11,7 +11,7 @@
         {% endif %}
     </button>
     <button type="button" class="sq-btn sq-btn-primary"
-            hx-post="/ui/projects/{{ project.id }}/toggle-jira"
+            hx-post="{{ project_ui_path(project, 'toggle-jira') }}"
             hx-target="#project-ci-panel"
             hx-swap="innerHTML"
             hx-on="htmx:afterRequest: sqCiPanelAfterRequest(event)">
@@ -23,7 +23,7 @@
     </button>
     {% if is_admin %}
     <button type="button" class="sq-btn sq-btn-primary"
-            hx-post="/ui/projects/{{ project.id }}/trigger-analysis"
+            hx-post="{{ project_ui_path(project, 'trigger-analysis') }}"
             hx-target="#project-ci-panel"
             hx-swap="innerHTML"
             hx-include="#branch-switcher"
@@ -31,7 +31,7 @@
         <i class="bi bi-rocket"></i> <span data-i18n="ci_trigger_analysis">Run analysis</span>
     </button>
     {% endif %}
-    <a href="/ui/projects/{{ project.id }}/clone" class="sq-btn sq-btn-primary">
+    <a href="{{ project_ui_path(project, 'clone') }}" class="sq-btn sq-btn-primary">
         <i class="bi bi-copy"></i> <span data-i18n="ci_clone_project">Clone</span>
     </a>
 </div>

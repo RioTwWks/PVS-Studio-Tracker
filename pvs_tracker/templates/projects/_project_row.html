@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
             <h5 class="mb-1">
-                <a href="/ui/projects/{{ project.id }}/dashboard">{{ project.name }}</a>
+                <a href="{{ project_ui_path(project, 'dashboard') }}">{{ project.name }}</a>
                 {% if project.disabled %}
                 <span class="badge bg-secondary">выкл</span>
                 {% endif %}
@@ -31,31 +31,31 @@
         </div>
         <div class="d-flex flex-wrap gap-1">
             <button type="button" class="sq-btn sq-btn-outline sq-btn-sm"
-                    hx-post="/ui/projects/{{ project.id }}/toggle-disabled"
+                    hx-post="{{ project_ui_path(project, 'toggle-disabled') }}"
                     hx-target="#project-row-{{ project.id }}"
                     hx-swap="outerHTML">
                 {% if project.disabled %}▶️ Включить{% else %}⏸️ Выключить{% endif %}
             </button>
             {% if is_admin %}
             <button type="button" class="sq-btn sq-btn-primary sq-btn-sm"
-                    hx-post="/ui/projects/{{ project.id }}/trigger-analysis"
+                    hx-post="{{ project_ui_path(project, 'trigger-analysis') }}"
                     hx-target="#project-row-{{ project.id }}"
                     hx-swap="outerHTML">
                 🚀 Анализ
             </button>
             {% endif %}
             <button type="button" class="sq-btn sq-btn-outline sq-btn-sm"
-                    hx-post="/ui/projects/{{ project.id }}/toggle-jira"
+                    hx-post="{{ project_ui_path(project, 'toggle-jira') }}"
                     hx-target="#project-row-{{ project.id }}"
                     hx-swap="outerHTML">
                 {% if project.disable_jira %}Jira ▶{% else %}Jira ⏸{% endif %}
             </button>
-            <a href="/ui/projects/{{ project.id }}/edit" class="sq-btn sq-btn-outline sq-btn-sm">✏️</a>
-            <form action="/ui/projects/{{ project.id }}/clone" method="post" class="d-inline">
+            <a href="{{ project_ui_path(project, 'edit') }}" class="sq-btn sq-btn-outline sq-btn-sm">✏️</a>
+            <form action="{{ project_ui_path(project, 'clone') }}" method="post" class="d-inline">
                 <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm">📋</button>
             </form>
             {% if is_admin %}
-            <form action="/ui/projects/{{ project.id }}/ci-delete" method="post" class="d-inline"
+            <form action="{{ project_ui_path(project, 'ci-delete') }}" method="post" class="d-inline"
                   onsubmit="return confirm('Удалить проект?');">
                 <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm text-danger">🗑️</button>
             </form>

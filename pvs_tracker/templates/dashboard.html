@@ -44,7 +44,7 @@
         </div>
         {% if is_admin %}
         <div class="sq-project-header-right">
-            <form id="delete-project-form" action="/ui/projects/{{ project.id }}/delete" method="post" class="m-0">
+            <form id="delete-project-form" action="{{ project_ui_path(project, 'delete') }}" method="post" class="m-0">
                 <button type="button" class="sq-btn sq-btn-danger" onclick="confirmDeleteProject()">
                     <i class="bi bi-trash"></i> <span data-i18n="delete_project">Delete Project</span>
                 </button>

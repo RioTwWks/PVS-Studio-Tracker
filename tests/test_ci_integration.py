@@ -88,7 +88,7 @@ def test_toggle_disabled_htmx(client: TestClient, session: Session):
         },
     )
     r = client.post(
-        f"/ui/projects/{project.id}/toggle-disabled",
+        f"/ui/projects/{project.slug}/toggle-disabled",
         headers={"HX-Request": "true"},
     )
     assert r.status_code == 200
@@ -112,7 +112,7 @@ def test_dashboard_syncs_selected_branch(client: TestClient, session: Session):
             "git_branch": "develop",
         },
     )
-    r = client.get(f"/ui/projects/{project.id}/dashboard?branch=release/2.0")
+    r = client.get(f"/ui/projects/{project.slug}/dashboard?branch=release/2.0")
     assert r.status_code == 200
     session.refresh(project)
     assert project.git_branch == "release/2.0"
@@ -139,11 +139,11 @@ def test_trigger_analysis_uses_selected_branch(mock_jenkins, client: TestClient,
             "last_processed_changeset": "abc123",
         },
     )
-    client.get(f"/ui/projects/{project.id}/dashboard?branch=feature/login")
+    client.get(f"/ui/projects/{project.slug}/dashboard?branch=feature/login")
 
     with patch("pvs_tracker.project_manage.is_admin", return_value=True):
         r = client.post(
-            f"/ui/projects/{project.id}/trigger-analysis",
+            f"/ui/projects/{project.slug}/trigger-analysis",
             data={"branch": "feature/login"},
             headers={"HX-Request": "true"},
         )
@@ -179,7 +179,7 @@ def test_trigger_analysis_htmx(mock_jenkins, client: TestClient, session: Sessio
 
     with patch("pvs_tracker.project_manage.is_admin", return_value=True):
         r = client.post(
-            f"/ui/projects/{project.id}/trigger-analysis",
+            f"/ui/projects/{project.slug}/trigger-analysis",
             headers={"HX-Request": "true"},
         )
     assert r.status_code == 200

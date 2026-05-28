@@ -121,6 +121,26 @@ def get_project_by_slug(session: Session, slug: str) -> Optional[Project]:
     return session.exec(select(Project).where(Project.slug == slug)).first()
 
 
+def ensure_project_slug(session: Session, project: Project) -> str:
+    """Assign a unique slug when missing (legacy projects created without CI form)."""
+    if project.slug and str(project.slug).strip():
+        return str(project.slug).strip()
+    base = slug_from_name(project.name)
+    slug = base
+    n = 0
+    while True:
+        existing = get_project_by_slug(session, slug)
+        if not existing or existing.id == project.id:
+            break
+        n += 1
+        slug = f"{base}_{n}"
+    project.slug = slug
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+    return slug
+
+
 def get_projects_by_repo_branch(
     session: Session, repo_path: str, analysis_branch: str
 ) -> list[Project]:

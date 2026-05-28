@@ -272,6 +272,7 @@
 <script>
     window.PvsDashboard = {
         projectId: {{ project.id }},
+        projectKey: {{ project_key(project)|tojson }},
         branch: {{ active_branch|tojson }},
         platformFilter: {{ platform_filter|default('windows')|tojson }},
         codePlatform: 'windows',
@@ -388,7 +389,7 @@
             }
             const query = this.metricsQuery();
             const [fragResp, metricsResp] = await Promise.all([
-                fetch(`/ui/projects/${this.projectId}/trends-fragment?${query}`),
+                fetch(`/ui/projects/${this.projectKey}/trends-fragment?${query}`),
                 fetch(`/api/v1/projects/${this.projectId}/platform-metrics?${query}`),
             ]);
             if (!fragResp.ok || !metricsResp.ok) {
@@ -444,7 +445,7 @@
             }
             const query = this.metricsQuery();
             const resp = await fetch(
-                `/ui/projects/${this.projectId}/overview-fragment?${query}`,
+                `/ui/projects/${this.projectKey}/overview-fragment?${query}`,
             );
             if (!resp.ok) {
                 return;

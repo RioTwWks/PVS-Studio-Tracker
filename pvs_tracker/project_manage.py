@@ -10,24 +10,25 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from urllib.parse import quote
 from fastapi.templating import Jinja2Templates
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from pvs_tracker.admin_utils import is_admin
-from pvs_tracker.auth_service import get_current_user, require_auth
+from pvs_tracker.auth_service import get_current_user
 from pvs_tracker.db import get_session
 from pvs_tracker.jenkins_service import trigger_jenkins_build
-from pvs_tracker.models import Project, User, ProjectGroup
+from pvs_tracker.models import Project, User
 from pvs_tracker.project_ci import (
-    clone_ci_project,
     create_ci_project,
-    get_project_by_id,
-    get_project_by_name,
-    get_project_by_slug,
     parse_sonar_form_fields,
     set_analysis_queued,
 )
 from pvs_tracker.project_form_context import project_form_context
 from pvs_tracker.project_groups import get_group_choices, get_group_id_by_name
+from pvs_tracker.project_urls import (
+    project_ui_path,
+    register_project_url_globals,
+    require_project_by_key,
+)
 from pvs_tracker.repository_service import get_head_commit_git, get_latest_changeset_tfvc
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ import os
 
 BASE_DIR = os.path.dirname(__file__)
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+register_project_url_globals(templates.env)
 router = APIRouter(tags=["project-manage"])
 
 
@@ -100,7 +102,12 @@ def _dashboard_settings_redirect(
     settings_tab: str = "params",
     ci_error: Optional[str] = None,
 ) -> RedirectResponse:
-    url = f"/ui/projects/{project.id}/dashboard?tab=settings&settings_tab={settings_tab}"
+    url = project_ui_path(
+        project,
+        "dashboard",
+        tab="settings",
+        settings_tab=settings_tab,
+    )
     branch = (project.git_branch or project.analysis_branch or "").strip()
     if branch:
         url += f"&branch={quote(branch)}"
@@ -127,36 +134,31 @@ def project_new_form(request: Request, session: Session = Depends(get_session)) 
     )
 
 
-@router.get("/ui/projects/{project_id}/edit", response_class=HTMLResponse)
+@router.get("/ui/projects/{project_key}/edit", response_class=HTMLResponse)
 def project_edit_form(
-    request: Request, project_id: int, session: Session = Depends(get_session)
+    request: Request, project_key: str, session: Session = Depends(get_session)
 ) -> HTMLResponse:
-    project = get_project_by_id(session, project_id)
-    if not project:
-        raise HTTPException(status_code=404)
+    project = require_project_by_key(session, project_key)
     ctx = project_form_context(project, edit=True, edit_id=project.id, load_jira=False)
     
     # Передаём динамический список групп
     from pvs_tracker.project_groups import get_group_choices, get_group_id_by_name
     ctx["group_choices"] = get_group_choices(session)
     ctx["group_id"] = get_group_id_by_name(session, project.group_name or "Ungrouped")
-    ctx["form_action"] = f"/ui/projects/{project_id}/ci"
+    ctx["form_action"] = project_ui_path(project, "ci")
     
     return templates.TemplateResponse(
         request, "projects/project_form.html", _template_ctx(request, ctx)
     )
 
 
-@router.get("/ui/projects/{project_id}/clone", response_class=HTMLResponse)
+@router.get("/ui/projects/{project_key}/clone", response_class=HTMLResponse)
 def project_clone_form(
-    request: Request, project_id: int, session: Session = Depends(get_session)
+    request: Request, project_key: str, session: Session = Depends(get_session)
 ) -> HTMLResponse:
-    project = get_project_by_id(session, project_id)
-    if not project:
-        raise HTTPException(status_code=404)
+    project = require_project_by_key(session, project_key)
     ctx = project_form_context(project, clone=True)
     ctx["group_choices"] = get_group_choices(session)
-    from pvs_tracker.project_groups import get_group_id_by_name
     ctx["group_id"] = get_group_id_by_name(session, project.group_name or "Ungrouped")
     ctx["form_action"] = "/ui/projects/create"
     return templates.TemplateResponse(
@@ -227,15 +229,15 @@ async def project_create_submit(
             status_code=400,
         )
     return RedirectResponse(
-        url=f"/ui/projects/{project.id}/dashboard?tab=ci",
+        url=project_ui_path(project, "dashboard", tab="ci"),
         status_code=303,
     )
 
 
-@router.post("/ui/projects/{project_id}/ci", response_class=HTMLResponse)
+@router.post("/ui/projects/{project_key}/ci", response_class=HTMLResponse)
 async def project_ci_update(
     request: Request,
-    project_id: int,
+    project_key: str,
     session: Session = Depends(get_session),
     group_id: str = Form(...),
     author_email: str = Form(...),
@@ -257,9 +259,7 @@ async def project_ci_update(
     disabled: Optional[str] = Form(None),
     disable_jira: str = Form("true"),
 ) -> RedirectResponse:
-    project = get_project_by_id(session, project_id)
-    if not project:
-        raise HTTPException(status_code=404)
+    project = require_project_by_key(session, project_key)
     try:
         data = parse_sonar_form_fields(
             session=session,   # <--- передаём session
@@ -285,6 +285,8 @@ async def project_ci_update(
             disabled=_checkbox(disabled),
             disable_jira=disable_jira.lower() == "true",
         )
+        from pvs_tracker.project_ci import get_project_by_name, get_project_by_slug
+
         if data["name"] != project.name:
             existing = get_project_by_name(session, data["name"])
             if existing and existing.id != project.id:
@@ -303,13 +305,11 @@ async def project_ci_update(
     return _dashboard_settings_redirect(project, settings_tab="params")
 
 
-@router.post("/ui/projects/{project_id}/toggle-disabled", response_class=HTMLResponse)
+@router.post("/ui/projects/{project_key}/toggle-disabled", response_class=HTMLResponse)
 def toggle_disabled(
-    request: Request, project_id: int, session: Session = Depends(get_session)
+    request: Request, project_key: str, session: Session = Depends(get_session)
 ) -> HTMLResponse:
-    project = get_project_by_id(session, project_id)
-    if not project:
-        raise HTTPException(status_code=404)
+    project = require_project_by_key(session, project_key)
     project.disabled = not project.disabled
     session.add(project)
     session.commit()
@@ -318,13 +318,11 @@ def toggle_disabled(
     return _ci_panel_response(request, project, session, ci_toast_key=toast_key)
 
 
-@router.post("/ui/projects/{project_id}/toggle-jira", response_class=HTMLResponse)
+@router.post("/ui/projects/{project_key}/toggle-jira", response_class=HTMLResponse)
 def toggle_jira(
-    request: Request, project_id: int, session: Session = Depends(get_session)
+    request: Request, project_key: str, session: Session = Depends(get_session)
 ) -> HTMLResponse:
-    project = get_project_by_id(session, project_id)
-    if not project:
-        raise HTTPException(status_code=404)
+    project = require_project_by_key(session, project_key)
     project.disable_jira = not project.disable_jira
     session.add(project)
     session.commit()
@@ -333,18 +331,16 @@ def toggle_jira(
     return _ci_panel_response(request, project, session, ci_toast_key=toast_key)
 
 
-@router.post("/ui/projects/{project_id}/trigger-analysis", response_class=HTMLResponse)
+@router.post("/ui/projects/{project_key}/trigger-analysis", response_class=HTMLResponse)
 def trigger_analysis(
     request: Request,
-    project_id: int,
+    project_key: str,
     session: Session = Depends(get_session),
     branch: str = Form(""),
 ) -> HTMLResponse:
     if not is_admin(request):
         raise HTTPException(status_code=403, detail="Admin only")
-    project = get_project_by_id(session, project_id)
-    if not project:
-        raise HTTPException(status_code=404)
+    project = require_project_by_key(session, project_key)
     from pvs_tracker.dashboard_context import sync_project_branch
     from pvs_tracker.project_ci import project_analysis_branch
 

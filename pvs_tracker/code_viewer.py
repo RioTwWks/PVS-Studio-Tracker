@@ -246,20 +246,21 @@ async def view_code(
     )
 
 
-@router.get("/ui/projects/{project_id}/code-viewer", response_class=HTMLResponse)
+@router.get("/ui/projects/{project_key}/code-viewer", response_class=HTMLResponse)
 async def code_viewer_page(
     request: Request,
-    project_id: int,
+    project_key: str,
     run_id: int = Query(None, ge=1),
     session: Session = Depends(get_session),
 ):
     """Standalone code viewer page with file browser."""
     if templates is None:
         raise HTTPException(500, "Templates not initialized")
-    
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+
+    from pvs_tracker.project_urls import require_project_by_key
+
+    project = require_project_by_key(session, project_key)
+    project_id = project.id
 
     # Determine which run to use
     if run_id:
@@ -442,19 +443,23 @@ async def get_project_files_api(
     return result
 
 
-@router.get("/ui/projects/{project_id}/files/search")
+@router.get("/ui/projects/{project_key}/files/search")
 async def search_project_files(
-    project_id: int,
+    project_key: str,
     q: str = Query("", max_length=100),
     run_id: Optional[int] = Query(None),
     request: Request = None,
     session: Session = Depends(get_session),
 ):
     """HTMX endpoint: return filtered file tree HTML."""
+    from pvs_tracker.project_urls import require_project_by_key
+
+    project = require_project_by_key(session, project_key)
+    project_id = project.id
     if not q:
         # Return full tree
         return await get_project_files_api(project_id, run_id, session)
-    
+
     # Simple in-memory filter
     files_data = await get_project_files_api(project_id, run_id, session)
     filtered = [

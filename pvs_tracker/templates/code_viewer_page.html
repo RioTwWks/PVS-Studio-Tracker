@@ -11,7 +11,7 @@
             </h4>
             <p class="sq-page-meta mb-0">{{ project.name }}</p>
         </div>
-        <a href="/ui/projects/{{ project.id }}/dashboard" class="sq-btn sq-btn-outline sq-btn-sm">
+        <a href="{{ project_ui_path(project, 'dashboard') }}" class="sq-btn sq-btn-outline sq-btn-sm">
             <i class="bi bi-arrow-left"></i> <span data-i18n="back">Back</span>
         </a>
     </div>

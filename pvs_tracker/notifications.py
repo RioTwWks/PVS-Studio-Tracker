@@ -64,7 +64,9 @@ def build_upload_notification_email(
     qg_status = quality_gate_result.get("status", "unknown")
     dashboard_url = ""
     if APP_BASE_URL and project.id is not None:
-        dashboard_url = f"{APP_BASE_URL}/ui/projects/{project.id}/dashboard"
+        from pvs_tracker.project_urls import project_ui_path
+
+        dashboard_url = f"{APP_BASE_URL}{project_ui_path(project, 'dashboard')}"
 
     subject = f"[PVS-Tracker] Report uploaded: {project.name}"
     lines = [

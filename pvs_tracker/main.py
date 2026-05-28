@@ -441,6 +441,9 @@ with Session(engine) as _lang_session:
 
 # Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+from pvs_tracker.project_urls import project_ui_path, register_project_url_globals
+
+register_project_url_globals(templates.env)
 
 # Register code_viewer router and pass templates reference
 code_viewer_module.templates = templates
@@ -579,8 +582,11 @@ async def create_project_ui(
                 session=session,
                 _user=_user,
             )
+        from pvs_tracker.project_ci import ensure_project_slug
+
+        ensure_project_slug(session, project)
         return RedirectResponse(
-            url=f"/ui/projects/{project.id}/dashboard?platform_filter={platform}",
+            url=project_ui_path(project, "dashboard", platform_filter=platform),
             status_code=303,
         )
 
@@ -589,6 +595,9 @@ async def create_project_ui(
     session.add(project)
     session.commit()
     session.refresh(project)
+    from pvs_tracker.project_ci import ensure_project_slug
+
+    ensure_project_slug(session, project)
 
     if file and file.filename:
         return await upload_report_ui(
@@ -606,14 +615,14 @@ async def create_project_ui(
         )
 
     return RedirectResponse(
-        url=f"/ui/projects/{project.id}/dashboard?platform_filter={platform}",
+        url=project_ui_path(project, "dashboard", platform_filter=platform),
         status_code=303,
     )
 
 
-@app.get("/ui/projects/{project_id}/dashboard", response_class=HTMLResponse)
+@app.get("/ui/projects/{project_key}/dashboard", response_class=HTMLResponse)
 async def ui_dashboard(
-    project_id: int,
+    project_key: str,
     request: Request,
     branch: str = "",
     platform_filter: str = "windows",
@@ -623,9 +632,10 @@ async def ui_dashboard(
     ci_error: str = "",
     session: Session = Depends(get_session),
 ):
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+    from pvs_tracker.project_urls import require_project_by_key
+
+    project = require_project_by_key(session, project_key)
+    project_id = project.id
 
     from pvs_tracker.dashboard_context import (
         list_project_branches,
@@ -723,9 +733,9 @@ def api_platform_metrics(
     return build_platform_metrics(session, project_id, active_branch, platform_filter)
 
 
-@app.get("/ui/projects/{project_id}/overview-fragment", response_class=HTMLResponse)
+@app.get("/ui/projects/{project_key}/overview-fragment", response_class=HTMLResponse)
 async def ui_overview_fragment(
-    project_id: int,
+    project_key: str,
     request: Request,
     branch: str = "",
     platform_filter: str = "windows",
@@ -738,10 +748,10 @@ async def ui_overview_fragment(
         resolve_active_branch,
     )
     from pvs_tracker.platforms import normalize_platform_filter
+    from pvs_tracker.project_urls import require_project_by_key
 
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = require_project_by_key(session, project_key)
+    project_id = project.id
 
     all_runs = session.exec(
         select(Run)
@@ -766,9 +776,9 @@ async def ui_overview_fragment(
     )
 
 
-@app.get("/ui/projects/{project_id}/trends-fragment", response_class=HTMLResponse)
+@app.get("/ui/projects/{project_key}/trends-fragment", response_class=HTMLResponse)
 async def ui_trends_fragment(
-    project_id: int,
+    project_key: str,
     request: Request,
     branch: str = "",
     platform_filter: str = "windows",
@@ -777,10 +787,10 @@ async def ui_trends_fragment(
     """HTMX/HTML fragment: trends KPI + chart area for selected platform."""
     from pvs_tracker.dashboard_context import build_platform_metrics, resolve_active_branch
     from pvs_tracker.platforms import normalize_platform_filter
+    from pvs_tracker.project_urls import require_project_by_key
 
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = require_project_by_key(session, project_key)
+    project_id = project.id
 
     all_runs = session.exec(
         select(Run)
@@ -969,10 +979,15 @@ async def upload_report_ui(
                 select(Project).where(Project.name == project_name)
             ).first()
             if project:
+                from pvs_tracker.project_ci import ensure_project_slug
+
+                ensure_project_slug(session, project)
                 return RedirectResponse(
-                    url=(
-                        f"/ui/projects/{project.id}/dashboard"
-                        f"?platform_filter={platform}&upload_error={quote(str(exc))}"
+                    url=project_ui_path(
+                        project,
+                        "dashboard",
+                        platform_filter=platform,
+                        upload_error=str(exc),
                     ),
                     status_code=303,
                 )
@@ -1019,6 +1034,9 @@ async def upload_report_ui(
         session.add(project)
         session.commit()
         session.refresh(project)
+        from pvs_tracker.project_ci import ensure_project_slug
+
+        ensure_project_slug(session, project)
     if source_archive_path:
         project.source_archive_path = source_archive_path
         session.commit()
@@ -1103,7 +1121,7 @@ async def upload_report_ui(
         asyncio.create_task(trigger_upload_webhook(session, project.id, run.id, len(issues)))
 
         return RedirectResponse(
-            url=f"/ui/projects/{project.id}/dashboard?platform_filter={platform}",
+            url=project_ui_path(project, "dashboard", platform_filter=platform),
             status_code=303,
         )
     except Exception as e:
@@ -1241,6 +1259,9 @@ async def upload_report_api(
         session.add(project)
         session.commit()
         session.refresh(project)
+        from pvs_tracker.project_ci import ensure_project_slug
+
+        ensure_project_slug(session, project)
     if source_archive_path:
         project.source_archive_path = source_archive_path
         session.commit()
@@ -1497,16 +1518,17 @@ async def update_source_roots(
     }
 
 
-@app.post("/ui/projects/{project_id}/delete")
+@app.post("/ui/projects/{project_key}/delete")
 async def delete_project_ui(
-    project_id: int,
+    project_key: str,
     session: Session = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
     """Delete a project and its stored analysis data from the UI."""
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+    from pvs_tracker.project_urls import require_project_by_key
+
+    project = require_project_by_key(session, project_key)
+    project_id = project.id
 
     runs = session.exec(select(Run).where(Run.project_id == project_id)).all()
     run_ids = [run.id for run in runs if run.id is not None]

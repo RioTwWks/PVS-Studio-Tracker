@@ -28,7 +28,7 @@
     <div class="sq-card-body p-0">
         <div class="sq-project-list">
             {% for project in group_projects %}
-            <a href="/ui/projects/{{ project.id }}/dashboard"
+            <a href="{{ project_ui_path(project, 'dashboard') }}"
                class="sq-project-card {% if project.disabled %}sq-project-card--disabled{% elif project.disable_jira %}sq-project-card--jira-off{% else %}sq-project-card--active{% endif %}">
                 <div class="sq-project-card-content">
                     <div class="sq-project-name">{{ project.name }}</div>

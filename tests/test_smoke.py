@@ -80,7 +80,11 @@ def test_upload_and_dashboard(client):
     assert dash["project"] == "demo"
 
     # UI Dashboard
-    r = client.get(f"/ui/projects/{project_id}/dashboard")
+    with Session(main.engine) as session:
+        project = session.exec(select(Project).where(Project.name == "demo")).first()
+        assert project is not None
+        assert project.slug
+    r = client.get(f"/ui/projects/{project.slug}/dashboard")
     assert r.status_code == 200
     assert "demo" in r.text
 
@@ -283,8 +287,9 @@ def test_admin_can_delete_project_from_ui(client):
         project = session.exec(select(Project).where(Project.name == "delete-me")).first()
         assert project is not None
         project_id = project.id
+        project_key = project.slug
 
-    r = client.post(f"/ui/projects/{project_id}/delete", follow_redirects=False)
+    r = client.post(f"/ui/projects/{project_key}/delete", follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"] == "/"
 
@@ -307,8 +312,9 @@ def test_non_admin_cannot_delete_project_from_ui(client):
         project = session.exec(select(Project).where(Project.name == "not-delete-me")).first()
         assert project is not None
         project_id = project.id
+        project_key = project.slug
 
-    r = client.post(f"/ui/projects/{project_id}/delete", follow_redirects=False)
+    r = client.post(f"/ui/projects/{project_key}/delete", follow_redirects=False)
     assert r.status_code == 403
 
     with Session(main.engine) as session:
