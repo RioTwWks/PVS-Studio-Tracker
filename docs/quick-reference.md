@@ -179,7 +179,7 @@ curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F
 
 ### Метаданные коммита (CI / Jira assignee)
 
-Файл от `pvs_snapshot.py` (`commit`, `commit_author_name`, `commit_author_email`):
+Файл от `pvs_snapshot.py` (`commit`, `commit_author_name`, `commit_author_email`, `release_version`):
 
 **Windows (cmd):**
 ```cmd

@@ -242,6 +242,10 @@ class Run(SQLModel, table=True):
         default=None,
         description="Author email from Git commit (CI / pvs_snapshot)",
     )
+    release_version: Optional[str] = Field(
+        default="",
+        description="Product version for this analysis (from sources / CI metadata)",
+    )
     report_file: str
     status: str = "processing"  # processing | done | failed
     total_issues: int = Field(default=0)

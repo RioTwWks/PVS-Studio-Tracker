@@ -202,14 +202,14 @@ function createTrendChart(canvasId, historyData) {
     fixedGradient.addColorStop(0, isDark ? 'rgba(63, 185, 80, 0.22)' : 'rgba(25, 135, 84, 0.12)');
     fixedGradient.addColorStop(1, 'rgba(25, 135, 84, 0)');
 
-    // Build labels: show commit hash + timestamp if available
-    const labels = historyData.map((d) => {
-        if (d.commit && d.commit !== '—') {
-            const date = new Date(d.timestamp).toLocaleDateString();
-            return date;
+    function trendPointLabel(d) {
+        if (d.release_version) {
+            return d.release_version;
         }
         return new Date(d.timestamp).toLocaleDateString();
-    });
+    }
+
+    const labels = historyData.map(trendPointLabel);
     const newData = historyData.map((d) => d.new);
     const activeData = historyData.map((d) => d.total);
     const fixedData = historyData.map((d) => d.fixed);
@@ -307,7 +307,14 @@ function createTrendChart(canvasId, historyData) {
                         afterTitle: function (items) {
                             if (items.length === 0) return '';
                             const d = historyData[items[0].dataIndex];
-                            return d.branch && d.branch.length > 0 ? `${I18n.t('chart_branch_label')}: ${d.branch}` : '';
+                            const lines = [];
+                            if (d.release_version) {
+                                lines.push(`${I18n.t('chart_version_label')}: ${d.release_version}`);
+                            }
+                            if (d.branch && d.branch.length > 0 && d.branch !== '—') {
+                                lines.push(`${I18n.t('chart_branch_label')}: ${d.branch}`);
+                            }
+                            return lines.join('\n');
                         },
                         label: function (item) {
                             return `${item.dataset.label}: ${item.formattedValue}`;
@@ -384,7 +391,11 @@ function createMultiPlatformTrendChart(canvasId, historyByPlatform) {
         if (!series || series.length === 0) return;
         if (series.length > maxLen) {
             maxLen = series.length;
-            labels = series.map((d) => new Date(d.timestamp).toLocaleDateString());
+            labels = series.map((d) =>
+                d.release_version
+                    ? d.release_version
+                    : new Date(d.timestamp).toLocaleDateString(),
+            );
         }
         datasets.push({
             label: I18n.t('platform_' + plat),

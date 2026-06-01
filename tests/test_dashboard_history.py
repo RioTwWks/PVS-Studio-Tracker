@@ -139,3 +139,118 @@ def test_all_platform_filter_not_windows_only() -> None:
 
         history, _ = build_dashboard_histories(session, project.id, "main", "all")
         assert history[-1]["total"] == 15
+
+
+def _add_common_run(
+    session: Session,
+    project_id: int,
+    platform: str,
+    *,
+    cross_fps: list[str],
+    branch: str = "main",
+    when: datetime | None = None,
+) -> Run:
+    ts = when or datetime.utcnow()
+    run = Run(
+        project_id=project_id,
+        branch=branch,
+        target_platform=platform,
+        report_file="db:test.json",
+        status="done",
+        timestamp=ts,
+    )
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+    for i, cfp in enumerate(cross_fps):
+        session.add(
+            Issue(
+                run_id=run.id,
+                fingerprint=f"{platform}-fp-{cfp}-{i}",
+                cross_platform_fp=cfp,
+                file_path=f"src/{platform}_{i}.cpp",
+                line=i + 1,
+                rule_code="V1001",
+                message="msg",
+                severity="High",
+                status="existing",
+            )
+        )
+    session.commit()
+    return run
+
+
+def test_common_platform_filter_one_point_per_wave() -> None:
+    """Common chart must not duplicate one report per OS in the same wave."""
+    with Session(engine) as session:
+        project = Project(name="dash-common-wave")
+        session.add(project)
+        session.commit()
+        session.refresh(project)
+
+        base = datetime(2025, 5, 1, 12, 0, 0)
+        shared = ["cfp-a", "cfp-b", "cfp-c"]
+        _add_common_run(
+            session, project.id, "windows", cross_fps=shared, when=base
+        )
+        _add_common_run(
+            session,
+            project.id,
+            "linux",
+            cross_fps=shared,
+            when=base + timedelta(minutes=5),
+        )
+
+        history, _ = build_dashboard_histories(
+            session, project.id, "main", "common"
+        )
+
+        assert len(history) == 1
+        assert history[0]["platform"] == "common"
+        assert history[0]["total"] == 3
+
+
+def test_common_platform_filter_multiple_waves() -> None:
+    with Session(engine) as session:
+        project = Project(name="dash-common-waves")
+        session.add(project)
+        session.commit()
+        session.refresh(project)
+
+        base = datetime(2025, 5, 2, 12, 0, 0)
+        _add_common_run(
+            session,
+            project.id,
+            "windows",
+            cross_fps=["cfp-old"],
+            when=base,
+        )
+        _add_common_run(
+            session,
+            project.id,
+            "linux",
+            cross_fps=["cfp-old"],
+            when=base + timedelta(minutes=1),
+        )
+        _add_common_run(
+            session,
+            project.id,
+            "windows",
+            cross_fps=["cfp-new"],
+            when=base + timedelta(days=1),
+        )
+        _add_common_run(
+            session,
+            project.id,
+            "linux",
+            cross_fps=["cfp-new"],
+            when=base + timedelta(days=1, minutes=1),
+        )
+
+        history, _ = build_dashboard_histories(
+            session, project.id, "main", "common", limit=10
+        )
+
+        assert len(history) == 2
+        assert history[0]["total"] == 1
+        assert history[1]["total"] == 2

@@ -43,16 +43,11 @@ def get_analysis_set_runs(
     return result
 
 
-def common_cross_fps(
+def common_cross_fps_for_runs(
     session: Session,
-    project_id: int,
-    branch: str = "",
+    runs: dict[str, Run],
 ) -> set[str]:
-    """
-    Intersection of cross_platform_fp among active issues in latest run per platform.
-    Only platforms with at least one run participate in the intersection.
-    """
-    runs = get_analysis_set_runs(session, project_id, branch)
+    """Intersection of cross_platform_fp among active issues in the given runs."""
     if len(runs) < 2:
         return set()
 
@@ -73,3 +68,15 @@ def common_cross_fps(
     for s in fps_per_platform[1:]:
         intersection = intersection & s
     return intersection
+
+
+def common_cross_fps(
+    session: Session,
+    project_id: int,
+    branch: str = "",
+) -> set[str]:
+    """
+    Intersection of cross_platform_fp among active issues in latest run per platform.
+    Only platforms with at least one run participate in the intersection.
+    """
+    return common_cross_fps_for_runs(session, get_analysis_set_runs(session, project_id, branch))

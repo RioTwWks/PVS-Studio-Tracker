@@ -15,11 +15,14 @@ import sys
 from pathlib import Path
 from typing import Optional, Set, TypedDict
 
+from pvs_tracker.project_version import VersionDetectOptions, detect_project_version
+
 
 class CommitMetadata(TypedDict, total=False):
     commit: str
     commit_author_name: str
     commit_author_email: str
+    release_version: str
 
 
 def read_file_with_fallback(file_path: Path) -> tuple[str, str]:
@@ -120,17 +123,57 @@ def get_commit_author_git(
     return resolved, author_name, author_email
 
 
-def resolve_commit_metadata(repo_dir: Path, commit: Optional[str] = None) -> CommitMetadata:
-    """Commit hash и автор для upload API (только Git)."""
+def resolve_release_version(
+    repo_dir: Path,
+    *,
+    override: Optional[str] = None,
+    version_options: Optional[VersionDetectOptions] = None,
+) -> Optional[str]:
+    """Версия продукта из исходников или явный override."""
+    if override and override.strip():
+        return override.strip()
+    parts = detect_project_version(repo_dir, version_options)
+    if parts:
+        version = parts.as_string()
+        print(f"📌 Release version: {version}", file=sys.stderr)
+        return version
+    print("⚠️ Could not detect release version in sources", file=sys.stderr)
+    return None
+
+
+def resolve_commit_metadata(
+    repo_dir: Path,
+    commit: Optional[str] = None,
+    *,
+    release_version: Optional[str] = None,
+    version_options: Optional[VersionDetectOptions] = None,
+    skip_version: bool = False,
+    skip_author: bool = False,
+) -> CommitMetadata:
+    """Commit hash, автор и версия для upload API."""
+    meta: CommitMetadata = {}
+
+    if not skip_version:
+        detected = resolve_release_version(
+            repo_dir,
+            override=release_version,
+            version_options=version_options,
+        )
+        if detected:
+            meta["release_version"] = detected
+
+    if skip_author:
+        if commit and commit.strip():
+            meta.setdefault("commit", commit.strip())
+        return meta
+
     if not is_git_repo(repo_dir):
         print("⚠️ No .git in base_dir, skipping author resolution", file=sys.stderr)
-        meta: CommitMetadata = {}
         if commit and commit.strip():
             meta["commit"] = commit.strip()
         return meta
 
     resolved, author_name, author_email = get_commit_author_git(repo_dir, commit)
-    meta = {}
     if resolved:
         meta["commit"] = resolved
     if author_name:
@@ -160,12 +203,24 @@ def build_snapshot(
     commit: Optional[str] = None,
     metadata_out: Optional[str] = None,
     skip_author: bool = False,
+    skip_version: bool = False,
+    release_version: Optional[str] = None,
+    version_options: Optional[VersionDetectOptions] = None,
 ) -> CommitMetadata:
     """Создаёт снапшот исходного кода для файлов из отчёта."""
     base = Path(base_dir).resolve()
     metadata: CommitMetadata = {}
-    if not skip_author:
-        metadata = resolve_commit_metadata(base, commit=commit)
+    if not skip_author or not skip_version:
+        metadata = resolve_commit_metadata(
+            base,
+            commit=commit,
+            release_version=release_version,
+            version_options=version_options,
+            skip_version=skip_version,
+            skip_author=skip_author,
+        )
+    elif commit and commit.strip():
+        metadata["commit"] = commit.strip()
 
     with open(report_path, "r", encoding="utf-8") as f:
         report = json.load(f)
@@ -231,10 +286,31 @@ def build_snapshot(
         file=sys.stderr,
     )
 
-    if metadata and metadata_out:
+    if metadata_out and metadata:
         write_metadata(metadata_out, metadata)
+    elif metadata_out and not skip_version:
+        print("⚠️ No metadata to write (empty commit/version)", file=sys.stderr)
 
     return metadata
+
+
+def version_options_from_args(args: argparse.Namespace) -> VersionDetectOptions:
+    """Собрать опции детектора версии из CLI (как переменные Jenkins job)."""
+    exclude = tuple(
+        p.strip() for p in (args.exclude_path or "").split(",") if p.strip()
+    )
+    build_system = (args.build_system or "auto").lower()
+    if build_system not in ("msbuild", "cmake", "auto"):
+        build_system = "auto"
+    return VersionDetectOptions(
+        group=args.group or "",
+        build_system=build_system,  # type: ignore[arg-type]
+        sln_name=args.sln_name or "",
+        project_key=args.project_key or "",
+        project_name=args.project_name or "",
+        select_vcxproj=args.select_vcxproj or "",
+        exclude_paths=exclude,
+    )
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -266,7 +342,45 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-author",
         action="store_true",
-        help="Only build snapshot, skip author resolution",
+        help="Only build snapshot, skip Git author resolution",
+    )
+    parser.add_argument(
+        "--skip-version",
+        action="store_true",
+        help="Do not detect or write release_version in metadata",
+    )
+    parser.add_argument(
+        "--release-version",
+        metavar="VER",
+        help="Use this product version instead of detecting from sources",
+    )
+    parser.add_argument("--group", default="", help="Project group (e.g. QA for VersionInfo.h)")
+    parser.add_argument(
+        "--build-system",
+        choices=("auto", "msbuild", "cmake"),
+        default="auto",
+        help="How to scan sources for version (default: auto)",
+    )
+    parser.add_argument("--sln-name", default="", help="Solution name stem for Version.rc lookup")
+    parser.add_argument(
+        "--project-key",
+        default="",
+        help="Project key for CMake fallback (SONAR_PROJECT_KEY)",
+    )
+    parser.add_argument(
+        "--project-name",
+        default="",
+        help="Project display name (SONAR_PROJECT_NAME, QAdmin paths)",
+    )
+    parser.add_argument(
+        "--select-vcxproj",
+        default="",
+        help="Relative path to vcxproj (SELECT_VCXPROJ) for VersionInfo.h",
+    )
+    parser.add_argument(
+        "--exclude-path",
+        default="",
+        help="Comma-separated path fragments to skip (PVS_EXCLUDE_PATH)",
     )
     parser.add_argument(
         "--print-json",
@@ -280,8 +394,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
 
+    write_metadata_file = not args.no_metadata and not (args.skip_author and args.skip_version)
     metadata_out: Optional[str] = None
-    if not args.no_metadata and not args.skip_author:
+    if write_metadata_file:
         metadata_out = args.metadata_out or default_metadata_path(args.output)
 
     metadata = build_snapshot(
@@ -291,6 +406,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         commit=args.commit,
         metadata_out=metadata_out,
         skip_author=args.skip_author,
+        skip_version=args.skip_version,
+        release_version=args.release_version,
+        version_options=version_options_from_args(args),
     )
 
     if args.print_json and metadata:

@@ -29,6 +29,9 @@
 | `commit` | Хеш коммита (полный или короткий) |
 | `commit_author_name` | Имя автора из `git log` |
 | `commit_author_email` | Email автора |
+| `release_version` | Версия продукта (`major.minor.patch`), как `sonar.projectVersion` |
+
+Версия определяется в `pvs_snapshot.py` по тем же правилам, что Jenkins-скрипты `get_version_fastapi.py` / `get-version-linux.py` (Version.rc, Version.cmake, CMakeLists.txt, VersionInfo.h для QA).
 
 Пример файла `report.meta.json`:
 
@@ -36,7 +39,8 @@
 {
   "commit": "a1b2c3d4e5f6789012345678901234567890abcd",
   "commit_author_name": "Ivan Petrov",
-  "commit_author_email": "ivan@company.ru"
+  "commit_author_email": "ivan@company.ru",
+  "release_version": "8.10.3"
 }
 ```
 
@@ -48,12 +52,14 @@
 
 Приоритет при слиянии (`upload_metadata.merge_commit_upload_fields`):
 
-1. Непустые поля формы (`commit`, `commit_author_name`, `commit_author_email`)
+1. Непустые поля формы (`commit`, `commit_author_name`, `commit_author_email`, `release_version`)
 2. Значения из JSON-файла
 
 Куда попадает в БД:
 
-- `Run.commit`, `Run.commit_author_name`, `Run.commit_author_email`
+- `Run.commit`, `Run.commit_author_name`, `Run.commit_author_email`, `Run.release_version`
+- `Project.release_version` обновляется при upload (как раньше через `analysis-callback`)
+- на графике дашборда по оси X и в tooltip отображается `release_version` каждого анализа
 - **new** issues → `Issue.author_*` от коммита run (`issue_author.py`)
 - Jira Bug → assignee из автора коммита run / issue
 
@@ -62,14 +68,21 @@
 ### Генерация metadata в pipeline
 
 ```bash
-# Снапшот + metadata (из Git в WORKSPACE)
-python pvs_snapshot.py report.json snapshot.json.gz "${WORKSPACE}"
+# Снапшот + metadata (Git + версия из исходников)
+python pvs_snapshot.py report.json snapshot.json.gz "${WORKSPACE}" \
+  --group "${GROUP}" \
+  --build-system cmake \
+  --project-key "${SONAR_PROJECT_KEY}" \
+  --project-name "${SONAR_PROJECT_NAME}" \
+  --sln-name "${sln_name}" \
+  --select-vcxproj "${SELECT_VCXPROJ}" \
+  --exclude-path "${PVS_EXCLUDE_PATH}"
 
 # Явный путь metadata
 python pvs_snapshot.py report.json snapshot.json.gz "${WORKSPACE}" --metadata-out snapshot.meta.json
 ```
 
-Флаги: `--skip-author` / `--no-metadata` — без автора или без файла metadata; `--commit` — явный ref для `git log`.
+Флаги: `--skip-author` / `--skip-version` / `--no-metadata`; `--release-version` — задать версию вручную; `--commit` — явный ref для `git log`.
 
 ## Jira assignee
 

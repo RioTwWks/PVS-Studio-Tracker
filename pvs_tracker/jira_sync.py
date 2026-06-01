@@ -71,7 +71,7 @@ def sync_run_issues_to_jira(session: Session, project_id: int, run_id: int) -> N
             _issue_description(issue, project, run),
             issue.fingerprint,
             assignee=assignee,
-            version=project.release_version or None,
+            version=(run.release_version or project.release_version or None),
         )
         if key:
             issue.jira_issue_key = key

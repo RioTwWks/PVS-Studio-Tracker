@@ -25,6 +25,11 @@ def test_parse_rejects_non_object() -> None:
         parse_commit_metadata_bytes(b"[]")
 
 
+def test_parse_release_version() -> None:
+    raw = b'{"release_version": "8.10.3"}'
+    assert parse_commit_metadata_bytes(raw) == {"release_version": "8.10.3"}
+
+
 def test_merge_form_overrides_metadata() -> None:
     merged = merge_commit_upload_fields(
         commit="form-sha",

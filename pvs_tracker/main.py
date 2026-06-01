@@ -80,11 +80,13 @@ def _run_commit_fields(
     commit: Optional[str],
     commit_author_name: Optional[str],
     commit_author_email: Optional[str],
+    release_version: Optional[str] = None,
 ) -> dict[str, Optional[str]]:
     return {
         "commit": _optional_form(commit),
         "commit_author_name": _optional_form(commit_author_name),
         "commit_author_email": _optional_form(commit_author_email),
+        "release_version": _optional_form(release_version),
     }
 
 
@@ -94,15 +96,26 @@ def _apply_run_commit_fields(
     commit: Optional[str] = None,
     commit_author_name: Optional[str] = None,
     commit_author_email: Optional[str] = None,
+    release_version: Optional[str] = None,
 ) -> None:
-    """Update run commit/author when re-uploading to an existing run."""
-    fields = _run_commit_fields(commit, commit_author_name, commit_author_email)
+    """Update run commit/author/version when re-uploading to an existing run."""
+    fields = _run_commit_fields(
+        commit, commit_author_name, commit_author_email, release_version
+    )
     if fields["commit"] is not None:
         run.commit = fields["commit"]
     if fields["commit_author_name"] is not None:
         run.commit_author_name = fields["commit_author_name"]
     if fields["commit_author_email"] is not None:
         run.commit_author_email = fields["commit_author_email"]
+    if fields["release_version"] is not None:
+        run.release_version = fields["release_version"]
+
+
+def _sync_project_release_version(project: Project, release_version: Optional[str]) -> None:
+    """Keep Project.release_version in sync with the latest uploaded run version."""
+    if release_version:
+        project.release_version = release_version
 
 
 def _migrate_database() -> None:
@@ -186,6 +199,7 @@ def _migrate_database() -> None:
                     "ALTER TABLE errorclassifier ADD COLUMN synced_at DATETIME",
                     "ALTER TABLE run ADD COLUMN commit_author_name VARCHAR",
                     "ALTER TABLE run ADD COLUMN commit_author_email VARCHAR",
+                    "ALTER TABLE run ADD COLUMN release_version VARCHAR DEFAULT ''",
                     "ALTER TABLE issue ADD COLUMN author_name VARCHAR",
                     "ALTER TABLE issue ADD COLUMN author_email VARCHAR",
                     "ALTER TABLE user ADD COLUMN display_name VARCHAR",
@@ -959,6 +973,7 @@ async def upload_report_ui(
     commit: str = Form(None),
     commit_author_name: str = Form(None),
     commit_author_email: str = Form(None),
+    release_version: str = Form(None),
     branch: str = Form(None),
     target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
@@ -1009,12 +1024,14 @@ async def upload_report_ui(
         commit=commit,
         commit_author_name=commit_author_name,
         commit_author_email=commit_author_email,
+        release_version=release_version,
         metadata=metadata_from_file,
         optional_form=_optional_form,
     )
     commit = commit_fields["commit"]
     commit_author_name = commit_fields["commit_author_name"]
     commit_author_email = commit_fields["commit_author_email"]
+    release_version = commit_fields["release_version"]
 
     # 1. Read report
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -1066,6 +1083,7 @@ async def upload_report_ui(
             commit=commit,
             commit_author_name=commit_author_name,
             commit_author_email=commit_author_email,
+            release_version=release_version,
         )
         store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
         if code_snapshot and code_snapshot.filename:
@@ -1077,7 +1095,9 @@ async def upload_report_ui(
             branch=branch,
             target_platform=platform,
             report_file=f"db:{safe_filename}",
-            **_run_commit_fields(commit, commit_author_name, commit_author_email),
+            **_run_commit_fields(
+                commit, commit_author_name, commit_author_email, release_version
+            ),
         )
         session.add(run)
         session.commit()
@@ -1101,6 +1121,8 @@ async def upload_report_ui(
         run.total_issues = metrics["total_issues"]
         run.new_issues = metrics["new_issues"]
         run.fixed_issues = metrics["fixed_issues"]
+        _sync_project_release_version(project, release_version)
+        session.add(project)
         session.commit()
 
         qg_result = evaluate_quality_gate(session, project.id, run.id)
@@ -1212,6 +1234,7 @@ async def upload_report_api(
     commit: str = Form(None),
     commit_author_name: str = Form(None),
     commit_author_email: str = Form(None),
+    release_version: str = Form(None),
     branch: str = Form(None),
     target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
@@ -1237,12 +1260,14 @@ async def upload_report_api(
         commit=commit,
         commit_author_name=commit_author_name,
         commit_author_email=commit_author_email,
+        release_version=release_version,
         metadata=metadata_from_file,
         optional_form=_optional_form,
     )
     commit = commit_fields["commit"]
     commit_author_name = commit_fields["commit_author_name"]
     commit_author_email = commit_fields["commit_author_email"]
+    release_version = commit_fields["release_version"]
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
@@ -1290,6 +1315,7 @@ async def upload_report_api(
             commit=commit,
             commit_author_name=commit_author_name,
             commit_author_email=commit_author_email,
+            release_version=release_version,
         )
         store_run_report(session, run.id, f"{safe_filename}_{timestamp}", report_bytes, file.content_type)
         if code_snapshot and code_snapshot.filename:
@@ -1301,7 +1327,9 @@ async def upload_report_api(
             branch=branch,
             target_platform=platform,
             report_file=f"db:{safe_filename}",
-            **_run_commit_fields(commit, commit_author_name, commit_author_email),
+            **_run_commit_fields(
+                commit, commit_author_name, commit_author_email, release_version
+            ),
         )
         session.add(run)
         session.commit()
@@ -1324,6 +1352,8 @@ async def upload_report_api(
         run.total_issues = metrics["total_issues"]
         run.new_issues = metrics["new_issues"]
         run.fixed_issues = metrics["fixed_issues"]
+        _sync_project_release_version(project, release_version)
+        session.add(project)
         session.commit()
 
         qg_result = evaluate_quality_gate(session, project.id, run.id)
@@ -1357,6 +1387,7 @@ async def upload_report_api(
             "commit": run.commit,
             "commit_author_name": run.commit_author_name,
             "commit_author_email": run.commit_author_email,
+            "release_version": run.release_version,
             "target_platform": platform,
             "total_issues": len(issues),
             "quality_gate": qg_result,
@@ -1444,6 +1475,7 @@ def api_dashboard(project_id: int, branch: str = "", session: Session = Depends(
                 "timestamp": r.timestamp.isoformat(),
                 "commit": r.commit,
                 "branch": r.branch,
+                "release_version": r.release_version or "",
                 "commit_author_name": r.commit_author_name,
                 "commit_author_email": r.commit_author_email,
                 "total": active_count,

@@ -1,11 +1,16 @@
-"""Parse CI commit metadata (.meta.json from pvs_snapshot.py)."""
+"""Parse CI upload metadata (.meta.json from pvs_snapshot.py)."""
 
 from __future__ import annotations
 
 import json
 from typing import Any, Optional
 
-_METADATA_KEYS = ("commit", "commit_author_name", "commit_author_email")
+_METADATA_KEYS = (
+    "commit",
+    "commit_author_name",
+    "commit_author_email",
+    "release_version",
+)
 
 
 def parse_commit_metadata_bytes(content: bytes) -> dict[str, str]:
@@ -39,6 +44,7 @@ def merge_commit_upload_fields(
     commit: Optional[str],
     commit_author_name: Optional[str],
     commit_author_email: Optional[str],
+    release_version: Optional[str] = None,
     metadata: Optional[dict[str, str]],
     optional_form: Any,
 ) -> dict[str, Optional[str]]:
@@ -50,6 +56,7 @@ def merge_commit_upload_fields(
         "commit": optional_form(commit),
         "commit_author_name": optional_form(commit_author_name),
         "commit_author_email": optional_form(commit_author_email),
+        "release_version": optional_form(release_version),
     }
     if not metadata:
         return form
@@ -58,4 +65,5 @@ def merge_commit_upload_fields(
         "commit": form["commit"] or metadata.get("commit"),
         "commit_author_name": form["commit_author_name"] or metadata.get("commit_author_name"),
         "commit_author_email": form["commit_author_email"] or metadata.get("commit_author_email"),
+        "release_version": form["release_version"] or metadata.get("release_version"),
     }
