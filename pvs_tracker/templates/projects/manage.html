@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Управление проектами CI{% endblock %}
+{% block title %}PVS-Tracker{% endblock %}
 {% block content %}
 <div class="sq-page-header d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="sq-page-title"><i class="bi bi-gear-wide-connected"></i> Управление проектами CI</h1>
-        <p class="sq-page-subtitle mb-0">TFS/Git → Jenkins → загрузка отчётов в трекер</p>
+        <h1 class="sq-page-title"><i class="bi bi-gear-wide-connected"></i> <span data-i18n="ci_manage_title">CI project management</span></h1>
+        <p class="sq-page-subtitle mb-0" data-i18n="ci_manage_subtitle">TFS/Git → Jenkins → report upload to tracker</p>
     </div>
     <div>
-        <a href="/" class="sq-btn sq-btn-outline sq-btn-sm me-2"><i class="bi bi-house"></i> Главная</a>
-        <a href="/ui/projects/new" class="sq-btn sq-btn-primary sq-btn-sm"><i class="bi bi-plus-lg"></i> Новый проект</a>
+        <a href="/" class="sq-btn sq-btn-outline sq-btn-sm me-2"><i class="bi bi-house"></i> <span data-i18n="home">Home</span></a>
+        <a href="/ui/projects/new" class="sq-btn sq-btn-primary sq-btn-sm"><i class="bi bi-plus-lg"></i> <span data-i18n="ci_new_project_btn">New project</span></a>
     </div>
 </div>
 
@@ -27,7 +27,7 @@
 {% endfor %}
 {% else %}
 <div class="sq-empty-state">
-    <p>Нет проектов с CI-конфигурацией. <a href="/ui/projects/new">Создать проект</a></p>
+    <p><span data-i18n="ci_no_projects">No projects with CI configuration.</span> <a href="/ui/projects/new" data-i18n="pf_create_project_btn">Create project</a></p>
 </div>
 {% endif %}
 {% endblock %}

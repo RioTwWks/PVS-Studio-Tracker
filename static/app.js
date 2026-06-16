@@ -166,6 +166,18 @@ const I18n = (() => {
     return { t, toggle, applyLanguage, getPreferredLang };
 })();
 
+/** Перевод с fallback для inline-скриптов в шаблонах. */
+function tr(key, fallback) {
+    if (typeof I18n !== 'undefined') {
+        const v = I18n.t(key);
+        if (v && v !== key) {
+            return v;
+        }
+    }
+    return fallback !== undefined ? fallback : key;
+}
+window.tr = tr;
+
 /* ============================================================
    Chart Helpers
    ============================================================ */

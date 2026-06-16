@@ -47,7 +47,7 @@
                             <option value="java">Java</option>
                             <option value="js">JS/TS</option>
                             <option value="go">Go</option>
-                            <option value="other">Другое</option>
+                            <option value="other" data-i18n="qg_filter_other">Other</option>
                         </select>
                     </div>
                 </div>
@@ -68,8 +68,8 @@
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <span id="catalog-pager-info" class="text-muted"></span>
                     <div class="btn-group">
-                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogPrev()" title="Назад">&laquo;</button>
-                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogNext()" title="Вперёд">&raquo;</button>
+                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogPrev()" data-i18n-attr="title" data-i18n="prev_page" title="Previous">&laquo;</button>
+                        <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" onclick="catalogNext()" data-i18n-attr="title" data-i18n="next_page" title="Next">&raquo;</button>
                     </div>
                 </div>
             </div>
@@ -82,7 +82,7 @@
                 <div class="sq-card">
                     <div class="sq-card-header d-flex justify-content-between align-items-center">
                         <span data-i18n="qg_gates_list">Список порогов</span>
-                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="openCreateGateModal()" title="Создать порог">
+                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="openCreateGateModal()" data-i18n-attr="title" data-i18n="qg_create_gate_btn_title" title="Create gate">
                             <i class="bi bi-plus-lg"></i>
                         </button>
                     </div>
@@ -114,7 +114,7 @@
                                         <option value="java">Java</option>
                                         <option value="js">JS/TS</option>
                                         <option value="go">Go</option>
-                                        <option value="other">Другое</option>
+                                        <option value="other" data-i18n="qg_filter_other">Other</option>
                                     </select>
                                 </div>
                                 <div class="col-md-6">
@@ -160,10 +160,12 @@ const LANG_LABELS = {
     java: 'Java',
     js: 'JS/TS',
     go: 'Go',
-    other: 'Другое',
 };
 
 function langLabel(code) {
+    if (code === 'other') {
+        return tr('qg_filter_other', 'Other');
+    }
     return LANG_LABELS[code] || code || '—';
 }
 
@@ -242,7 +244,7 @@ async function syncWarnings() {
         const resp = await apiFetch(`${QG_API}/warnings/sync`, { method: 'POST' });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || resp.statusText);
-        status.textContent = `✓ импортировано: ${data.imported}, обновлено: ${data.updated}, всего: ${data.total}`;
+        status.textContent = `✓ ${tr('qg_sync_imported', 'imported')}: ${data.imported}, ${tr('qg_sync_updated', 'updated')}: ${data.updated}, ${tr('qg_sync_total', 'total')}: ${data.total}`;
         status.style.color = '#198754';
         catalogPage = 1;
         await loadCatalog();

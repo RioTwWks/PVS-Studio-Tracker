@@ -5,10 +5,10 @@
 <tr class="sq-table-row severity-{{ issue.severity }}">
     <td>
         <span class="sq-status-badge status-{{ issue.status }}">
-            {% if issue.status == 'new' %}NEW
-            {% elif issue.status == 'fixed' %}FIXED
-            {% elif issue.status == 'ignored' %}IGNORED
-            {% else %}{{ issue.status|upper }}{% endif %}
+            {% if issue.status == 'new' %}<span data-i18n="issue_status_new">NEW</span>
+            {% elif issue.status == 'fixed' %}<span data-i18n="issue_status_fixed">FIXED</span>
+            {% elif issue.status == 'ignored' %}<span data-i18n="issue_status_ignored">IGNORED</span>
+            {% else %}<span data-i18n="issue_status_existing">{{ issue.status|upper }}</span>{% endif %}
         </span>
     </td>
     <td><span class="sq-severity-badge severity-{{ issue.severity }}">{{ issue.severity }}</span></td>

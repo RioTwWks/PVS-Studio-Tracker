@@ -94,7 +94,7 @@
                             <option value="" data-i18n="qg_use_default">Use default gate</option>
                             {% for gate in quality_gates|default([]) %}
                             <option value="{{ gate.id }}" {% if project.quality_gate_id == gate.id %}selected{% endif %}>
-                                {{ gate.name }}{% if gate.is_default %} (default){% endif %}
+                                {{ gate.name }}{% if gate.is_default %} (<span data-i18n="qg_default_short">default</span>){% endif %}
                             </option>
                             {% endfor %}
                         </select>

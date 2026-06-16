@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_proj == 'true' %}Редактировать{% elif clone_proj == 'true' %}Клонировать{% else %}Новый{% endif %} проект{% endblock %}
+{% block title %}PVS-Tracker{% endblock %}
 {% block content %}
 <div class="sq-page-header mb-4">
     <h1 class="sq-page-title">
-        {% if clone_proj == 'true' %}<i class="bi bi-copy"></i> Клонировать проект
-        {% elif edit_proj == 'true' %}<i class="bi bi-pencil"></i> Редактировать проект
-        {% else %}<i class="bi bi-folder-plus"></i> Новый проект{% endif %}
+        {% if clone_proj == 'true' %}<i class="bi bi-copy"></i> <span data-i18n="pf_clone_title">Clone project</span>
+        {% elif edit_proj == 'true' %}<i class="bi bi-pencil"></i> <span data-i18n="pf_edit_title">Edit project</span>
+        {% else %}<i class="bi bi-folder-plus"></i> <span data-i18n="pf_new_title">New project</span>{% endif %}
     </h1>
-    <p class="sq-page-subtitle mb-0">Параметры CI/SAST и отчётов PVS-Studio в одном проекте</p>
+    <p class="sq-page-subtitle mb-0" data-i18n="pf_form_subtitle">CI/SAST and PVS-Studio report settings in one project</p>
 </div>
 <script src="/static/project-form.js" defer></script>
 
@@ -18,12 +18,11 @@
 <div class="sq-card">
     <div class="sq-card-body">
         <form method="post" action="{{ form_action }}" class="project-ci-form">
-            {# group_choices передаётся из view через get_group_choices(session) #}
             {% include "projects/_form_fields.html" %}
             <div class="mt-4">
                 <button type="submit" class="sq-btn sq-btn-primary">
                     <i class="bi bi-check-lg"></i>
-                    {% if edit_proj == 'true' %}Сохранить{% else %}Создать проект{% endif %}
+                    {% if edit_proj == 'true' %}<span data-i18n="save">Save</span>{% else %}<span data-i18n="pf_create_project_btn">Create project</span>{% endif %}
                 </button>
             </div>
         </form>

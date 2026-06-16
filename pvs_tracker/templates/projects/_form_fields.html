@@ -5,7 +5,7 @@
 
 <div class="row g-3">
     <div class="col-md-4">
-        <label class="sq-form-label" for="GROUP_ID">Группа *</label>
+        <label class="sq-form-label" for="GROUP_ID" data-i18n="pf_group_label">Group *</label>
         <select id="GROUP_ID" name="group_id" class="sq-select" required>
             {% for gid, gname in group_choices %}
             <option value="{{ gid }}" {% if group_id == gid %}selected{% endif %}>{{ gname }}</option>
@@ -13,7 +13,7 @@
         </select>
     </div>
     <div class="col-md-8">
-        <label class="sq-form-label" for="AUTHOR_EMAIL">Ваш Email *</label>
+        <label class="sq-form-label" for="AUTHOR_EMAIL" data-i18n="pf_author_email">Your email *</label>
         <input type="email" id="AUTHOR_EMAIL" name="author_email" class="sq-input" required
                value="{{ author_email }}" placeholder="user@example.com"
                pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$">
@@ -22,22 +22,22 @@
 
 <div class="row g-3 mt-1">
     <div class="col-md-6">
-        <label class="sq-form-label" for="SONAR_PROJECT_NAME">SonarQube Project Name *</label>
+        <label class="sq-form-label" for="SONAR_PROJECT_NAME" data-i18n="pf_sonar_name">SonarQube Project Name *</label>
         <input type="text" id="SONAR_PROJECT_NAME" name="sonar_project_name" class="sq-input" required
-               value="{{ sonar_project_name }}" pattern="[^\s]+" title="Без пробелов">
-        <small class="text-muted">Имя для upload и дашборда (без пробелов)</small>
+               value="{{ sonar_project_name }}" pattern="[^\s]+" data-i18n-attr="title" data-i18n="pf_no_spaces_title" title="No spaces allowed">
+        <small class="text-muted" data-i18n="pf_sonar_name_hint">Name for upload and dashboard (no spaces)</small>
     </div>
     <div class="col-md-6">
-        <label class="sq-form-label" for="SONAR_PROJECT_KEY">SonarQube Project Key *</label>
+        <label class="sq-form-label" for="SONAR_PROJECT_KEY" data-i18n="pf_sonar_key">SonarQube Project Key *</label>
         <input type="text" id="SONAR_PROJECT_KEY" name="sonar_project_key" class="sq-input" required
                value="{{ sonar_project_key }}" placeholder="qd.myproject">
-        <small class="text-muted">Ключ Jenkins / CI (префикс зависит от группы)</small>
+        <small class="text-muted" data-i18n="pf_sonar_key_hint">Jenkins / CI key (prefix depends on group)</small>
     </div>
 </div>
 
 <div class="row g-3 mt-1">
     <div class="col-md-6">
-        <label class="sq-form-label" for="JIRA_PROJECT">Проект в Jira</label>
+        <label class="sq-form-label" for="JIRA_PROJECT" data-i18n="pf_jira_project">Jira project</label>
         {% if all_jira_projects %}
         <select id="JIRA_PROJECT" name="jira_project" class="sq-select">
             <option value="">—</option>
@@ -50,14 +50,14 @@
         {% endif %}
     </div>
     <div class="col-md-3">
-        <label class="sq-form-label" for="CVS_SYSTEM">Git / TFVC *</label>
+        <label class="sq-form-label" for="CVS_SYSTEM" data-i18n="pf_cvs_label">Git / TFVC *</label>
         <select id="CVS_SYSTEM" name="cvs_system" class="sq-select" required>
             <option value="Git" {% if cvs_system == 'Git' %}selected{% endif %}>Git</option>
             <option value="TFVC" {% if cvs_system == 'TFVC' %}selected{% endif %}>TFVC</option>
         </select>
     </div>
     <div class="col-md-3">
-        <label class="sq-form-label" for="CMAKE_MSBUILD">CMake / MSBuild</label>
+        <label class="sq-form-label" for="CMAKE_MSBUILD" data-i18n="pf_cmake_msbuild">CMake / MSBuild</label>
         <select id="CMAKE_MSBUILD" name="cmake_msbuild" class="sq-select">
             <option value="CMake" {% if cmake_msbuild == 'CMake' %}selected{% endif %}>CMake</option>
             <option value="MSBuild" {% if cmake_msbuild == 'MSBuild' %}selected{% endif %}>MSBuild</option>
@@ -66,22 +66,22 @@
 </div>
 
 <div class="sq-form-group mt-2">
-    <label class="sq-form-label" for="TFS_PATH">Ссылка на TFS / Git репозиторий *</label>
+    <label class="sq-form-label" for="TFS_PATH" data-i18n="pf_tfs_path">TFS / Git repository URL *</label>
     <input type="text" id="TFS_PATH" name="tfs_path" class="sq-input" required
-           value="{{ tfs_path }}" placeholder="https://... или $/path">
+           value="{{ tfs_path }}" data-i18n-placeholder="pf_tfs_placeholder" placeholder="https://... or $/path">
 </div>
 
 {% if show_branch_field is not defined or show_branch_field %}
 <div class="row g-3">
     <div class="col-md-6">
-        <label class="sq-form-label" for="ANOTHER_BRANCH">Ветка *</label>
+        <label class="sq-form-label" for="ANOTHER_BRANCH" data-i18n="pf_branch_required">Branch *</label>
         <input type="text" id="ANOTHER_BRANCH" name="another_branch" class="sq-input" required
                value="{{ another_branch }}" placeholder="master">
     </div>
     <div class="col-md-6">
-        <label class="sq-form-label" for="LIFE_TIME">Время жизни проекта</label>
+        <label class="sq-form-label" for="LIFE_TIME" data-i18n="pf_lifetime">Project lifetime</label>
         <input type="month" id="LIFE_TIME" name="life_time" class="sq-input" value="{{ life_time }}">
-        <small class="text-muted">Пусто — без ограничения ({{ current_date }})</small>
+        <small class="text-muted"><span data-i18n="pf_lifetime_hint">Empty — no limit</span> ({{ current_date }})</small>
     </div>
 </div>
 {% else %}
@@ -94,9 +94,9 @@
 </div>
 <div class="row g-3">
     <div class="col-md-6">
-        <label class="sq-form-label" for="LIFE_TIME">Время жизни проекта</label>
+        <label class="sq-form-label" for="LIFE_TIME" data-i18n="pf_lifetime">Project lifetime</label>
         <input type="month" id="LIFE_TIME" name="life_time" class="sq-input" value="{{ life_time }}">
-        <small class="text-muted">Пусто — без ограничения ({{ current_date }})</small>
+        <small class="text-muted"><span data-i18n="pf_lifetime_hint">Empty — no limit</span> ({{ current_date }})</small>
     </div>
 </div>
 {% endif %}
@@ -106,27 +106,27 @@
         <label class="sq-form-label d-flex align-items-center gap-2">
             <input type="checkbox" name="sub_modules" value="true" class="form-check-input"
                    {% if sub_modules %}checked{% endif %}>
-            Sub-модули (Git)
+            <span data-i18n="pf_submodules">Submodules (Git)</span>
         </label>
     </div>
     <div class="col-md-4">
         <label class="sq-form-label d-flex align-items-center gap-2">
             <input type="checkbox" name="disabled" value="true" class="form-check-input"
                    {% if disabled %}checked{% endif %}>
-            Временно отключить проверку
+            <span data-i18n="pf_disable_check">Temporarily disable analysis</span>
         </label>
     </div>
     <div class="col-md-4">
-        <label class="sq-form-label">Jira для новых issues</label>
+        <label class="sq-form-label" data-i18n="pf_jira_issues">Jira for new issues</label>
         <select name="disable_jira" class="sq-select">
-            <option value="false" {% if not disable_jira %}selected{% endif %}>Создавать задачи</option>
-            <option value="true" {% if disable_jira %}selected{% endif %}>Не создавать</option>
+            <option value="false" {% if not disable_jira %}selected{% endif %} data-i18n="pf_jira_create">Create tasks</option>
+            <option value="true" {% if disable_jira %}selected{% endif %} data-i18n="pf_jira_skip">Do not create</option>
         </select>
     </div>
 </div>
 
 <div class="sq-form-group">
-    <label class="sq-form-label" for="SELECT_VCXPROJ">Анализировать компонент (vcxproj)</label>
+    <label class="sq-form-label" for="SELECT_VCXPROJ" data-i18n="pf_vcxproj">Analyze component (vcxproj)</label>
     <input type="text" id="SELECT_VCXPROJ" name="select_vcxproj" class="sq-input"
            value="{{ select_vcxproj }}" placeholder=".\Plugins\...\file.vcxproj">
 </div>
@@ -146,23 +146,23 @@
 
 <div class="row g-3">
     <div class="col-md-6">
-        <label class="sq-form-label" for="PVS_CHECK_CONF_NAME">Конфигурация PVS *</label>
+        <label class="sq-form-label" for="PVS_CHECK_CONF_NAME" data-i18n="pf_pvs_conf">PVS configuration *</label>
         <input type="text" id="PVS_CHECK_CONF_NAME" name="pvs_check_conf_name" class="sq-input" required
                value="{{ pvs_check_conf_name }}" placeholder="Release">
     </div>
     <div class="col-md-6">
-        <label class="sq-form-label" for="PVS_CHECK_ARCH">Архитектура PVS *</label>
+        <label class="sq-form-label" for="PVS_CHECK_ARCH" data-i18n="pf_pvs_arch">PVS architecture *</label>
         <input type="text" id="PVS_CHECK_ARCH" name="pvs_check_arch" class="sq-input" required
                value="{{ pvs_check_arch }}" placeholder="x64">
     </div>
 </div>
 
 <div class="sq-form-group">
-    <label class="sq-form-label" for="cmake_win_commands">Команды CMake/сборки (Windows)</label>
+    <label class="sq-form-label" for="cmake_win_commands" data-i18n="pf_cmake_win">CMake/build commands (Windows)</label>
     <textarea id="cmake_win_commands" name="cmake_win_commands" class="sq-input" rows="6">{{ cmake_win_commands }}</textarea>
 </div>
 
 <div class="sq-form-group">
-    <label class="sq-form-label" for="cmake_linux_commands">Команды CMake/сборки (Linux)</label>
+    <label class="sq-form-label" for="cmake_linux_commands" data-i18n="pf_cmake_linux">CMake/build commands (Linux)</label>
     <textarea id="cmake_linux_commands" name="cmake_linux_commands" class="sq-input" rows="6">{{ cmake_linux_commands }}</textarea>
 </div>

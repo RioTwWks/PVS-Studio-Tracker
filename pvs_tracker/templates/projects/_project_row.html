@@ -7,12 +7,12 @@
             <h5 class="mb-1">
                 <a href="{{ project_ui_path(project, 'dashboard') }}">{{ project.name }}</a>
                 {% if project.disabled %}
-                <span class="badge bg-secondary">выкл</span>
+                <span class="badge bg-secondary" data-i18n="ci_badge_disabled">off</span>
                 {% endif %}
                 {% if project.disable_jira %}
-                <span class="badge bg-warning text-dark">jira off</span>
+                <span class="badge bg-warning text-dark" data-i18n="ci_badge_jira_off">jira off</span>
                 {% else %}
-                <span class="badge bg-info">jira on</span>
+                <span class="badge bg-info" data-i18n="ci_badge_jira_on">jira on</span>
                 {% endif %}
                 {% if project.last_jenkins_build_url %}
                 <a href="{{ project.last_jenkins_build_url }}" target="_blank" rel="noopener noreferrer"
@@ -34,30 +34,30 @@
                     hx-post="{{ project_ui_path(project, 'toggle-disabled') }}"
                     hx-target="#project-row-{{ project.id }}"
                     hx-swap="outerHTML">
-                {% if project.disabled %}▶️ Включить{% else %}⏸️ Выключить{% endif %}
+                {% if project.disabled %}<span data-i18n="ci_enable">Enable</span>{% else %}<span data-i18n="ci_disable">Disable</span>{% endif %}
             </button>
             {% if is_admin %}
             <button type="button" class="sq-btn sq-btn-primary sq-btn-sm"
                     hx-post="{{ project_ui_path(project, 'trigger-analysis') }}"
                     hx-target="#project-row-{{ project.id }}"
                     hx-swap="outerHTML">
-                🚀 Анализ
+                <span data-i18n="ci_run_short">Analysis</span>
             </button>
             {% endif %}
             <button type="button" class="sq-btn sq-btn-outline sq-btn-sm"
                     hx-post="{{ project_ui_path(project, 'toggle-jira') }}"
                     hx-target="#project-row-{{ project.id }}"
                     hx-swap="outerHTML">
-                {% if project.disable_jira %}Jira ▶{% else %}Jira ⏸{% endif %}
+                {% if project.disable_jira %}<span data-i18n="ci_jira_enable">Jira: on</span>{% else %}<span data-i18n="ci_jira_pause">Jira: pause</span>{% endif %}
             </button>
-            <a href="{{ project_ui_path(project, 'edit') }}" class="sq-btn sq-btn-outline sq-btn-sm">✏️</a>
+            <a href="{{ project_ui_path(project, 'edit') }}" class="sq-btn sq-btn-outline sq-btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
             <form action="{{ project_ui_path(project, 'clone') }}" method="post" class="d-inline">
-                <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm">📋</button>
+                <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm" title="Clone" aria-label="Clone"><i class="bi bi-copy"></i></button>
             </form>
             {% if is_admin %}
             <form action="{{ project_ui_path(project, 'ci-delete') }}" method="post" class="d-inline"
-                  onsubmit="return confirm('Удалить проект?');">
-                <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm text-danger">🗑️</button>
+                  onsubmit="return confirm(typeof tr !== 'undefined' ? tr('ci_delete_short_confirm', 'Delete project?') : 'Delete project?');">
+                <button type="submit" class="sq-btn sq-btn-outline sq-btn-sm text-danger" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
             </form>
             {% endif %}
         </div>
@@ -67,7 +67,7 @@
         <span>Jira: {{ project.jira_project or '—' }}</span> ·
         <span>PVS: {{ project.pvs_check_conf_name or '—' }} / {{ project.pvs_check_arch or '—' }}</span>
         {% if project.last_analysis_at %}
-        · <span>Последний запуск: {{ project.last_analysis_at }}</span>
+        · <span><span data-i18n="ci_last_run_at">Last run</span>: {{ project.last_analysis_at }}</span>
         {% endif %}
     </div>
 </div>

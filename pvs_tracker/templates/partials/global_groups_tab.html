@@ -1,21 +1,20 @@
-{# partials/global_groups_tab.html - содержимое вкладки "Группы" #}
+{# partials/global_groups_tab.html — управление группами проектов #}
 <div id="groups-manager">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0"><i class="bi bi-tags"></i> Управление группами проектов</h5>
+    <div class="d-flex justify-content-end mb-3">
         <button class="sq-btn sq-btn-primary" data-bs-toggle="modal" data-bs-target="#addGroupModal">
-            <i class="bi bi-plus"></i> Добавить группу
+            <i class="bi bi-plus"></i> <span data-i18n="groups_add_btn">Add group</span>
         </button>
     </div>
     <div class="alert alert-info small">
-        <i class="bi bi-info-circle"></i> Группы определяют порядок и состав категорий на главной странице.
+        <i class="bi bi-info-circle"></i> <span data-i18n="groups_info">Groups define category order and contents on the home page.</span>
     </div>
     <div id="groups-list">
-        {% for g in groups %}
+        {% for g in groups|default([]) %}
         <div class="group-item d-flex justify-content-between align-items-center py-2 border-bottom"
              data-group-id="{{ g.id }}">
             <div>
                 <strong>{{ g.name }}</strong>
-                <span class="text-muted ms-2">(порядок: {{ g.display_order }})</span>
+                <span class="text-muted ms-2">({{ g.display_order }})</span>
             </div>
             <div>
                 <button class="sq-btn sq-btn-sm sq-btn-outline-secondary edit-group"
@@ -29,130 +28,68 @@
             </div>
         </div>
         {% else %}
-        <div class="text-muted text-center py-3">Нет групп. Создайте первую.</div>
+        <div class="text-muted text-center py-3" data-i18n="groups_empty">No groups yet. Create the first one.</div>
         {% endfor %}
     </div>
+</div>
 
-    <!-- Modal добавить группу -->
-    <div class="modal fade" id="addGroupModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Новая группа</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div class="modal fade" id="addGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" data-i18n="groups_new_modal_title">New group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="groups_name_label">Group name</label>
+                    <input type="text" id="newGroupName" class="form-control" data-i18n-placeholder="groups_name_placeholder" placeholder="e.g. Android">
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Название группы</label>
-                        <input type="text" id="newGroupName" class="form-control" placeholder="Например: Android">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Порядок отображения (меньше = выше)</label>
-                        <input type="number" id="newGroupOrder" class="form-control" value="100">
-                    </div>
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="groups_order_label">Display order (lower = higher)</label>
+                    <input type="number" id="newGroupOrder" class="form-control" value="100">
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="button" class="btn btn-primary" id="saveNewGroup">Сохранить</button>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveNewGroup" data-i18n="save">Save</button>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Modal редактировать группу -->
-    <div class="modal fade" id="editGroupModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Редактировать группу</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" data-i18n="groups_edit_modal_title">Edit group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editGroupId">
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="groups_name_label">Group name</label>
+                    <input type="text" id="editGroupName" class="form-control">
                 </div>
-                <div class="modal-body">
-                    <input type="hidden" id="editGroupId">
-                    <div class="mb-3">
-                        <label class="form-label">Название группы</label>
-                        <input type="text" id="editGroupName" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Порядок отображения</label>
-                        <input type="number" id="editGroupOrder" class="form-control">
-                    </div>
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="groups_order_label_short">Display order</label>
+                    <input type="number" id="editGroupOrder" class="form-control">
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="button" class="btn btn-primary" id="updateGroup">Обновить</button>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="updateGroup" data-i18n="groups_update_btn">Update</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // Функция обновления списка групп (через API)
-    async function refreshGroupsList() {
-        const resp = await fetch('/api/v2/admin/groups');
-        if (!resp.ok) return;
-        const groups = await resp.json();
-        const container = document.getElementById('groups-list');
-        if (!container) return;
-        if (groups.length === 0) {
-            container.innerHTML = '<div class="text-muted text-center py-3">Нет групп. Создайте первую.</div>';
-            return;
-        }
-        let html = '';
-        for (let g of groups) {
-            html += `
-            <div class="group-item d-flex justify-content-between align-items-center py-2 border-bottom" data-group-id="${g.id}">
-                <div><strong>${escapeHtml(g.name)}</strong> <span class="text-muted ms-2">(порядок: ${g.display_order})</span></div>
-                <div>
-                    <button class="sq-btn sq-btn-sm sq-btn-outline-secondary edit-group" data-id="${g.id}" data-name="${escapeHtml(g.name)}" data-order="${g.display_order}"><i class="bi bi-pencil"></i></button>
-                    <button class="sq-btn sq-btn-sm sq-btn-outline-danger delete-group" data-id="${g.id}" data-name="${escapeHtml(g.name)}"><i class="bi bi-trash"></i></button>
-                </div>
-            </div>`;
-        }
-        container.innerHTML = html;
-        attachItemEvents();
-    }
+(function () {
+    let groupsInitialized = false;
 
-    function attachItemEvents() {
-        document.querySelectorAll('.edit-group').forEach(btn => {
-            btn.removeEventListener('click', editClickHandler);
-            btn.addEventListener('click', editClickHandler);
-        });
-        document.querySelectorAll('.delete-group').forEach(btn => {
-            btn.removeEventListener('click', deleteClickHandler);
-            btn.addEventListener('click', deleteClickHandler);
-        });
-    }
-
-    function editClickHandler(e) {
-        const btn = e.currentTarget;
-        const id = btn.dataset.id;
-        const name = btn.dataset.name;
-        const order = btn.dataset.order;
-        document.getElementById('editGroupId').value = id;
-        document.getElementById('editGroupName').value = name;
-        document.getElementById('editGroupOrder').value = order;
-        const editModal = new bootstrap.Modal(document.getElementById('editGroupModal'));
-        editModal.show();
-    }
-
-    async function deleteClickHandler(e) {
-        const btn = e.currentTarget;
-        const id = btn.dataset.id;
-        const name = btn.dataset.name;
-        if (!confirm(`Удалить группу "${name}"?\nВсе проекты, привязанные к ней, останутся, но группа станет "Ungrouped".`)) return;
-        const resp = await fetch(`/api/v2/admin/groups/${id}`, { method: 'DELETE' });
-        if (resp.ok) {
-            await refreshGroupsList();
-        } else {
-            const err = await resp.json();
-            alert('Ошибка: ' + (err.detail || 'Unknown'));
-        }
-    }
-
-    function escapeHtml(str) {
-        return str.replace(/[&<>]/g, function(m) {
+    function groupsEscapeHtml(str) {
+        return String(str).replace(/[&<>]/g, (m) => {
             if (m === '&') return '&amp;';
             if (m === '<') return '&lt;';
             if (m === '>') return '&gt;';
@@ -160,44 +97,123 @@
         });
     }
 
-    document.getElementById('saveNewGroup')?.addEventListener('click', async () => {
-        const name = document.getElementById('newGroupName').value.trim();
-        const order = parseInt(document.getElementById('newGroupOrder').value, 10);
-        if (!name) return alert('Введите название');
-        const resp = await fetch('/api/v2/admin/groups', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, display_order: isNaN(order) ? 0 : order })
-        });
+    function groupsOrderLabel(order) {
+        const tpl = tr('groups_order_value', 'order: {n}');
+        return '(' + tpl.replace('{n}', String(order)) + ')';
+    }
+
+    function groupsErrorMessage(err) {
+        return tr('error', 'Error') + ': ' + (err?.detail || tr('error_unknown', 'Unknown error'));
+    }
+
+    async function refreshGroupsList() {
+        const resp = await fetch('/api/v2/admin/groups');
+        if (!resp.ok) return;
+        const groups = await resp.json();
+        const container = document.getElementById('groups-list');
+        if (!container) return;
+        if (groups.length === 0) {
+            container.innerHTML = '<div class="text-muted text-center py-3">' + groupsEscapeHtml(tr('groups_empty', 'No groups yet.')) + '</div>';
+            if (typeof I18n !== 'undefined') I18n.applyLanguage(I18n.getPreferredLang());
+            return;
+        }
+        let html = '';
+        for (const g of groups) {
+            html += `
+            <div class="group-item d-flex justify-content-between align-items-center py-2 border-bottom" data-group-id="${g.id}">
+                <div><strong>${groupsEscapeHtml(g.name)}</strong> <span class="text-muted ms-2">${groupsOrderLabel(g.display_order)}</span></div>
+                <div>
+                    <button class="sq-btn sq-btn-sm sq-btn-outline-secondary edit-group" data-id="${g.id}" data-name="${groupsEscapeHtml(g.name)}" data-order="${g.display_order}"><i class="bi bi-pencil"></i></button>
+                    <button class="sq-btn sq-btn-sm sq-btn-outline-danger delete-group" data-id="${g.id}" data-name="${groupsEscapeHtml(g.name)}"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>`;
+        }
+        container.innerHTML = html;
+        attachGroupsItemEvents();
+    }
+
+    function editGroupsClickHandler(e) {
+        const btn = e.currentTarget;
+        document.getElementById('editGroupId').value = btn.dataset.id;
+        document.getElementById('editGroupName').value = btn.dataset.name;
+        document.getElementById('editGroupOrder').value = btn.dataset.order;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editGroupModal')).show();
+    }
+
+    async function deleteGroupsClickHandler(e) {
+        const btn = e.currentTarget;
+        const id = btn.dataset.id;
+        const name = btn.dataset.name;
+        const msg = tr('groups_delete_confirm', 'Delete group?').replace('{name}', name);
+        if (!confirm(msg)) return;
+        const resp = await fetch(`/api/v2/admin/groups/${id}`, { method: 'DELETE' });
         if (resp.ok) {
-            document.getElementById('newGroupName').value = '';
-            document.getElementById('newGroupOrder').value = '100';
-            bootstrap.Modal.getInstance(document.getElementById('addGroupModal')).hide();
             await refreshGroupsList();
         } else {
             const err = await resp.json();
-            alert('Ошибка: ' + (err.detail || 'Unknown'));
+            alert(groupsErrorMessage(err));
         }
-    });
+    }
 
-    document.getElementById('updateGroup')?.addEventListener('click', async () => {
-        const id = document.getElementById('editGroupId').value;
-        const name = document.getElementById('editGroupName').value.trim();
-        const order = parseInt(document.getElementById('editGroupOrder').value, 10);
-        if (!name) return alert('Введите название');
-        const resp = await fetch(`/api/v2/admin/groups/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, display_order: isNaN(order) ? 0 : order })
+    function attachGroupsItemEvents() {
+        document.querySelectorAll('.edit-group').forEach((btn) => {
+            btn.removeEventListener('click', editGroupsClickHandler);
+            btn.addEventListener('click', editGroupsClickHandler);
         });
-        if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
-            await refreshGroupsList();
-        } else {
-            const err = await resp.json();
-            alert('Ошибка: ' + (err.detail || 'Unknown'));
-        }
-    });
+        document.querySelectorAll('.delete-group').forEach((btn) => {
+            btn.removeEventListener('click', deleteGroupsClickHandler);
+            btn.addEventListener('click', deleteGroupsClickHandler);
+        });
+    }
 
-    attachItemEvents();
+    function bindGroupsFormHandlers() {
+        document.getElementById('saveNewGroup')?.addEventListener('click', async () => {
+            const name = document.getElementById('newGroupName').value.trim();
+            const order = parseInt(document.getElementById('newGroupOrder').value, 10);
+            if (!name) return alert(tr('groups_name_required', 'Enter a name'));
+            const resp = await fetch('/api/v2/admin/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, display_order: isNaN(order) ? 0 : order }),
+            });
+            if (resp.ok) {
+                document.getElementById('newGroupName').value = '';
+                document.getElementById('newGroupOrder').value = '100';
+                bootstrap.Modal.getInstance(document.getElementById('addGroupModal')).hide();
+                await refreshGroupsList();
+            } else {
+                const err = await resp.json();
+                alert(groupsErrorMessage(err));
+            }
+        });
+
+        document.getElementById('updateGroup')?.addEventListener('click', async () => {
+            const id = document.getElementById('editGroupId').value;
+            const name = document.getElementById('editGroupName').value.trim();
+            const order = parseInt(document.getElementById('editGroupOrder').value, 10);
+            if (!name) return alert(tr('groups_name_required', 'Enter a name'));
+            const resp = await fetch(`/api/v2/admin/groups/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, display_order: isNaN(order) ? 0 : order }),
+            });
+            if (resp.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
+                await refreshGroupsList();
+            } else {
+                const err = await resp.json();
+                alert(groupsErrorMessage(err));
+            }
+        });
+    }
+
+    window.initGroupsManagement = function initGroupsManagement() {
+        if (groupsInitialized) return;
+        groupsInitialized = true;
+        if (!document.getElementById('groups-manager')) return;
+        bindGroupsFormHandlers();
+        attachGroupsItemEvents();
+        refreshGroupsList();
+    };
+})();
 </script>

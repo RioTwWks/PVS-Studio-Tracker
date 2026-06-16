@@ -1,76 +1,76 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_mode %}Редактировать{% else %}Новый{% endif %} проект CI{% endblock %}
+{% block title %}PVS-Tracker{% endblock %}
 {% block content %}
 <div class="sq-card">
     <div class="sq-card-header">
-        {% if edit_mode %}Редактирование: {{ project.name }}{% else %}Новый CI-проект{% endif %}
+        {% if edit_mode %}<span data-i18n="ci_form_edit_title">Editing</span>: {{ project.name }}{% else %}<span data-i18n="ci_form_new_title">New CI project</span>{% endif %}
     </div>
     <div class="sq-card-body">
         <form action="/ui/projects/ci" method="post">
             {% if edit_mode %}<input type="hidden" name="edit_id" value="{{ project.id }}">{% endif %}
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="sq-form-label">Имя проекта (upload name)</label>
+                    <label class="sq-form-label" data-i18n="ci_form_name_label">Project name (upload name)</label>
                     <input class="sq-input" name="name" required
                            value="{{ project.name if project else '' }}">
                 </div>
                 <div class="col-md-6">
-                    <label class="sq-form-label">Slug (Jenkins key)</label>
+                    <label class="sq-form-label" data-i18n="ci_form_slug_label">Slug (Jenkins key)</label>
                     <input class="sq-input" name="slug"
                            value="{{ project.slug if project else '' }}"
-                           placeholder="auto from name">
+                           data-i18n-placeholder="ci_form_slug_placeholder" placeholder="auto from name">
                 </div>
                 <div class="col-md-6">
-                    <label class="sq-form-label">Author email</label>
+                    <label class="sq-form-label" data-i18n="pf_author_email">Your email *</label>
                     <input class="sq-input" type="email" name="author_email" required
                            value="{{ project.author_email if project else '' }}">
                 </div>
                 <div class="col-md-6">
-                    <label class="sq-form-label">Группа</label>
+                    <label class="sq-form-label" data-i18n="ci_form_group_label">Group</label>
                     <input class="sq-input" name="group_name"
                            value="{{ project.group_name if project else 'Ungrouped' }}">
                 </div>
                 <div class="col-md-4">
-                    <label class="sq-form-label">CVS</label>
+                    <label class="sq-form-label" data-i18n="ci_cvs_label">VCS</label>
                     <select class="sq-select" name="cvs_system" required>
                         <option value="Git" {% if project and project.cvs_system == 'Git' %}selected{% endif %}>Git</option>
                         <option value="TFVC" {% if project and project.cvs_system == 'TFVC' %}selected{% endif %}>TFVC</option>
                     </select>
                 </div>
                 <div class="col-md-8">
-                    <label class="sq-form-label">Repo path / Git URL</label>
+                    <label class="sq-form-label" data-i18n="ci_form_repo_path">Repo path / Git URL</label>
                     <input class="sq-input" name="repo_path" required
                            value="{{ project.repo_path if project else '' }}">
                 </div>
                 <div class="col-md-6">
-                    <label class="sq-form-label">Ветка анализа</label>
+                    <label class="sq-form-label" data-i18n="ci_form_analysis_branch">Analysis branch</label>
                     <input class="sq-input" name="analysis_branch"
                            value="{{ project.analysis_branch if project else '' }}">
                 </div>
                 <div class="col-md-6">
-                    <label class="sq-form-label">Jira project key</label>
+                    <label class="sq-form-label" data-i18n="ci_form_jira_key">Jira project key</label>
                     <input class="sq-input" name="jira_project"
                            value="{{ project.jira_project if project else '' }}">
                 </div>
                 <div class="col-md-4">
-                    <label class="sq-form-label">PVS config</label>
+                    <label class="sq-form-label" data-i18n="ci_form_pvs_config">PVS config</label>
                     <input class="sq-input" name="pvs_check_conf_name" required
                            value="{{ project.pvs_check_conf_name if project else '' }}">
                 </div>
                 <div class="col-md-4">
-                    <label class="sq-form-label">PVS arch</label>
+                    <label class="sq-form-label" data-i18n="ci_form_pvs_arch">PVS arch</label>
                     <input class="sq-input" name="pvs_check_arch" required
                            value="{{ project.pvs_check_arch if project else '' }}">
                 </div>
                 <div class="col-md-4">
-                    <label class="sq-form-label">Language</label>
+                    <label class="sq-form-label" data-i18n="language_label">Language</label>
                     <input class="sq-input" name="language"
                            value="{{ project.language if project else 'c++' }}">
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">
-                <button type="submit" class="sq-btn sq-btn-primary">Сохранить</button>
-                <a href="/ui/projects/manage" class="sq-btn sq-btn-outline">Отмена</a>
+                <button type="submit" class="sq-btn sq-btn-primary" data-i18n="save">Save</button>
+                <a href="/ui/projects/manage" class="sq-btn sq-btn-outline" data-i18n="cancel">Cancel</a>
             </div>
         </form>
     </div>

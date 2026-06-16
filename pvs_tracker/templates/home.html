@@ -6,7 +6,7 @@
     <h1 class="sq-page-title">
         <i class="bi bi-shield-check text-primary"></i> <span data-i18n="app_title">PVS-Studio Tracker</span>
     </h1>
-    <p class="sq-page-subtitle mb-0" data-i18n="app_subtitle">Инкрементальный трекер PVS-Studio и управление CI-анализом</p>
+    <p class="sq-page-subtitle mb-0" data-i18n="app_subtitle">Incremental static analysis warnings tracker</p>
 </div>
 
 {% if error %}
@@ -49,11 +49,11 @@
 <div class="sq-card">
     <div class="sq-card-body sq-empty-state text-center py-5">
         <i class="bi bi-folder2" style="font-size: 3rem; opacity: 0.3;"></i>
-        <p class="mt-3 mb-3">Проектов пока нет. Добавьте первый проект анализа.</p>
+        <p class="mt-3 mb-3" data-i18n="no_projects_home">No projects yet. Add your first analysis project.</p>
         {% if current_user %}
-        <a href="/ui/projects/new" class="sq-btn sq-btn-primary"><i class="bi bi-folder-plus"></i> Добавить проект</a>
+        <a href="/ui/projects/new" class="sq-btn sq-btn-primary"><i class="bi bi-folder-plus"></i> <span data-i18n="add_project">Add project</span></a>
         {% else %}
-        <a href="/login" class="sq-btn sq-btn-primary">Войти</a>
+        <a href="/login" class="sq-btn sq-btn-primary"><span data-i18n="login">Login</span></a>
         {% endif %}
     </div>
 </div>
