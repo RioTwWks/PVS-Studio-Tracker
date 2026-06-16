@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from pvs_tracker.admin_utils import is_admin
 from pvs_tracker.auth_service import get_current_user
+from pvs_tracker.ci_activity_log import fetch_ci_activity_logs, log_ci_action
 from pvs_tracker.db import get_session
 from pvs_tracker.jenkins_service import trigger_jenkins_build
 from pvs_tracker.models import Project, User
@@ -81,6 +82,7 @@ def _ci_panel_response(
     ctx["ci_toast_type"] = ci_toast_type
     ctx["ci_toast_url"] = ci_toast_url
     ctx["ci_toast_link_text"] = ci_toast_link_text
+    ctx["ci_activity_logs"] = fetch_ci_activity_logs(session, project.id)
     headers: dict[str, str] = {}
     if ci_toast_key or ci_toast_url:
         payload: dict[str, str] = {"type": ci_toast_type}
@@ -312,6 +314,8 @@ def toggle_disabled(
     project = require_project_by_key(session, project_key)
     project.disabled = not project.disabled
     session.add(project)
+    action = "ci_disable" if project.disabled else "ci_enable"
+    log_ci_action(session, request, project, action)
     session.commit()
     session.refresh(project)
     toast_key = "ci_toast_enabled" if not project.disabled else "ci_toast_disabled"
@@ -325,6 +329,8 @@ def toggle_jira(
     project = require_project_by_key(session, project_key)
     project.disable_jira = not project.disable_jira
     session.add(project)
+    action = "ci_jira_pause" if project.disable_jira else "ci_jira_on"
+    log_ci_action(session, request, project, action)
     session.commit()
     session.refresh(project)
     toast_key = "ci_toast_jira_on" if not project.disable_jira else "ci_toast_jira_paused"
@@ -363,6 +369,17 @@ def trigger_analysis(
     if not trigger:
         raise HTTPException(status_code=500, detail="Jenkins trigger failed")
     set_analysis_queued(session, project, trigger)
+    log_ci_action(
+        session,
+        request,
+        project,
+        "ci_trigger_analysis",
+        (
+            f"branch={active_branch}, commit={commit_id}, first_scan={first_scan}, "
+            f"build={trigger.display_label}"
+        ),
+    )
+    session.commit()
     session.refresh(project)
     link_label = trigger.display_label
     return _ci_panel_response(

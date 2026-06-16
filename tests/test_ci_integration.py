@@ -97,6 +97,61 @@ def test_toggle_disabled_htmx(client: TestClient, session: Session):
     assert updated is not None
     assert updated.disabled is True
 
+    from pvs_tracker.models import ActivityLog
+
+    logs = session.exec(
+        select(ActivityLog).where(
+            ActivityLog.project_id == project.id,
+            ActivityLog.action == "ci_disable",
+        )
+    ).all()
+    assert len(logs) == 1
+    assert logs[0].entity_type == "project"
+    assert "ci_activity_log_title" in r.text or "История действий" in r.text
+
+
+def test_ci_action_log_records_authenticated_user(client: TestClient, session: Session):
+    from pvs_tracker.models import ActivityLog, User, UserRole
+
+    user = User(
+        username="ci_tester",
+        display_name="CI Tester",
+        role=UserRole.ADMIN,
+        auth_provider="local",
+        is_active=True,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    project = create_ci_project(
+        session,
+        {
+            "name": "AuditProj",
+            "author_email": "a@b.com",
+            "cvs_system": "Git",
+            "repo_path": "https://x.git",
+            "pvs_check_conf_name": "R",
+            "pvs_check_arch": "x64",
+        },
+    )
+
+    with patch("pvs_tracker.ci_activity_log.get_current_user", return_value=user):
+        r = client.post(
+            f"/ui/projects/{project.slug}/toggle-jira",
+            headers={"HX-Request": "true"},
+        )
+    assert r.status_code == 200
+
+    log = session.exec(
+        select(ActivityLog).where(
+            ActivityLog.project_id == project.id,
+            ActivityLog.action == "ci_jira_on",
+        )
+    ).first()
+    assert log is not None
+    assert log.user_id == user.id
+
 
 def test_dashboard_syncs_selected_branch(client: TestClient, session: Session):
     project = create_ci_project(

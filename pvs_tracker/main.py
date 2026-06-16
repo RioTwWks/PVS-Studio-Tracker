@@ -707,6 +707,10 @@ async def ui_dashboard(
     form_ctx["show_branch_field"] = False
     form_ctx["active_branch"] = active_branch
 
+    from pvs_tracker.ci_activity_log import fetch_ci_activity_logs
+
+    form_ctx["ci_activity_logs"] = fetch_ci_activity_logs(session, project_id)
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",

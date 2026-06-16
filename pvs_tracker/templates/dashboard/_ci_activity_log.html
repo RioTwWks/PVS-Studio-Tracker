@@ -1,0 +1,40 @@
+{% if ci_activity_logs %}
+<div class="sq-ci-activity-log mt-3 pt-3 border-top">
+    <div class="sq-form-label mb-2">
+        <i class="bi bi-clock-history"></i>
+        <span data-i18n="ci_activity_log_title">Action history</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th data-i18n="ci_activity_col_time">Time</th>
+                    <th data-i18n="ci_activity_col_user">User</th>
+                    <th data-i18n="ci_activity_col_action">Action</th>
+                    <th data-i18n="ci_activity_col_details">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in ci_activity_logs %}
+                <tr>
+                    <td class="text-nowrap text-muted small">
+                        {{ entry.timestamp.strftime('%Y-%m-%d %H:%M') if entry.timestamp else '—' }}
+                    </td>
+                    <td class="small">
+                        {% if entry.actor %}
+                        {{ entry.actor }}
+                        {% else %}
+                        <span class="text-muted" data-i18n="ci_activity_anonymous">Anonymous</span>
+                        {% endif %}
+                    </td>
+                    <td class="small">
+                        <span data-i18n="ci_action_{{ entry.action }}">{{ entry.action }}</span>
+                    </td>
+                    <td class="small text-muted">{{ entry.details or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
