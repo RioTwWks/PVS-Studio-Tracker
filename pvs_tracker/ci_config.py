@@ -22,6 +22,9 @@ class CISettings(BaseSettings):
 
     TFS_BASE_URL: str = "http://qtfs:8080/tfs/QUIK"
 
+    SONARQUBE_URL: str = "http://qube"
+    SONARQUBE_TOKEN: str = ""
+
     ADMIN_IPS: str = "127.0.0.1"
     ADMIN_HOSTNAMES: str = "localhost"
 

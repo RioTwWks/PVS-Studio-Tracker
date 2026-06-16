@@ -1302,6 +1302,17 @@ async def get_auth_settings_api(_admin: User = Depends(require_admin)):
     return get_auth_settings_public()
 
 
+@router.get("/settings/integrations/status")
+async def get_integrations_status_api(
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Статусы подключения к Jira, TFS, SonarQube и состояние сервиса (admin only)."""
+    from pvs_tracker.integration_health import collect_integration_health
+
+    return collect_integration_health(session)
+
+
 @router.get("/settings/global")
 async def get_global_settings_api(
     user: User = Depends(require_admin),
