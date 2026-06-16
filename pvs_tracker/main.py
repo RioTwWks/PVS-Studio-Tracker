@@ -466,9 +466,11 @@ app.include_router(code_viewer_router)
 # Register API v2 router (SonarQube-like features)
 app.include_router(api_v2_router)
 
+from pvs_tracker.health import router as health_router
 from pvs_tracker.inbound_webhooks import router as inbound_webhooks_router
 from pvs_tracker.project_manage import router as project_manage_router
 
+app.include_router(health_router)
 app.include_router(inbound_webhooks_router)
 app.include_router(project_manage_router)
 

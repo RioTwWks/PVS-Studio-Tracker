@@ -9,6 +9,7 @@
 |----------|-----------|------------|
 | [quick-reference.md](quick-reference.md) | Разработчики, DevOps | Команды curl/PowerShell, API v1/v2, типовые сценарии |
 | [jenkins-ci.md](jenkins-ci.md) | CI/CD | Jenkins, TFS webhook, upload, `.meta.json`, Jira assignee |
+| [zero-downtime-deployment.md](zero-downtime-deployment.md) | DevOps | Nginx / Docker Compose / K8S — обновление без потери веб-хуков |
 | [inline-code-viewer.md](inline-code-viewer.md) | Разработчики UI | Git / archive / filesystem, inline Code на Issues |
 
 ## Справочники по функциям

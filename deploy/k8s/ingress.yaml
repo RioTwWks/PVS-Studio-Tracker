@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pvs-tracker
+  namespace: pvs-tracker
+  annotations:
+    # Увеличенные таймауты для веб-хуков и upload (значения зависят от ingress-controller)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: pvs-tracker.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pvs-tracker
+                port:
+                  number: 80

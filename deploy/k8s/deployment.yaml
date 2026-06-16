@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvs-tracker
+  namespace: pvs-tracker
+  labels:
+    app: pvs-tracker
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Не снимать backend с балансировки, пока новый pod не ready
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: pvs-tracker
+  template:
+    metadata:
+      labels:
+        app: pvs-tracker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: pvs-tracker
+          image: pvs-tracker:0.2.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: pvs-tracker-secrets
+          # uvicorn (не gunicorn): один worker на pod, масштабирование через replicas
+          command:
+            - uvicorn
+            - pvs_tracker.main:app
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8080"
+            - --timeout-graceful-shutdown
+            - "30"
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                # Дать Service/Ingress время убрать pod из endpoints до SIGTERM
+                command: ["sh", "-c", "sleep 15"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi

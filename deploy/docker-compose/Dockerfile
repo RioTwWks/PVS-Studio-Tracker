@@ -1,0 +1,26 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml ./
+COPY pvs_tracker ./pvs_tracker
+COPY static ./static
+
+RUN pip install --no-cache-dir . psycopg2-binary
+
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+
+# gunicorn на Windows недоступен; в контейнере тоже используем uvicorn (1 процесс на контейнер).
+# Масштабирование — через несколько контейнеров за nginx.
+CMD [
+    "uvicorn", "pvs_tracker.main:app",
+    "--host", "0.0.0.0",
+    "--port", "8080",
+    "--timeout-graceful-shutdown", "30"
+]

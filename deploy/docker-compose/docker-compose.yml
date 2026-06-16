@@ -1,0 +1,53 @@
+# Скопируйте в .env рядом с docker-compose.yml (см. .env.example в корне репозитория).
+# Обязательно: DATABASE_URL на PostgreSQL, не SQLite.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pvs
+      POSTGRES_PASSWORD: pvs
+      POSTGRES_DB: pvs_tracker
+    volumes:
+      - pvs_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pvs -d pvs_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app-1: &app
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    stop_grace_period: 45s
+
+  app-2:
+    <<: *app
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app-1:
+        condition: service_healthy
+      app-2:
+        condition: service_healthy
+
+volumes:
+  pvs_pg_data:

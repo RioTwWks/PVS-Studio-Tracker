@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pvs-tracker
+  namespace: pvs-tracker
+  labels:
+    app: pvs-tracker
+spec:
+  type: ClusterIP
+  selector:
+    app: pvs-tracker
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
