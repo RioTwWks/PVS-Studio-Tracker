@@ -32,6 +32,9 @@ spec:
           envFrom:
             - secretRef:
                 name: pvs-tracker-secrets
+          env:
+            - name: REST_QUEUE_MODE
+              value: external
           # uvicorn (не gunicorn): один worker на pod, масштабирование через replicas
           command:
             - uvicorn

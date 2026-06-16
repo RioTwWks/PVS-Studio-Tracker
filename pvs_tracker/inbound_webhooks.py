@@ -13,7 +13,6 @@ from sqlmodel import Session
 
 from pvs_tracker.ci_config import ci_settings
 from pvs_tracker.db import engine
-from pvs_tracker.jenkins_service import trigger_jenkins_build
 from pvs_tracker.models import Project
 from pvs_tracker.project_ci import (
     duplicate_release_project,
@@ -21,7 +20,6 @@ from pvs_tracker.project_ci import (
     get_projects_by_repo_branch,
     project_analysis_branch,
     project_repo_path,
-    update_last_changeset,
 )
 from pvs_tracker.repository_service import (
     check_git_changes,
@@ -77,11 +75,17 @@ def _trigger_and_update(session: Session, project: Project, commit_id: str, firs
     if project.disabled:
         logger.warning("Skipping disabled project %s", project.name)
         return
-    build_id = trigger_jenkins_build(project, commit_id, first_scan, linux, files)
-    from pvs_tracker.project_ci import set_analysis_queued
+    from pvs_tracker.rest_queue.client import enqueue_jenkins_trigger
 
-    set_analysis_queued(session, project, build_id)
-    update_last_changeset(session, project, commit_id)
+    enqueue_jenkins_trigger(
+        project.id,
+        commit_id,
+        first_scan,
+        linux,
+        files,
+        update_changeset=True,
+        changeset=commit_id,
+    )
 
 
 def process_tfvc_event(payload: dict[str, Any], repo_ctx: RepoContext) -> None:

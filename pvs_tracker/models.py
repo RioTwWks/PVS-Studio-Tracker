@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 
 from sqlmodel import Field, SQLModel, create_engine, Relationship
-from sqlalchemy import LargeBinary, Text, UniqueConstraint
+from sqlalchemy import Column, LargeBinary, Text, UniqueConstraint
 
 
 # ---------------------------------------------------------------------------
@@ -390,3 +390,22 @@ class ProjectGroup(SQLModel, table=True):
     name: str = Field(unique=True, index=True, max_length=100)
     display_order: int = Field(default=0, description="Порядок отображения (меньше = выше)")
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RestQueueJob(SQLModel, table=True):
+    """Задача исходящего REST/SMTP вызова (общая очередь в БД)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    service: str = Field(index=True, max_length=32)
+    task: str = Field(index=True, max_length=64)
+    payload_json: str = Field(sa_column=Column(Text))
+    status: str = Field(default="pending", index=True, max_length=16)
+    attempts: int = Field(default=0)
+    max_attempts: int = Field(default=5)
+    error_message: Optional[str] = Field(default=None, sa_column=Column(Text))
+    result_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+    worker_id: Optional[str] = Field(default=None, max_length=64)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    started_at: Optional[datetime] = Field(default=None)
+    finished_at: Optional[datetime] = Field(default=None)
+    available_at: datetime = Field(default_factory=datetime.utcnow, index=True)

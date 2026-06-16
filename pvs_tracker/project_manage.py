@@ -16,7 +16,6 @@ from pvs_tracker.admin_utils import is_admin
 from pvs_tracker.auth_service import get_current_user
 from pvs_tracker.ci_activity_log import fetch_ci_activity_logs, log_ci_action
 from pvs_tracker.db import get_session
-from pvs_tracker.jenkins_service import trigger_jenkins_build
 from pvs_tracker.models import Project, User
 from pvs_tracker.project_ci import (
     create_ci_project,
@@ -365,10 +364,10 @@ def trigger_analysis(
         raise HTTPException(status_code=400, detail="Unsupported CVS")
     if not commit_id:
         raise HTTPException(status_code=500, detail="Could not resolve commit/changeset")
-    trigger = trigger_jenkins_build(project, commit_id, first_scan, True, [])
-    if not trigger:
-        raise HTTPException(status_code=500, detail="Jenkins trigger failed")
-    set_analysis_queued(session, project, trigger)
+    from pvs_tracker.rest_queue.client import enqueue_jenkins_trigger
+
+    job_id = enqueue_jenkins_trigger(project.id, commit_id, first_scan, True, [])
+    set_analysis_queued(session, project, None)
     log_ci_action(
         session,
         request,
@@ -376,18 +375,15 @@ def trigger_analysis(
         "ci_trigger_analysis",
         (
             f"branch={active_branch}, commit={commit_id}, first_scan={first_scan}, "
-            f"build={trigger.display_label}"
+            f"queue_job={job_id}"
         ),
     )
     session.commit()
     session.refresh(project)
-    link_label = trigger.display_label
     return _ci_panel_response(
         request,
         project,
         session,
         active_branch=active_branch,
         ci_toast_key="ci_toast_analysis_started",
-        ci_toast_url=trigger.console_url,
-        ci_toast_link_text=link_label,
     )

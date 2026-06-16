@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
 from urllib.parse import quote
 
@@ -26,6 +27,7 @@ from pvs_tracker.models import (
     UserRole,
     GlobalSettings,
     QualityGate,
+    RestQueueJob,
 )
 from pvs_tracker.parser import parse_pvs_report_bytes
 from pvs_tracker.artifact_storage import store_code_snapshot, store_run_report
@@ -56,7 +58,17 @@ import logging as _logging
 _logging.getLogger("spnego").setLevel(_logging.WARNING)
 _logging.getLogger("spnego._gss").setLevel(_logging.WARNING)
 
-app = FastAPI(title="PVS-Studio Tracker")
+
+@asynccontextmanager
+async def _app_lifespan(_app: FastAPI):
+    from pvs_tracker.rest_queue.runtime import start_embedded_workers, stop_embedded_workers
+
+    start_embedded_workers()
+    yield
+    stop_embedded_workers()
+
+
+app = FastAPI(title="PVS-Studio Tracker", lifespan=_app_lifespan)
 _session_https = os.getenv("SESSION_HTTPS_ONLY", "false").lower() in ("1", "true", "yes")
 _session_same_site = os.getenv("SESSION_SAME_SITE", "lax")
 app.add_middleware(
@@ -988,7 +1000,6 @@ async def upload_report_ui(
     """Handle report upload from UI form and redirect to dashboard."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
-    from pvs_tracker.webhooks import trigger_quality_gate_webhook
     from pvs_tracker.incremental import add_issues_to_existing_run
     from pvs_tracker.platforms import normalize_target_platform
 
@@ -1143,13 +1154,15 @@ async def upload_report_ui(
         )
         session.commit()
 
-        import asyncio
-        from pvs_tracker.jira_sync import schedule_jira_sync
-        from pvs_tracker.webhooks import trigger_upload_webhook
+        from pvs_tracker.rest_queue.client import (
+            enqueue_jira_sync,
+            enqueue_webhook_quality_gate,
+            enqueue_webhook_upload,
+        )
 
-        asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
-        schedule_jira_sync(project.id, run.id)
-        asyncio.create_task(trigger_upload_webhook(session, project.id, run.id, len(issues)))
+        enqueue_webhook_quality_gate(project.id, run.id, qg_result)
+        enqueue_jira_sync(project.id, run.id)
+        enqueue_webhook_upload(project.id, run.id, len(issues))
 
         return RedirectResponse(
             url=project_ui_path(project, "dashboard", platform_filter=platform),
@@ -1249,7 +1262,6 @@ async def upload_report_api(
     """API endpoint for report upload (returns JSON)."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
-    from pvs_tracker.webhooks import trigger_quality_gate_webhook
     from pvs_tracker.incremental import add_issues_to_existing_run
     from pvs_tracker.platforms import normalize_target_platform
 
@@ -1374,18 +1386,17 @@ async def upload_report_api(
         )
         session.commit()
 
-        import asyncio
-        from pvs_tracker.notifications import schedule_api_upload_notifications
-
-        asyncio.create_task(trigger_quality_gate_webhook(session, project.id, run.id, qg_result))
-        asyncio.create_task(
-            schedule_api_upload_notifications(project.id, run.id, qg_result)
+        from pvs_tracker.rest_queue.client import (
+            enqueue_jira_sync,
+            enqueue_smtp_api_upload_notify,
+            enqueue_webhook_quality_gate,
+            enqueue_webhook_upload,
         )
-        from pvs_tracker.jira_sync import schedule_jira_sync
-        from pvs_tracker.webhooks import trigger_upload_webhook
 
-        schedule_jira_sync(project.id, run.id)
-        asyncio.create_task(trigger_upload_webhook(session, project.id, run.id, len(issues)))
+        enqueue_webhook_quality_gate(project.id, run.id, qg_result)
+        enqueue_smtp_api_upload_notify(project.id, run.id, qg_result)
+        enqueue_jira_sync(project.id, run.id)
+        enqueue_webhook_upload(project.id, run.id, len(issues))
 
         return {
             "status": "success",

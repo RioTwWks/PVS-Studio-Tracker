@@ -26,7 +26,8 @@
 | **Docker Compose** | [docker-compose/](docker-compose/) | Linux-хост или Docker Desktop, быстрый стенд |
 | **Kubernetes** | [k8s/](k8s/) | Кластер K8S, production с autoscaling |
 
-Подробная инструкция: [docs/zero-downtime-deployment.md](../docs/zero-downtime-deployment.md).
+Подробная инструкция: [docs/zero-downtime-deployment.md](../docs/zero-downtime-deployment.md).  
+Очередь REST API: [docs/rest-queue.md](../docs/rest-queue.md).
 
 ## Быстрый запуск экземпляра (Windows)
 

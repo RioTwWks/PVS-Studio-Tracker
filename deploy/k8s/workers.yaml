@@ -1,0 +1,191 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvs-tracker-worker-jenkins
+  namespace: pvs-tracker
+  labels:
+    app: pvs-tracker-worker
+    service: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pvs-tracker-worker
+      service: jenkins
+  template:
+    metadata:
+      labels:
+        app: pvs-tracker-worker
+        service: jenkins
+    spec:
+      containers:
+        - name: worker
+          image: pvs-tracker:0.2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - -m
+            - pvs_tracker.rest_queue
+            - --service
+            - jenkins
+          envFrom:
+            - secretRef:
+                name: pvs-tracker-secrets
+          env:
+            - name: REST_QUEUE_MODE
+              value: external
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvs-tracker-worker-jira
+  namespace: pvs-tracker
+  labels:
+    app: pvs-tracker-worker
+    service: jira
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pvs-tracker-worker
+      service: jira
+  template:
+    metadata:
+      labels:
+        app: pvs-tracker-worker
+        service: jira
+    spec:
+      containers:
+        - name: worker
+          image: pvs-tracker:0.2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - -m
+            - pvs_tracker.rest_queue
+            - --service
+            - jira
+          envFrom:
+            - secretRef:
+                name: pvs-tracker-secrets
+          env:
+            - name: REST_QUEUE_MODE
+              value: external
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvs-tracker-worker-tfs
+  namespace: pvs-tracker
+  labels:
+    app: pvs-tracker-worker
+    service: tfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pvs-tracker-worker
+      service: tfs
+  template:
+    metadata:
+      labels:
+        app: pvs-tracker-worker
+        service: tfs
+    spec:
+      containers:
+        - name: worker
+          image: pvs-tracker:0.2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - -m
+            - pvs_tracker.rest_queue
+            - --service
+            - tfs
+          envFrom:
+            - secretRef:
+                name: pvs-tracker-secrets
+          env:
+            - name: REST_QUEUE_MODE
+              value: external
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvs-tracker-worker-webhook
+  namespace: pvs-tracker
+  labels:
+    app: pvs-tracker-worker
+    service: webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pvs-tracker-worker
+      service: webhook
+  template:
+    metadata:
+      labels:
+        app: pvs-tracker-worker
+        service: webhook
+    spec:
+      containers:
+        - name: worker
+          image: pvs-tracker:0.2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - -m
+            - pvs_tracker.rest_queue
+            - --service
+            - webhook
+          envFrom:
+            - secretRef:
+                name: pvs-tracker-secrets
+          env:
+            - name: REST_QUEUE_MODE
+              value: external
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvs-tracker-worker-smtp
+  namespace: pvs-tracker
+  labels:
+    app: pvs-tracker-worker
+    service: smtp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pvs-tracker-worker
+      service: smtp
+  template:
+    metadata:
+      labels:
+        app: pvs-tracker-worker
+        service: smtp
+    spec:
+      containers:
+        - name: worker
+          image: pvs-tracker:0.2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - -m
+            - pvs_tracker.rest_queue
+            - --service
+            - smtp
+          envFrom:
+            - secretRef:
+                name: pvs-tracker-secrets
+          env:
+            - name: REST_QUEUE_MODE
+              value: external

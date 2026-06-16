@@ -10,7 +10,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from sqlmodel.pool import StaticPool
 
 from pvs_tracker.main import app
-from pvs_tracker.models import Project
+from pvs_tracker.models import ActivityLog, Project, RestQueueJob, User
 from pvs_tracker.jenkins_service import JenkinsTriggerResult, jenkins_job_console_url
 from pvs_tracker.project_ci import create_ci_project, slug_from_name
 
@@ -38,13 +38,24 @@ def session_fixture():
 
 @pytest.fixture(name="client")
 def client_fixture(session: Session):
+    import os
+
     from pvs_tracker.db import get_session
+    from pvs_tracker.rest_queue.runtime import stop_embedded_workers
+
+    os.environ["REST_QUEUE_MODE"] = "external"
 
     def _override():
         yield session
 
     app.dependency_overrides[get_session] = _override
+    from pvs_tracker import rest_queue
+
+    bind = session.get_bind()
+    rest_queue.store.engine = bind
+    rest_queue.handlers.engine = bind
     with TestClient(app) as c:
+        stop_embedded_workers()
         yield c
     app.dependency_overrides.clear()
 
@@ -174,11 +185,9 @@ def test_dashboard_syncs_selected_branch(client: TestClient, session: Session):
     assert project.analysis_branch == "release/2.0"
 
 
-@patch("pvs_tracker.jenkins_service.get_jenkins_service")
-def test_trigger_analysis_uses_selected_branch(mock_jenkins, client: TestClient, session: Session):
-    mock_svc = MagicMock()
-    mock_svc.trigger_build.return_value = _jenkins_result(99)
-    mock_jenkins.return_value = mock_svc
+@patch("pvs_tracker.rest_queue.handlers.trigger_jenkins_build")
+def test_trigger_analysis_uses_selected_branch(mock_trigger, client: TestClient, session: Session):
+    mock_trigger.return_value = _jenkins_result(99)
 
     project = create_ci_project(
         session,
@@ -205,18 +214,28 @@ def test_trigger_analysis_uses_selected_branch(mock_jenkins, client: TestClient,
     assert r.status_code == 200
     session.refresh(project)
     assert project.git_branch == "feature/login"
-    assert mock_svc.trigger_build.called
-    passed_project = mock_svc.trigger_build.call_args[0][0]
+    job = claim_and_run_jenkins_job()
+    assert job is not None
+    assert mock_trigger.called
+    passed_project = mock_trigger.call_args[0][0]
     from pvs_tracker.project_ci import project_analysis_branch
 
     assert project_analysis_branch(passed_project) == "feature/login"
 
 
-@patch("pvs_tracker.jenkins_service.get_jenkins_service")
-def test_trigger_analysis_htmx(mock_jenkins, client: TestClient, session: Session):
-    mock_svc = MagicMock()
-    mock_svc.trigger_build.return_value = _jenkins_result(42)
-    mock_jenkins.return_value = mock_svc
+def claim_and_run_jenkins_job():
+    from pvs_tracker.rest_queue.handlers import execute_job
+    from pvs_tracker.rest_queue.store import claim_next_job
+
+    job = claim_next_job("jenkins", "test")
+    if job:
+        execute_job(job)
+    return job
+
+
+@patch("pvs_tracker.rest_queue.handlers.trigger_jenkins_build")
+def test_trigger_analysis_htmx(mock_trigger, client: TestClient, session: Session):
+    mock_trigger.return_value = _jenkins_result(42)
 
     project = create_ci_project(
         session,
@@ -239,7 +258,7 @@ def test_trigger_analysis_htmx(mock_jenkins, client: TestClient, session: Sessio
         )
     assert r.status_code == 200
     assert "project-ci-panel" in r.text or "Jenkins" in r.text
-    assert "last_jenkins_build_url" not in r.text or "/console" in r.text or "ci-toast-url" in r.text
+    claim_and_run_jenkins_job()
     session.refresh(project)
     assert project.last_jenkins_build_url is not None
     assert "/42/console" in project.last_jenkins_build_url

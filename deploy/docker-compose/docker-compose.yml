@@ -23,6 +23,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker
+      REST_QUEUE_MODE: external
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,6 +37,39 @@ services:
 
   app-2:
     <<: *app
+
+  worker: &worker
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker
+      REST_QUEUE_MODE: external
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-jenkins:
+    <<: *worker
+    command: ["python", "-m", "pvs_tracker.rest_queue", "--service", "jenkins"]
+
+  worker-jira:
+    <<: *worker
+    command: ["python", "-m", "pvs_tracker.rest_queue", "--service", "jira"]
+
+  worker-tfs:
+    <<: *worker
+    command: ["python", "-m", "pvs_tracker.rest_queue", "--service", "tfs"]
+
+  worker-webhook:
+    <<: *worker
+    command: ["python", "-m", "pvs_tracker.rest_queue", "--service", "webhook"]
+
+  worker-smtp:
+    <<: *worker
+    command: ["python", "-m", "pvs_tracker.rest_queue", "--service", "smtp"]
 
   nginx:
     image: nginx:1.27-alpine

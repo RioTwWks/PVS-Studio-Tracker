@@ -100,21 +100,8 @@ def sync_run_issues_to_jira(session: Session, project_id: int, run_id: int) -> N
     )
 
 
-def schedule_jira_sync(project_id: int, run_id: int) -> None:
-    import asyncio
+def schedule_jira_sync(project_id: int, run_id: int) -> int:
+    """Поставить синхронизацию Jira в очередь REST-воркера."""
+    from pvs_tracker.rest_queue.client import enqueue_jira_sync
 
-    from pvs_tracker.db import engine
-
-    async def _run() -> None:
-        with Session(engine) as session:
-            try:
-                sync_run_issues_to_jira(session, project_id, run_id)
-            except Exception as e:
-                logger.error("Jira sync background error: %s", e, exc_info=True)
-
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(_run())
-    except RuntimeError:
-        with Session(engine) as session:
-            sync_run_issues_to_jira(session, project_id, run_id)
+    return enqueue_jira_sync(project_id, run_id)
