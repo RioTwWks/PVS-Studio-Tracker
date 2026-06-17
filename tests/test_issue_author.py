@@ -1,15 +1,12 @@
 """Issue author attribution from run commit author."""
 
+from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker.db import engine
 from pvs_tracker.incremental import classify_and_store
 from pvs_tracker.issue_author import resolve_issue_author
-from pvs_tracker.main import app
 from pvs_tracker.models import Issue, Project, Run
-from fastapi.testclient import TestClient
-
-client = TestClient(app)
 
 
 def test_resolve_issue_author_new_uses_run() -> None:
@@ -30,7 +27,7 @@ def test_resolve_issue_author_new_uses_run() -> None:
     assert email == "alice@example.com"
 
 
-def test_upload_sets_author_on_new_issues() -> None:
+def test_upload_sets_author_on_new_issues(client: TestClient) -> None:
     client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
 
     with open("reports/smoke_test.json", "rb") as report_file:

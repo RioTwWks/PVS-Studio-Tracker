@@ -274,7 +274,7 @@ def test_create_project_from_ui_with_optional_report(client):
 
 
 def test_admin_can_delete_project_from_ui(client):
-    client.post("/login", data={"username": "admin", "password": "secret"}, follow_redirects=False)
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=False)
 
     r = client.post(
         "/ui/projects",

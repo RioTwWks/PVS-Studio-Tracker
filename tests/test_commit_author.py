@@ -2,18 +2,14 @@
 
 from pathlib import Path
 
+from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker.db import engine
-from pvs_tracker.main import app
 from pvs_tracker.models import Project, Run
-from fastapi.testclient import TestClient
 
 
-client = TestClient(app)
-
-
-def test_upload_stores_commit_author() -> None:
+def test_upload_stores_commit_author(client: TestClient) -> None:
     client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
 
     with open("reports/smoke_test.json", "rb") as report_file:
@@ -80,7 +76,7 @@ def test_resolve_commit_metadata_from_git_repo(tmp_path: Path) -> None:
     assert len(meta["commit"]) == 40
 
 
-def test_upload_applies_commit_metadata_file() -> None:
+def test_upload_applies_commit_metadata_file(client: TestClient) -> None:
     import json
 
     client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
@@ -113,7 +109,7 @@ def test_upload_applies_commit_metadata_file() -> None:
     assert body["commit_author_email"] == "meta@example.com"
 
 
-def test_form_fields_override_metadata_file() -> None:
+def test_form_fields_override_metadata_file(client: TestClient) -> None:
     import json
 
     client.post("/login", data={"username": "alice", "password": "secret"}, follow_redirects=False)
