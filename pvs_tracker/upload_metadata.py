@@ -10,6 +10,7 @@ _METADATA_KEYS = (
     "commit_author_name",
     "commit_author_email",
     "release_version",
+    "report_type",
 )
 
 
@@ -45,6 +46,7 @@ def merge_commit_upload_fields(
     commit_author_name: Optional[str],
     commit_author_email: Optional[str],
     release_version: Optional[str] = None,
+    report_type: Optional[str] = None,
     metadata: Optional[dict[str, str]],
     optional_form: Any,
 ) -> dict[str, Optional[str]]:
@@ -57,6 +59,7 @@ def merge_commit_upload_fields(
         "commit_author_name": optional_form(commit_author_name),
         "commit_author_email": optional_form(commit_author_email),
         "release_version": optional_form(release_version),
+        "report_type": optional_form(report_type),
     }
     if not metadata:
         return form
@@ -66,4 +69,5 @@ def merge_commit_upload_fields(
         "commit_author_name": form["commit_author_name"] or metadata.get("commit_author_name"),
         "commit_author_email": form["commit_author_email"] or metadata.get("commit_author_email"),
         "release_version": form["release_version"] or metadata.get("release_version"),
+        "report_type": form["report_type"] or metadata.get("report_type"),
     }

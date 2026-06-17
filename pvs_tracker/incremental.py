@@ -2,7 +2,7 @@ from sqlmodel import Session, select
 
 from pvs_tracker.issue_author import resolve_issue_author
 from pvs_tracker.models import ErrorClassifier, GlobalSettings, Issue, Project, Run
-from pvs_tracker.platforms import compute_cross_platform_fp
+from pvs_tracker.platforms import ReportType, compute_cross_platform_fp
 from pvs_tracker.security import calculate_technical_debt
 
 
@@ -62,8 +62,15 @@ def classify_and_store(
     project_id: int,
     run_id: int,
     new_issues: list[dict],
+    *,
+    report_type: ReportType = "incremental",
 ) -> None:
-    """Compare fingerprints against the previous successful run and classify."""
+    """Compare fingerprints against the previous successful run and classify.
+
+    When ``report_type`` is ``incremental``, warnings missing from the upload are
+    not marked ``fixed`` (partial PVS incremental analysis). Use ``full`` for a
+    complete snapshot where absent fingerprints imply fixes.
+    """
     run = session.get(Run, run_id)
     if not run:
         raise ValueError(f"Run {run_id} not found")
@@ -141,7 +148,7 @@ def classify_and_store(
             )
         )
 
-    if prev_run:
+    if prev_run and report_type == "full":
         fixed_fps = prev_fps - current_fps
         for fp in fixed_fps:
             prev_issue = session.exec(
@@ -186,8 +193,26 @@ def add_issues_to_existing_run(
     project_id: int,
     run_id: int,
     new_issues: list[dict],
+    *,
+    report_type: ReportType = "incremental",
 ) -> int:
-    """Добавляет проблемы из дополнительного отчёта в существующий Run той же платформы."""
+    """Добавляет проблемы из дополнительного отчёта в существующий Run той же платформы.
+
+    Для ``incremental`` — только новые fingerprint'ы (без пересчёта fixed).
+    Для ``full`` — заменяет issues run'а и выполняет полный diff.
+    """
+    if report_type == "full":
+        existing_issues = session.exec(select(Issue).where(Issue.run_id == run_id)).all()
+        for issue in existing_issues:
+            session.delete(issue)
+        session.flush()
+        classify_and_store(session, project_id, run_id, new_issues, report_type="full")
+        return len(
+            session.exec(
+                select(Issue).where(Issue.run_id == run_id, Issue.status == "new")
+            ).all()
+        )
+
     run = session.get(Run, run_id)
     if not run or run.status != "done":
         raise ValueError("Run must exist and be in 'done' state")

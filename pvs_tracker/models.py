@@ -257,6 +257,10 @@ class Run(SQLModel, table=True):
         index=True,
         description="Analysis target OS: windows, linux, macos",
     )
+    report_type: str = Field(
+        default="incremental",
+        description="PVS report scope: incremental (changed files only) or full snapshot",
+    )
 
     # Relationships
     project: Project = Relationship(back_populates="runs")

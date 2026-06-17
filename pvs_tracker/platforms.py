@@ -12,10 +12,25 @@ from pvs_tracker.models import GlobalSettings, Project
 
 TargetPlatform = Literal["windows", "linux", "macos"]
 PlatformFilter = Literal["windows", "linux", "macos", "all", "common"]
+ReportType = Literal["incremental", "full"]
 
 PLATFORMS: tuple[TargetPlatform, ...] = ("windows", "linux", "macos")
 DEFAULT_PLATFORM: TargetPlatform = "windows"
 DEFAULT_PLATFORM_FILTER: PlatformFilter = "windows"
+DEFAULT_REPORT_TYPE: ReportType = "incremental"
+
+
+def normalize_report_type(value: str | None) -> ReportType:
+    """Validate upload report scope: incremental (partial PVS) or full snapshot."""
+    if not value:
+        return DEFAULT_REPORT_TYPE
+    normalized = value.strip().lower()
+    if normalized not in ("incremental", "full"):
+        raise HTTPException(
+            400,
+            f"Invalid report_type: {value}. Must be one of: incremental, full",
+        )
+    return normalized  # type: ignore[return-value]
 
 
 def normalize_target_platform(value: str | None) -> TargetPlatform:
