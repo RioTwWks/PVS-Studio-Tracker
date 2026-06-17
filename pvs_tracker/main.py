@@ -995,7 +995,7 @@ async def upload_report_ui(
     branch: str = Form(None),
     target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
-    _user: str = Depends(require_auth),
+    _user: User = Depends(require_auth),
 ):
     """Handle report upload from UI form and redirect to dashboard."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
@@ -1078,8 +1078,7 @@ async def upload_report_ui(
         project.source_archive_path = source_archive_path
         session.commit()
 
-    user = session.exec(select(User).where(User.username == _user)).first()
-    user_id = user.id if user else None
+    user_id = _user.id
 
     # 3. Find existing Run with same commit+branch+platform (status=done)
     existing_run = session.exec(
@@ -1152,6 +1151,9 @@ async def upload_report_ui(
             user_id,
             f"Uploaded report ({platform}): {safe_filename}",
         )
+        from pvs_tracker.notifications import subscribe_commit_author_notifications
+
+        subscribe_commit_author_notifications(session, project.id, commit_author_email)
         session.commit()
 
         from pvs_tracker.rest_queue.client import (
@@ -1257,7 +1259,7 @@ async def upload_report_api(
     branch: str = Form(None),
     target_platform: str = Form("windows"),
     session: Session = Depends(get_session),
-    _user: str = Depends(require_auth),
+    _user: User = Depends(require_auth),
 ):
     """API endpoint for report upload (returns JSON)."""
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
@@ -1312,8 +1314,7 @@ async def upload_report_api(
         project.source_archive_path = source_archive_path
         session.commit()
 
-    user = session.exec(select(User).where(User.username == _user)).first()
-    user_id = user.id if user else None
+    user_id = _user.id
 
     existing_run = session.exec(
         select(Run).where(
@@ -1384,6 +1385,9 @@ async def upload_report_api(
             user_id,
             f"Uploaded report ({platform}): {safe_filename}",
         )
+        from pvs_tracker.notifications import subscribe_commit_author_notifications
+
+        subscribe_commit_author_notifications(session, project.id, commit_author_email)
         session.commit()
 
         from pvs_tracker.rest_queue.client import (
