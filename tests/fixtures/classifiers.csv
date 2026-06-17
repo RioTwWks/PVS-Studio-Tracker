@@ -1,0 +1,4 @@
+key;type;priority;Name
+V1001;BUG;MAJOR;Variable is assigned but not used by the end of the function.
+V501;BUG;MAJOR;Identical expressions in 'if' condition.
+V502;BUG;MAJOR;Perhaps the '?:' operator works in a different way than it was expected.
