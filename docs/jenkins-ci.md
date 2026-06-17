@@ -30,6 +30,7 @@
 | `commit_author_name` | Имя автора из `git log` |
 | `commit_author_email` | Email автора |
 | `release_version` | Версия продукта (`major.minor.patch`), как `sonar.projectVersion` |
+| `report_type` | `incremental` (по умолчанию) или `full` — scope diff при upload (см. ниже) |
 
 Версия определяется в `pvs_snapshot.py` по тем же правилам, что Jenkins-скрипты `get_version_fastapi.py` / `get-version-linux.py` (Version.rc, Version.cmake, CMakeLists.txt, VersionInfo.h для QA).
 
@@ -40,8 +41,23 @@
   "commit": "a1b2c3d4e5f6789012345678901234567890abcd",
   "commit_author_name": "Ivan Petrov",
   "commit_author_email": "ivan@company.ru",
-  "release_version": "8.10.3"
+  "release_version": "8.10.3",
+  "report_type": "incremental"
 }
+```
+
+### Тип отчёта (`report_type`)
+
+Типичный CI-пайплайн PVS выполняет **инкрементальный** анализ (только изменённые файлы). В этом случае передавайте `report_type=incremental` (значение по умолчанию) — трекер **не** будет помечать отсутствующие в JSON warning'и как `fixed`.
+
+Для **полного** снимка кодовой базы (например, ночной full scan) укажите `report_type=full` — исчезнувшие с прошлого run fingerprint'ы получат `status=fixed`.
+
+```bash
+# Инкрементальный анализ (CI по умолчанию)
+-F "report_type=incremental"
+
+# Полный снимок
+-F "report_type=full"
 ```
 
 Имя по умолчанию: для `snapshot.json.gz` → `snapshot.meta.json` (см. `default_metadata_path` в `pvs_snapshot.py`).
@@ -52,12 +68,12 @@
 
 Приоритет при слиянии (`upload_metadata.merge_commit_upload_fields`):
 
-1. Непустые поля формы (`commit`, `commit_author_name`, `commit_author_email`, `release_version`)
+1. Непустые поля формы (`commit`, `commit_author_name`, `commit_author_email`, `release_version`, `report_type`)
 2. Значения из JSON-файла
 
 Куда попадает в БД:
 
-- `Run.commit`, `Run.commit_author_name`, `Run.commit_author_email`, `Run.release_version`
+- `Run.commit`, `Run.commit_author_name`, `Run.commit_author_email`, `Run.release_version`, `Run.report_type`
 - `Project.release_version` обновляется при upload (как раньше через `analysis-callback`)
 - на графике дашборда по оси X и в tooltip отображается `release_version` каждого анализа
 - **new** issues → `Issue.author_*` от коммита run (`issue_author.py`)
@@ -98,6 +114,7 @@ curl -s -X POST "http://tracker:8080/api/v1/upload" \
   -F "commit_metadata=@snapshot.meta.json" \
   -F "project_name=${TRACKER_PROJECT_NAME}" \
   -F "target_platform=windows" \
+  -F "report_type=incremental" \
   -F "branch=${ANOTHER_BRANCH}"
 ```
 
@@ -141,7 +158,7 @@ curl -s -X POST "http://tracker:8080/api/v1/projects/${TRACKER_PROJECT_SLUG}/ana
 | Новый / редактирование | `/ui/projects/new`, `/ui/projects/{id}/edit` | Sonar-поля, группа |
 | Дашборд → Analysis / CI | `?tab=ci` | Enable/Disable, Jira, Run analysis, Clone |
 | Дашборд → Settings → Parameters | `?tab=settings&settings_tab=params` | `POST /ui/projects/{id}/ci` |
-| Upload | `?tab=upload` | JSON + `commit_metadata` |
+| Upload | `?tab=upload` | JSON + `commit_metadata` + выбор `report_type` |
 | Удаление | Шапка дашборда | `POST /ui/projects/{id}/delete` (admin) |
 
 После toggle Disable/Jira сервер возвращает `#ci-toast-payload`; toast — `static/app.js` (`sq-toast`).

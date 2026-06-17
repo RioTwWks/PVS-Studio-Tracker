@@ -9,9 +9,9 @@
 ## Возможности
 
 ### 📊 Анализ и отслеживание проблем
-- **Загрузка отчётов** — REST API `POST /api/v1/upload` и UI `/ui/upload`: JSON-отчёт, проект, коммит, ветка, платформа; опционально `.meta.json` (`commit`, автор коммита)
+- **Загрузка отчётов** — REST API `POST /api/v1/upload` и UI `/ui/upload`: JSON-отчёт, проект, коммит, ветка, платформа; **`report_type`** (`incremental` | `full`); опционально `.meta.json` (`commit`, автор коммита, `report_type`)
 - **Автор предупреждения** — для **new** issues сохраняется автор коммита анализа; для **existing**/**fixed** — наследование с предыдущего run (`issue_author.py`)
-- **Инкрементальная классификация** — каждое предупреждение получает стабильный fingerprint (SHA-256), что позволяет отслеживать статус: **new**, **existing**, **fixed**, **ignored**
+- **Инкрементальная классификация** — каждое предупреждение получает стабильный fingerprint (SHA-256), статусы **new**, **existing**, **fixed**, **ignored**; для частичных отчётов PVS (`report_type=incremental`) отсутствующие в JSON warning'и **не** помечаются как `fixed`
 - **Технический долг** — автоматический расчёт времени устранения на основе серьёзности и приоритета правила
 - **CWE интеграция** — автоматическое извлечение и привязка CWE ID к предупреждениям
 - **Column-level точность** — поддержка позиций column, endLine, endColumn из отчётов PVS-Studio
@@ -43,7 +43,7 @@
 - **Severity distribution** — визуальное распределение по уровням серьёзности
 - **Branch filtering** — фильтрация данных по веткам
 - **Переключение платформы (OS)** — Windows / Linux / macOS на дашборде без полной перезагрузки (KPI + тренд)
-- **Инкрементальный diff по платформе** — сравнение run с тем же `target_platform`; `cross_platform_fp` для путей между ОС
+- **Инкрементальный diff по платформе** — сравнение run с тем же `target_platform`; `cross_platform_fp` для путей между ОС; scope diff задаётся `report_type`
 
 ### 📁 Inline Code Viewer
 - **Код в таблице Issues** — кнопка Code в строке предупреждения: раскрытие inline-блока с подсветкой (плавная анимация open/close)
@@ -222,20 +222,42 @@ Invoke-RestMethod -Uri http://localhost:8080/api/v2/projects/1 -Method DELETE -H
 
 ### Загрузка отчёта
 
-**Linux/macOS:**
+Параметр **`report_type`** (по умолчанию `incremental`):
+
+| Значение | Когда использовать |
+|----------|-------------------|
+| `incremental` | Частичный отчёт PVS (только изменённые файлы) — CI по умолчанию |
+| `full` | Полный снимок кодовой базы — для расчёта `fixed` по исчезнувшим warning'ам |
+
+**Linux/macOS (инкрементальный CI):**
 ```bash
 curl -X POST http://localhost:8080/api/v1/upload \
   -F "project_name=my-project" \
   -F "file=@report.json" \
   -F "commit=abc1234" \
   -F "branch=main" \
+  -F "report_type=incremental" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Linux/macOS (полный снимок, не первый анализ):**
+```bash
+curl -X POST http://localhost:8080/api/v1/upload \
+  -F "project_name=my-project" \
+  -F "file=@report.json" \
+  -F "commit=abc1234" \
+  -F "branch=main" \
+  -F "report_type=full" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 **Windows (cmd):**
 ```cmd
-REM Загрузка отчёта (используйте двойные кавычки для путей с пробелами)
-curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F "file=@report.json" -F "commit=abc1234" -F "branch=main" -H "Authorization: Bearer %TOKEN%"
+REM Инкрементальный отчёт (по умолчанию, можно не указывать)
+curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F "file=@report.json" -F "commit=abc1234" -F "branch=main" -F "report_type=incremental" -H "Authorization: Bearer %TOKEN%"
+
+REM Полный снимок
+curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F "file=@report.json" -F "commit=abc1234" -F "branch=main" -F "report_type=full" -H "Authorization: Bearer %TOKEN%"
 
 REM Загрузка с архивом исходников
 curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F "file=@report.json" -F "source_archive=@sources.zip" -F "commit=abc1234" -F "branch=main" -H "Authorization: Bearer %TOKEN%"
@@ -270,6 +292,8 @@ Invoke-RestMethod -Uri http://localhost:8080/api/v1/upload -Method POST -Headers
 {
   "status": "success",
   "run_id": 1,
+  "target_platform": "windows",
+  "report_type": "incremental",
   "total_issues": 42,
   "quality_gate": {
     "status": "passed",

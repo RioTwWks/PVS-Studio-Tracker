@@ -99,7 +99,7 @@ PVS-Studio-Tracker/
 См. `pvs_tracker/models.py`. Кратко:
 
 - **Project** — `name`, `slug` (Sonar Project Key), `group_name`, CI-поля (`repo_path`, `cvs_system`, `analysis_branch`, `disable_jira`, `disabled`, Jenkins/Jira metadata, PVS/CMake поля), `source_root_*`, `quality_gate_id`, …
-- **Run** — `project_id`, `commit`, `branch`, `commit_author_name`, `commit_author_email`, `target_platform` (`windows|linux|macos`), `status`, метрики …
+- **Run** — `project_id`, `commit`, `branch`, `commit_author_name`, `commit_author_email`, `target_platform` (`windows|linux|macos`), `report_type` (`incremental|full`), `status`, метрики …
 - **Issue** — `fingerprint`, `cross_platform_fp`, `file_path`, `line`, `rule_code`, `status` (`new|existing|fixed|ignored`), `author_name`, `author_email`, `jira_issue_key`, …
 - **ProjectGroup** — `name`, `display_order`; группы для главной и форм проекта (CRUD `/api/v2/admin/groups`)
 - **QualityGate** + **QualityGateRule** — scope оценки: набор `rule_code`; fail при `new` в scope
@@ -136,18 +136,27 @@ return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 ## 5. Инкрементальный diff (`incremental.classify_and_store`)
 
+Параметр upload **`report_type`** (`incremental` | `full`, default `incremental`) задаёт, считать ли JSON полным снимком warning'ов.
+
+| `report_type` | `fixed` при diff |
+|---------------|------------------|
+| `incremental` | **Нет** — только `new` / `existing` из JSON |
+| `full` | **Да** — `prev_fps - current_fps` → новые `Issue` со `status=fixed` |
+
 1. **prev_run** — последний `Run` с `status == "done"` для `project_id` и **того же** `target_platform`, кроме текущего run.
 2. **Сопоставление:** `cross_platform_fp` (нормализация путей через `platforms.compute_cross_platform_fp` + source roots); `fingerprint` — per-report SHA-256[:16] из `parser.compute_fingerprint`.
 3. **prev_fps** — fingerprints из prev run, где `status not in ("ignored", "fixed")`.
-4. Для каждого warning — новая строка `Issue` в **текущем** `run_id`: нет в `prev_fps` → `new`, есть → `existing`.
-5. **fixed:** исчезнувшие FP → новые `Issue` в **текущем** run со `status="fixed"`. Старые строки prev run **не обновляются**.
+4. Для каждого warning — новая строка `Issue` в **текущем** `run_id`: нет в `prev_fps` → `new`, есть → `existing` (при первом run платформы всё → `existing`).
+5. **fixed** (только при `report_type=full`): исчезнувшие FP → новые `Issue` в **текущем** run со `status="fixed"`. Старые строки prev run **не обновляются**.
 6. Один `session.commit()` в конце.
+
+**Повторный upload** на тот же `commit+branch+platform`: `add_issues_to_existing_run` — при `incremental` добавляет новые FP; при `full` заменяет issues run'а и вызывает полный diff.
 
 **Ветка UI:** фильтр `?branch=` для графика и таблицы; diff **не** сравнивает по branch (только platform).
 
 ### Upload metadata и автор issues
 
-- Опциональный файл `commit_metadata` (UTF-8 JSON) на `POST /ui/upload` и `POST /api/v1/upload`: ключи `commit`, `commit_author_name`, `commit_author_email` (`upload_metadata.py`).
+- Опциональный файл `commit_metadata` (UTF-8 JSON) на `POST /ui/upload` и `POST /api/v1/upload`: ключи `commit`, `commit_author_name`, `commit_author_email`, `release_version`, `report_type` (`upload_metadata.py`).
 - Поля формы/upload сливаются с metadata; при конфликте приоритет у формы (см. `merge_commit_upload_fields`).
 - `issue_author.resolve_issue_author`: **new** → `Run.commit_author_*`; **existing** / **fixed** → из prev `Issue` (при первом run платформы — автор текущего коммита).
 
@@ -251,7 +260,8 @@ EnvironmentFile=/opt/pvs-tracker/.env
 | Требование | Проверка |
 |------------|----------|
 | Upload JSON | `POST /api/v1/upload` или `/ui/upload` → run `done` |
-| Diff | Второй upload: `new`/`fixed`/`existing` в **текущем** run |
+| Diff incremental | `report_type=incremental` → второй upload: `new`/`existing`, без ложных `fixed` |
+| Diff full | `report_type=full` → второй upload: `new`/`fixed`/`existing` в **текущем** run |
 | HTMX filters | Таблица обновляется без перезагрузки графика |
 | API v2 auth | `POST /api/v2/auth/login` → JWT |
 | Webhook | При `WEBHOOK_URL` — POST с `event` из §7 |
@@ -266,6 +276,6 @@ EnvironmentFile=/opt/pvs-tracker/.env
 1. Читать `.cursor/rules.md` + этот файл.
 2. Минимальный diff; type hints; без `print()` в production (`logging`).
 3. Под-скиллы: `fix-parser`, `add-htmx-filter`, `add-api-route`.
-4. После изменений: `uvicorn pvs_tracker.main:app --reload` и целевой `pytest` (в т.ч. `test_profile_notifications`, `test_platforms`, `test_auth_local`, `test_auth_ldap`, `test_upload_metadata`, `test_issue_author`, `test_warnings_catalog`).
+4. После изменений: `uvicorn pvs_tracker.main:app --reload` и целевой `pytest` (в т.ч. `test_report_type`, `test_profile_notifications`, `test_platforms`, `test_auth_local`, `test_auth_ldap`, `test_upload_metadata`, `test_issue_author`, `test_warnings_catalog`).
 
 Фазы 1–6 из старого плана — **исторический** roadmap; проект уже реализован. Новые фичи — по `rules.md` и без banned stack (§1).

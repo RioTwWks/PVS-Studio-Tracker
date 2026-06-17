@@ -39,7 +39,7 @@ description: >-
 |-------|----------|
 | UI `POST /login` | `authenticate_credentials` → `establish_session` (`user_id` + username) |
 | LDAP | `auth.py` — `LDAP_*` in `.env`, SIMPLE/NTLM; JIT `User`, роль Viewer |
-| Upload metadata | `commit_metadata` file or form fields → `Run.commit_author_*` (`upload_metadata.py`) |
+| Upload metadata | `commit_metadata` file or form fields → `Run.commit_author_*`, `Run.report_type` (`upload_metadata.py`) |
 | Issue author | `issue_author.resolve_issue_author` in `incremental.py` |
 | Project groups | `ProjectGroup` + `/api/v2/admin/groups`; `project_groups.get_group_choices` |
 | Warnings sync | `POST /api/v2/warnings/sync` → `warnings_catalog.py` |
@@ -50,9 +50,16 @@ description: >-
 
 ## Incremental diff (authoritative)
 
+Upload parameter **`report_type`** (`incremental` | `full`, default `incremental`):
+
+| Type | Fixed calculation |
+|------|-------------------|
+| `incremental` | Skip — partial PVS report |
+| `full` | `prev_fps - current_fps` → new `Issue` rows with `status=fixed` |
+
 In `incremental.classify_and_store`:
 
-- Fixed → **new** `Issue` rows in **current** `run_id`, `status="fixed"`
+- Fixed → **new** `Issue` rows in **current** `run_id`, `status="fixed"` (**only** when `report_type=full`)
 - Do **not** update previous run issues
 - `prev_fps` excludes `ignored` and `fixed`
 - Prev run: last `done` for same `project_id` + `target_platform` (no branch filter in diff yet)
@@ -60,8 +67,8 @@ In `incremental.classify_and_store`:
 
 ## Upload
 
-- UI: `POST /ui/upload` → 303 dashboard (`target_platform` form field)
-- API: `POST /api/v1/upload` → JSON; triggers `schedule_api_upload_notifications`
+- UI: `POST /ui/upload` → 303 dashboard (`target_platform`, `report_type` form fields)
+- API: `POST /api/v1/upload` → JSON (`report_type` in response); triggers `schedule_api_upload_notifications`
 
 ## Profile & notifications
 

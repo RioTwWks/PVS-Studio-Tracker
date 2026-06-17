@@ -59,13 +59,15 @@ static/app.js            # toast (sq-toast), i18n, inline code toggle
 
 - `POST /ui/upload` — form → **303** → `/ui/projects/{id}/dashboard`
 - `POST /api/v1/upload` — multipart JSON → JSON (session auth)
-- Опционально: `commit_metadata` (`.meta.json`) или поля формы — `commit`, `commit_author_name`, `commit_author_email` (`upload_metadata.py`)
+- **`report_type`**: `incremental` (default) | `full` — scope diff; хранится в `Run.report_type`
+- Опционально: `commit_metadata` (`.meta.json`) или поля формы — `commit`, `commit_author_name`, `commit_author_email`, `report_type` (`upload_metadata.py`)
 
 ### Incremental diff
 
 - Fingerprint: SHA-256[:16] of `file:line:code:message` (paths `\` → `/`).
 - **new** / **existing**: new `Issue` rows in the **current** run.
-- **fixed**: disappeared fingerprints → new `Issue` in **current** run with `status=fixed` (previous run rows unchanged).
+- **fixed**: only when `report_type=full` — disappeared fingerprints → new `Issue` in **current** run with `status=fixed` (previous run rows unchanged).
+- **`report_type=incremental`**: missing warnings in JSON are **not** marked `fixed` (partial PVS report).
 - **Author:** `issue_author.resolve_issue_author` — `new` → автор коммита run; `existing`/`fixed` → из prev issue.
 - `prev_fps` excludes `ignored` and `fixed` from the previous run.
 - Prev run: latest `done` for same `target_platform` (**not** by UI branch).

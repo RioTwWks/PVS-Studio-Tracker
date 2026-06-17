@@ -10,6 +10,7 @@
 - [Аутентификация](#-аутентификация)
 - [Проекты](#-управление-проектами)
 - [Загрузка отчётов](#-загрузка-отчётов)
+- [Тип отчёта (report_type)](#-тип-отчёта-report_type)
 - [Quality Gates](#-quality-gates-rule-codes)
 - [Профиль и email](#-профиль-и-уведомления)
 - [Проблемы](#-проблемы)
@@ -143,15 +144,43 @@ curl -X DELETE http://localhost:8080/api/v2/projects/1 -H "Authorization: Bearer
 
 ## 📊 Загрузка отчётов
 
+### Тип отчёта (`report_type`)
+
+Трекер различает **частичный** отчёт PVS (инкрементальный анализ) и **полный** снимок. Параметр обязателен для корректного diff.
+
+| `report_type` | Поведение diff |
+|---------------|----------------|
+| `incremental` (**по умолчанию**) | Только `new` / `existing` из JSON; warning'и, отсутствующие в отчёте, **не** помечаются `fixed` |
+| `full` | Полный снимок: исчезнувшие fingerprint'ы → `status=fixed` в текущем run |
+
+Передаётся полем формы, в `commit_metadata` JSON (`"report_type": "full"`) или селектором на вкладке Upload в UI. Сохраняется в `Run.report_type`.
+
+**Повторная загрузка на тот же commit+branch+platform:**
+
+- `incremental` — добавляет только новые fingerprint'ы (без пересчёта `fixed`)
+- `full` — заменяет issues run'а и пересчитывает diff
+
 ### Загрузка через API
 
-**Linux/macOS:**
+**Linux/macOS (инкрементальный, типичный CI):**
 ```bash
 curl -X POST http://localhost:8080/api/v1/upload \
   -F "project_name=my-project" \
   -F "file=@report.json" \
   -F "commit=abc1234" \
   -F "branch=main" \
+  -F "report_type=incremental" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Linux/macOS (полный снимок):**
+```bash
+curl -X POST http://localhost:8080/api/v1/upload \
+  -F "project_name=my-project" \
+  -F "file=@report.json" \
+  -F "commit=abc1234" \
+  -F "branch=main" \
+  -F "report_type=full" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -179,7 +208,7 @@ curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F
 
 ### Метаданные коммита (CI / Jira assignee)
 
-Файл от `pvs_snapshot.py` (`commit`, `commit_author_name`, `commit_author_email`, `release_version`):
+Файл от `pvs_snapshot.py` (`commit`, `commit_author_name`, `commit_author_email`, `release_version`, `report_type`):
 
 **Windows (cmd):**
 ```cmd
@@ -193,6 +222,8 @@ curl -X POST http://localhost:8080/api/v1/upload -F "project_name=my-project" -F
 {
   "status": "success",
   "run_id": 1,
+  "target_platform": "windows",
+  "report_type": "incremental",
   "total_issues": 42,
   "quality_gate": {
     "status": "passed",
@@ -493,7 +524,7 @@ $env:APP_BASE_URL="http://localhost:8080"
 - `GET /api/v2/projects/{id}/export/csv` — Экспорт CSV
 
 ### Legacy (v1)
-- `POST /api/v1/upload` — Загрузка отчёта (`target_platform`: windows|linux|macos)
+- `POST /api/v1/upload` — Загрузка отчёта (`target_platform`: windows|linux|macos; `report_type`: incremental|full, default incremental)
 - `GET /api/v1/projects/{id}/dashboard` — Дашборд JSON
 - `GET /api/v1/projects/{id}/platform-metrics` — KPI/тренд для OS switcher
 
