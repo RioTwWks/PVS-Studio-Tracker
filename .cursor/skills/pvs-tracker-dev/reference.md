@@ -7,8 +7,8 @@
 | `main.py` | v1 UI/API, dashboard, platform fragments |
 | `api.py` | `/api/v2` REST, profile, QG rules, warnings catalog |
 | `auth_service.py` | JWT, User, RBAC |
-| `incremental.py` | new / existing / fixed (per `target_platform`) |
-| `platforms.py` | OS normalization, `cross_platform_fp` |
+| `incremental.py` | new / existing / fixed (per `target_platform`, gated by `report_type`) |
+| `platforms.py` | OS normalization, `cross_platform_fp`, `normalize_report_type` |
 | `dashboard_context.py` | Platform metrics for dashboard |
 | `notifications.py` | SMTP email on API upload |
 | `webhooks.py` | `report_uploaded`, `quality_gate_evaluated` |

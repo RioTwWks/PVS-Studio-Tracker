@@ -18,7 +18,7 @@
 | Тема | Где читать |
 |------|------------|
 | Аутентификация (local + LDAP) | [quick-reference.md § Аутентификация](quick-reference.md#-аутентификация), `.env.example` |
-| Загрузка отчётов и метаданные коммита | [jenkins-ci.md § Метаданные коммита](jenkins-ci.md#метаданные-коммита-metajson), [quick-reference.md § Загрузка](quick-reference.md#-загрузка-отчётов) |
+| Загрузка отчётов, `report_type`, метаданные коммита | [jenkins-ci.md § Метаданные](jenkins-ci.md#метаданные-коммита-metajson), [quick-reference.md § report_type](quick-reference.md#-тип-отчёта-report_type) |
 | Quality gates (rule codes) | [quick-reference.md § Quality Gates](quick-reference.md#-quality-gates-rule-codes) |
 | Просмотр кода | [inline-code-viewer.md](inline-code-viewer.md) |
 | Email / webhooks | [quick-reference.md](quick-reference.md#-email-smtp) |
