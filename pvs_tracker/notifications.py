@@ -9,11 +9,12 @@ import smtplib
 from email.message import EmailMessage
 from typing import Any, Optional
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from pvs_tracker.auth_service import can_access_project
 from pvs_tracker.db import engine
-from pvs_tracker.models import Project, Run, User, UserProjectNotification
+from pvs_tracker.models import Project, ProjectMember, Run, User, UserProjectNotification
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,68 @@ def send_email(to: str, subject: str, body: str) -> bool:
     except Exception:
         logger.exception("Failed to send email to %s", to)
         return False
+
+
+def _user_can_subscribe_to_project(session: Session, user: User, project_id: int) -> bool:
+    """Same access rules as PUT /api/v2/users/me/notifications."""
+    members = session.exec(
+        select(ProjectMember).where(ProjectMember.project_id == project_id)
+    ).all()
+    if members:
+        return any(m.user_id == user.id for m in members)
+    return can_access_project(user, project_id)
+
+
+def subscribe_commit_author_notifications(
+    session: Session,
+    project_id: int,
+    commit_author_email: str | None,
+) -> bool:
+    """
+    Subscribe the commit author (from upload metadata) to API upload emails.
+
+    Creates UserProjectNotification and enables notify_api_uploads when the email
+    matches an active user with project access.
+    """
+    email = (commit_author_email or "").strip()
+    if not email:
+        return False
+
+    user = session.exec(
+        select(User).where(
+            func.lower(User.email) == email.lower(),
+            User.is_active == True,  # noqa: E712
+        )
+    ).first()
+    if not user:
+        logger.info(
+            "Commit author %s not found in users; skipping notification subscription",
+            email,
+        )
+        return False
+
+    if not _user_can_subscribe_to_project(session, user, project_id):
+        logger.info(
+            "Commit author %s has no access to project_id=%s; skipping subscription",
+            email,
+            project_id,
+        )
+        return False
+
+    existing = session.exec(
+        select(UserProjectNotification).where(
+            UserProjectNotification.user_id == user.id,
+            UserProjectNotification.project_id == project_id,
+        )
+    ).first()
+    if not existing:
+        session.add(UserProjectNotification(user_id=user.id, project_id=project_id))
+
+    if not user.notify_api_uploads:
+        user.notify_api_uploads = True
+        session.add(user)
+
+    return True
 
 
 def build_upload_notification_email(
