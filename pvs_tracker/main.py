@@ -212,6 +212,7 @@ def _migrate_database() -> None:
                     "ALTER TABLE run ADD COLUMN commit_author_name VARCHAR",
                     "ALTER TABLE run ADD COLUMN commit_author_email VARCHAR",
                     "ALTER TABLE run ADD COLUMN release_version VARCHAR DEFAULT ''",
+                    "ALTER TABLE run ADD COLUMN report_type VARCHAR DEFAULT 'incremental'",
                     "ALTER TABLE issue ADD COLUMN author_name VARCHAR",
                     "ALTER TABLE issue ADD COLUMN author_email VARCHAR",
                     "ALTER TABLE user ADD COLUMN display_name VARCHAR",
@@ -994,6 +995,7 @@ async def upload_report_ui(
     release_version: str = Form(None),
     branch: str = Form(None),
     target_platform: str = Form("windows"),
+    report_type: str = Form("incremental"),
     session: Session = Depends(get_session),
     _user: User = Depends(require_auth),
 ):
@@ -1001,7 +1003,7 @@ async def upload_report_ui(
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
     from pvs_tracker.incremental import add_issues_to_existing_run
-    from pvs_tracker.platforms import normalize_target_platform
+    from pvs_tracker.platforms import normalize_report_type, normalize_target_platform
 
     platform = normalize_target_platform(target_platform)
 
@@ -1042,6 +1044,7 @@ async def upload_report_ui(
         commit_author_name=commit_author_name,
         commit_author_email=commit_author_email,
         release_version=release_version,
+        report_type=report_type,
         metadata=metadata_from_file,
         optional_form=_optional_form,
     )
@@ -1049,6 +1052,7 @@ async def upload_report_ui(
     commit_author_name = commit_fields["commit_author_name"]
     commit_author_email = commit_fields["commit_author_email"]
     release_version = commit_fields["release_version"]
+    report_type_val = normalize_report_type(commit_fields.get("report_type"))
 
     # 1. Read report
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -1094,6 +1098,7 @@ async def upload_report_ui(
     is_new_run = False
     if existing_run:
         run = existing_run
+        run.report_type = report_type_val
         _apply_run_commit_fields(
             run,
             commit=commit,
@@ -1110,6 +1115,7 @@ async def upload_report_ui(
             project_id=project.id,
             branch=branch,
             target_platform=platform,
+            report_type=report_type_val,
             report_file=f"db:{safe_filename}",
             **_run_commit_fields(
                 commit, commit_author_name, commit_author_email, release_version
@@ -1128,10 +1134,14 @@ async def upload_report_ui(
     try:
         issues = parse_pvs_report_bytes(report_bytes)
         if is_new_run:
-            classify_and_store(session, project.id, run.id, issues)
+            classify_and_store(
+                session, project.id, run.id, issues, report_type=report_type_val
+            )
             run.status = "done"
         else:
-            add_issues_to_existing_run(session, project.id, run.id, issues)
+            add_issues_to_existing_run(
+                session, project.id, run.id, issues, report_type=report_type_val
+            )
 
         metrics = calculate_run_metrics(session, run.id)
         run.total_issues = metrics["total_issues"]
@@ -1149,7 +1159,7 @@ async def upload_report_ui(
             run.id,
             project.id,
             user_id,
-            f"Uploaded report ({platform}): {safe_filename}",
+            f"Uploaded report ({platform}, {report_type_val}): {safe_filename}",
         )
         from pvs_tracker.notifications import subscribe_commit_author_notifications
 
@@ -1258,6 +1268,7 @@ async def upload_report_api(
     release_version: str = Form(None),
     branch: str = Form(None),
     target_platform: str = Form("windows"),
+    report_type: str = Form("incremental"),
     session: Session = Depends(get_session),
     _user: User = Depends(require_auth),
 ):
@@ -1265,7 +1276,7 @@ async def upload_report_api(
     from pvs_tracker.quality_gate import evaluate_quality_gate, calculate_run_metrics
     from pvs_tracker.api import log_activity
     from pvs_tracker.incremental import add_issues_to_existing_run
-    from pvs_tracker.platforms import normalize_target_platform
+    from pvs_tracker.platforms import normalize_report_type, normalize_target_platform
 
     platform = normalize_target_platform(target_platform)
 
@@ -1281,6 +1292,7 @@ async def upload_report_api(
         commit_author_name=commit_author_name,
         commit_author_email=commit_author_email,
         release_version=release_version,
+        report_type=report_type,
         metadata=metadata_from_file,
         optional_form=_optional_form,
     )
@@ -1288,6 +1300,7 @@ async def upload_report_api(
     commit_author_name = commit_fields["commit_author_name"]
     commit_author_email = commit_fields["commit_author_email"]
     release_version = commit_fields["release_version"]
+    report_type_val = normalize_report_type(commit_fields.get("report_type"))
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = file.filename or "report.json"
@@ -1329,6 +1342,7 @@ async def upload_report_api(
     is_new_run = False
     if existing_run:
         run = existing_run
+        run.report_type = report_type_val
         _apply_run_commit_fields(
             run,
             commit=commit,
@@ -1345,6 +1359,7 @@ async def upload_report_api(
             project_id=project.id,
             branch=branch,
             target_platform=platform,
+            report_type=report_type_val,
             report_file=f"db:{safe_filename}",
             **_run_commit_fields(
                 commit, commit_author_name, commit_author_email, release_version
@@ -1362,10 +1377,14 @@ async def upload_report_api(
     try:
         issues = parse_pvs_report_bytes(report_bytes)
         if is_new_run:
-            classify_and_store(session, project.id, run.id, issues)
+            classify_and_store(
+                session, project.id, run.id, issues, report_type=report_type_val
+            )
             run.status = "done"
         else:
-            add_issues_to_existing_run(session, project.id, run.id, issues)
+            add_issues_to_existing_run(
+                session, project.id, run.id, issues, report_type=report_type_val
+            )
 
         metrics = calculate_run_metrics(session, run.id)
         run.total_issues = metrics["total_issues"]
@@ -1383,7 +1402,7 @@ async def upload_report_api(
             run.id,
             project.id,
             user_id,
-            f"Uploaded report ({platform}): {safe_filename}",
+            f"Uploaded report ({platform}, {report_type_val}): {safe_filename}",
         )
         from pvs_tracker.notifications import subscribe_commit_author_notifications
 
@@ -1410,6 +1429,7 @@ async def upload_report_api(
             "commit_author_email": run.commit_author_email,
             "release_version": run.release_version,
             "target_platform": platform,
+            "report_type": report_type_val,
             "total_issues": len(issues),
             "quality_gate": qg_result,
         }
