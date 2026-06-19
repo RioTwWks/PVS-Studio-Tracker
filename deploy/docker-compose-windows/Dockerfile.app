@@ -76,9 +76,26 @@ RUN function Save-RemoteFile([string]$Url, [string]$OutFile) { `
         $gitUrl = \"https://github.com/git-for-windows/git/releases/download/v$env:GIT_VERSION/$env:GIT_ZIP\"; `
         Save-RemoteFile -Url $gitUrl -OutFile $env:GIT_ZIP; `
     }; `
-    Expand-Archive -Path $env:GIT_ZIP -DestinationPath C:\MinGit; `
+    $gitStaging = 'C:\\MinGit-staging'; `
+    if (Test-Path C:\\MinGit) { Remove-Item C:\\MinGit -Recurse -Force }; `
+    if (Test-Path $gitStaging) { Remove-Item $gitStaging -Recurse -Force }; `
+    Expand-Archive -Path $env:GIT_ZIP -DestinationPath $gitStaging; `
     Remove-Item -Force $env:GIT_ZIP; `
-    git --version
+    $gitExe = Get-ChildItem $gitStaging -Filter git.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1; `
+    if (-not $gitExe) { throw 'git.exe not found after MinGit extract (check MinGit zip in build-deps)' }; `
+    if ($gitExe.Directory.Name -eq 'cmd') { `
+        $gitRoot = $gitExe.Directory.Parent.FullName; `
+    } else { `
+        $gitRoot = $gitExe.Directory.FullName; `
+    }; `
+    New-Item -ItemType Directory -Force -Path C:\\MinGit | Out-Null; `
+    Copy-Item -Path (Join-Path $gitRoot '*') -Destination C:\\MinGit -Recurse -Force; `
+    Remove-Item $gitStaging -Recurse -Force; `
+    $gitExePath = 'C:\\MinGit\\cmd\\git.exe'; `
+    if (-not (Test-Path $gitExePath)) { $gitExePath = $gitExe.FullName }; `
+    $env:Path = 'C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;' + $env:Path; `
+    Write-Host \"Using Git at $gitExePath\"; `
+    & $gitExePath --version
 
 WORKDIR C:/app
 
@@ -86,9 +103,10 @@ COPY pyproject.toml ./
 COPY pvs_tracker ./pvs_tracker
 COPY static ./static
 
+ENV PATH="C:\\Program Files\\Python312;C:\\Program Files\\Python312\\Scripts;C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;${PATH}"
+
 RUN python -m pip install --no-cache-dir . psycopg2-binary
 
-ENV PATH="C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;${PATH}"
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
