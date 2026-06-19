@@ -9,6 +9,10 @@ services:
       dockerfile: deploy/docker-compose-windows/Dockerfile.postgres
       args:
         WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
+        USE_OFFLINE_DEPS: ${USE_OFFLINE_DEPS:-0}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
     environment:
       POSTGRES_USER: pvs
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pvs}

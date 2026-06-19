@@ -1,27 +1,58 @@
 # escape=`
-# PostgreSQL 16 (Windows zip binaries) для опционального контейнера БД.
-# Для production предпочтителен PostgreSQL, установленный на хосте Windows.
+# PostgreSQL 16 (Windows zip binaries) для контейнера БД.
 #
+# Online:
 #   docker build -f deploy/docker-compose-windows/Dockerfile.postgres -t pvs-tracker-postgres:local .
+#
+# Offline — положите zip в deploy/docker-compose-windows/build-deps/:
+#   postgresql-16.6-1-windows-x64-binaries.zip
+#   docker build ... --build-arg USE_OFFLINE_DEPS=1 .
 
 ARG WINDOWS_VERSION=ltsc2019-amd64
 FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
 
 ARG POSTGRES_VERSION=16.6-1
 ARG POSTGRES_ZIP=postgresql-16.6-1-windows-x64-binaries.zip
+ARG USE_OFFLINE_DEPS=0
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
 
 ENV POSTGRES_ZIP=${POSTGRES_ZIP}
-
 ENV POSTGRES_ROOT=C:\pgsql
 ENV POSTGRES_USER=pvs
 ENV POSTGRES_PASSWORD=pvs
 ENV POSTGRES_DB=pvs_tracker
 ENV PGDATA=C:\pgsql\data
+ENV USE_OFFLINE_DEPS=${USE_OFFLINE_DEPS}
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+ENV NO_PROXY=${NO_PROXY}
 
-SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+SHELL ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
-RUN $zipUrl = \"https://get.enterprisedb.com/postgresql/$env:POSTGRES_ZIP\"; `
-    Invoke-WebRequest -Uri $zipUrl -OutFile $env:POSTGRES_ZIP; `
+COPY deploy/docker-compose-windows/build-deps/ C:/build-deps/
+
+RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `
+    function Save-RemoteFile([string]$Url, [string]$OutFile) { `
+      $proxy = if ($env:HTTPS_PROXY) { $env:HTTPS_PROXY } elseif ($env:HTTP_PROXY) { $env:HTTP_PROXY } else { $null }; `
+      if ($proxy) { `
+        Write-Host \"Downloading via proxy $proxy ...\"; `
+        Invoke-WebRequest -Uri $Url -OutFile $OutFile -Proxy $proxy -UseBasicParsing; `
+      } else { `
+        Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing; `
+      } `
+    }; `
+    $offline = ($env:USE_OFFLINE_DEPS -eq '1'); `
+    $zipLocal = Join-Path 'C:\build-deps' $env:POSTGRES_ZIP; `
+    if ($offline -and -not (Test-Path $zipLocal)) { throw \"Offline build: missing $zipLocal\" }; `
+    if ((Test-Path $zipLocal)) { `
+        Write-Host \"Using PostgreSQL zip from build-deps\"; `
+        Copy-Item $zipLocal .\\$env:POSTGRES_ZIP; `
+    } else { `
+        $zipUrl = \"https://get.enterprisedb.com/postgresql/$env:POSTGRES_ZIP\"; `
+        Save-RemoteFile -Url $zipUrl -OutFile $env:POSTGRES_ZIP; `
+    }; `
     Expand-Archive -Path $env:POSTGRES_ZIP -DestinationPath C:\; `
     Remove-Item -Force $env:POSTGRES_ZIP; `
     if (Test-Path 'C:\pgsql') { `
@@ -35,6 +66,6 @@ COPY deploy/docker-compose-windows/scripts/postgres-entrypoint.ps1 C:/scripts/po
 EXPOSE 5432
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=12 --start-period=90s `
-    CMD powershell -Command "& 'C:\pgsql\bin\pg_isready.exe' -U $env:POSTGRES_USER -d $env:POSTGRES_DB; if ($LASTEXITCODE -ne 0) { exit 1 }"
+    CMD C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -Command "& 'C:\pgsql\bin\pg_isready.exe' -U $env:POSTGRES_USER -d $env:POSTGRES_DB; if ($LASTEXITCODE -ne 0) { exit 1 }"
 
-ENTRYPOINT ["powershell", "-File", "C:/scripts/postgres-entrypoint.ps1"]
+ENTRYPOINT ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-File", "C:/scripts/postgres-entrypoint.ps1"]
