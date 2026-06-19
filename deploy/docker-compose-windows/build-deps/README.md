@@ -6,6 +6,7 @@
 |------|----------------|
 | `python-3.12.10-amd64.exe` | https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe |
 | `MinGit-2.47.1.2-64-bit.zip` | https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.2/MinGit-2.47.1.2-64-bit.zip |
+| `postgresql-16.6-1-windows-x64-binaries.zip` | https://get.enterprisedb.com/postgresql/postgresql-16.6-1-windows-x64-binaries.zip |
 
 Имена должны совпадать с `PYTHON_INSTALLER` и `GIT_ZIP` в `Dockerfile.app` (или передайте свои через `--build-arg`).
 
