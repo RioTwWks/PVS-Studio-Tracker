@@ -36,13 +36,14 @@ SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPref
 
 COPY deploy/docker-compose-windows/build-deps/ C:/build-deps/
 
-RUN function Save-RemoteFile([string]$Url, [string]$OutFile) { `
+RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `
+    function Save-RemoteFile([string]$Url, [string]$OutFile) { `
       $proxy = if ($env:HTTPS_PROXY) { $env:HTTPS_PROXY } elseif ($env:HTTP_PROXY) { $env:HTTP_PROXY } else { $null }; `
       if ($proxy) { `
         Write-Host \"Downloading via proxy $proxy ...\"; `
-        Invoke-WebRequest -Uri $Url -OutFile $OutFile -Proxy $proxy; `
+        Invoke-WebRequest -Uri $Url -OutFile $OutFile -Proxy $proxy -UseBasicParsing; `
       } else { `
-        Invoke-WebRequest -Uri $Url -OutFile $OutFile; `
+        Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing; `
       } `
     }; `
     $offline = ($env:USE_OFFLINE_DEPS -eq '1'); `
@@ -50,7 +51,8 @@ RUN function Save-RemoteFile([string]$Url, [string]$OutFile) { `
     $gitLocal = Join-Path 'C:\build-deps' $env:GIT_ZIP; `
     if ($offline -and -not (Test-Path $pyLocal)) { throw \"Offline build: missing $pyLocal\" }; `
     if ($offline -and -not (Test-Path $gitLocal)) { throw \"Offline build: missing $gitLocal\" }; `
-    if ($offline) { `
+    if ((Test-Path $pyLocal)) { `
+        Write-Host \"Using Python installer from build-deps\"; `
         Copy-Item $pyLocal .\\$env:PYTHON_INSTALLER; `
     } else { `
         $pyUrl = \"https://www.python.org/ftp/python/$env:PYTHON_VERSION/$env:PYTHON_INSTALLER\"; `
@@ -72,7 +74,8 @@ RUN function Save-RemoteFile([string]$Url, [string]$OutFile) { `
     & $pyExe -m pip install --upgrade pip; `
     New-Item -ItemType Directory -Force -Path C:\\Docker | Out-Null; `
     Set-Content -Path C:\\Docker\\python-path.txt -Value $pyExe -NoNewline; `
-    if ($offline) { `
+    if ((Test-Path $gitLocal)) { `
+        Write-Host \"Using MinGit zip from build-deps\"; `
         Copy-Item $gitLocal .\\$env:GIT_ZIP; `
     } else { `
         $gitUrl = \"https://github.com/git-for-windows/git/releases/download/v$env:GIT_VERSION/$env:GIT_ZIP\"; `
@@ -105,12 +108,16 @@ COPY pyproject.toml ./
 COPY pvs_tracker ./pvs_tracker
 COPY static ./static
 
-ENV PATH="C:\\Program Files\\Python312;C:\\Program Files\\Python312\\Scripts;C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;${PATH}"
+ENV PATH="C:\\Program Files\\Python312;C:\\Program Files\\Python312\\Scripts;C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;C:\\Windows\\System32;C:\\Windows"
 
-RUN python -m pip install --no-cache-dir . psycopg2-binary
+RUN $pyExe = Get-Content -Path C:\\Docker\\python-path.txt -Raw; `
+    $pyExe = $pyExe.Trim(); `
+    if (-not (Test-Path $pyExe)) { throw \"python.exe not found at $pyExe\" }; `
+    Write-Host \"pip install via $pyExe\"; `
+    & $pyExe -m pip install --no-cache-dir . psycopg2-binary
 
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-CMD ["python", "-m", "uvicorn", "pvs_tracker.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-graceful-shutdown", "30"]
+CMD ["C:\\Program Files\\Python312\\python.exe", "-m", "uvicorn", "pvs_tracker.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-graceful-shutdown", "30"]
