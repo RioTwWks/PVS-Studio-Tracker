@@ -1,0 +1,99 @@
+# Windows containers: app-1/app-2 + workers. Балансировщик — nginx на хосте (deploy/nginx/).
+# PostgreSQL по умолчанию на хосте Windows (DATABASE_URL → host.docker.internal).
+#
+# Запуск:
+#   copy .env.example .env
+#   docker compose up -d --build
+#
+# PostgreSQL в контейнере (опционально):
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+
+services:
+  app-1: &app
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose-windows/Dockerfile.app
+      args:
+        WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
+    env_file: .env
+    environment:
+      REST_QUEUE_MODE: external
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test:
+        - CMD
+        - powershell
+        - -Command
+        - >-
+          try {
+            if ((Invoke-WebRequest -Uri http://127.0.0.1:8080/health/ready -UseBasicParsing).StatusCode -eq 200) { exit 0 }
+            exit 1
+          } catch { exit 1 }
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 45s
+    stop_grace_period: 45s
+    restart: unless-stopped
+
+  app-2:
+    <<: *app
+    ports:
+      - "8082:8080"
+
+  worker: &worker
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose-windows/Dockerfile.app
+      args:
+        WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
+    env_file: .env
+    environment:
+      REST_QUEUE_MODE: external
+    restart: unless-stopped
+
+  worker-jenkins:
+    <<: *worker
+    command:
+      - python
+      - -m
+      - pvs_tracker.rest_queue
+      - --service
+      - jenkins
+
+  worker-jira:
+    <<: *worker
+    command:
+      - python
+      - -m
+      - pvs_tracker.rest_queue
+      - --service
+      - jira
+
+  worker-tfs:
+    <<: *worker
+    command:
+      - python
+      - -m
+      - pvs_tracker.rest_queue
+      - --service
+      - tfs
+
+  worker-webhook:
+    <<: *worker
+    command:
+      - python
+      - -m
+      - pvs_tracker.rest_queue
+      - --service
+      - webhook
+
+  worker-smtp:
+    <<: *worker
+    command:
+      - python
+      - -m
+      - pvs_tracker.rest_queue
+      - --service
+      - smtp

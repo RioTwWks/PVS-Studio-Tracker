@@ -78,7 +78,62 @@ cd deploy\nginx
 
 ---
 
-## Вариант 2: Docker Compose
+## Вариант 1b: Docker Compose (Windows containers)
+
+Файлы: [`deploy/docker-compose-windows/`](../deploy/docker-compose-windows/)
+
+Windows Server с **Docker Engine** (static binaries, Windows containers mode). Балансировщик — **nginx на хосте** (не в контейнере); контейнеры `app-1`/`app-2` публикуют порты `8081`/`8082`.
+
+### Архитектура
+
+| Компонент | Роль |
+|-----------|------|
+| nginx for Windows (хост) | Единая точка входа `:8080` → `127.0.0.1:8081`, `8082` |
+| `app-1`, `app-2` (контейнеры) | Два uvicorn, `REST_QUEUE_MODE=external` |
+| `worker-*` (контейнеры) | REST queue (Jenkins, Jira, TFS, webhook, SMTP) |
+| PostgreSQL | **На хосте** (рекомендуется) или **в контейнере** (override) |
+
+### Требования
+
+1. Docker Engine 20.10+ (рекомендуется 29.x static zip) + **Compose CLI plugin** (`docker compose`).
+2. `WINDOWS_VERSION` в `.env` совпадает с хостом (`ltsc2019-amd64` / `ltsc2022-amd64`).
+3. Конфиг nginx — [`deploy/nginx/nginx.conf`](../deploy/nginx/nginx.conf) (upstream `8081`/`8082`).
+
+### Запуск (PostgreSQL на хосте)
+
+```powershell
+cd deploy\docker-compose-windows
+copy .env.example .env
+# DATABASE_URL=postgresql+psycopg2://pvs:pass@host.docker.internal:5432/pvs_tracker
+
+docker compose up -d --build
+```
+
+### Запуск (PostgreSQL в контейнере)
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+```
+
+### Rolling update
+
+```powershell
+.\rolling-update.ps1 -Service app-1 -NginxConf "C:\nginx\conf\nginx.conf"
+.\rolling-update.ps1 -Service app-2 -NginxConf "C:\nginx\conf\nginx.conf"
+```
+
+С контейнером PostgreSQL добавьте `-WithPostgresContainer`.
+
+Скрипт:
+1. Помечает backend `down` в nginx и делает `nginx -s reload`
+2. Ждёт drain (35 с)
+3. `docker compose up -d --no-deps --build app-N`
+4. Ждёт `GET /health/ready` на порту хоста
+5. Возвращает backend в upstream
+
+---
+
+## Вариант 2: Docker Compose (Linux)
 
 Файлы: [`deploy/docker-compose/`](../deploy/docker-compose/)
 
@@ -167,13 +222,13 @@ curl -s http://localhost:8080/webhook/inbound/health
 
 ## Сравнение вариантов
 
-| | Nginx + NSSM | Docker Compose | Kubernetes |
-|---|--------------|----------------|------------|
-| ОС хоста | Windows Server | Linux / Docker Desktop | Кластер |
-| Процесс приложения | uvicorn (Windows) | uvicorn (Linux container) | uvicorn (pod) |
-| Балансировщик | nginx for Windows | nginx container | Service + Ingress |
-| Rolling update | PowerShell + `down` | `rolling-update.sh` | `kubectl rollout` |
-| БД | Внешний PostgreSQL | postgres service | Внешний / operator |
+| | Nginx + NSSM | Compose (Windows) | Compose (Linux) | Kubernetes |
+|---|--------------|-------------------|-----------------|------------|
+| ОС хоста | Windows Server | Windows Server + Docker | Linux / Docker Desktop | Кластер |
+| Процесс приложения | uvicorn (Windows) | uvicorn (Win container) | uvicorn (Linux container) | uvicorn (pod) |
+| Балансировщик | nginx for Windows | nginx на хосте | nginx container | Service + Ingress |
+| Rolling update | `rolling-update.ps1` | `docker-compose-windows/rolling-update.ps1` | `rolling-update.sh` | `kubectl rollout` |
+| БД | Внешний PostgreSQL | хост / контейнер | postgres service | Внешний / operator |
 
 ## См. также
 

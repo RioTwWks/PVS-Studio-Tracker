@@ -46,7 +46,9 @@ python -m pvs_tracker.rest_queue --service jenkins
 python -m pvs_tracker.rest_queue --service all   # все 5 в одном процессе (dev)
 ```
 
-**Docker Compose:** сервисы `worker-jenkins`, `worker-jira`, `worker-tfs`, `worker-webhook`, `worker-smtp` в [`deploy/docker-compose/docker-compose.yml`](../deploy/docker-compose/docker-compose.yml).
+**Docker Compose (Linux):** сервисы `worker-jenkins`, … в [`deploy/docker-compose/docker-compose.yml`](../deploy/docker-compose/docker-compose.yml).
+
+**Docker Compose (Windows):** те же воркеры в [`deploy/docker-compose-windows/docker-compose.yml`](../deploy/docker-compose-windows/docker-compose.yml).
 
 **Kubernetes:** [`deploy/k8s/workers.yaml`](../deploy/k8s/workers.yaml) — по Deployment на service.
 

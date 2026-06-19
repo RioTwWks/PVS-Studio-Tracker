@@ -1,0 +1,40 @@
+# escape=`
+# PostgreSQL 16 (Windows zip binaries) для опционального контейнера БД.
+# Для production предпочтителен PostgreSQL, установленный на хосте Windows.
+#
+#   docker build -f deploy/docker-compose-windows/Dockerfile.postgres -t pvs-tracker-postgres:local .
+
+ARG WINDOWS_VERSION=ltsc2019-amd64
+FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
+
+ARG POSTGRES_VERSION=16.6-1
+ARG POSTGRES_ZIP=postgresql-16.6-1-windows-x64-binaries.zip
+
+ENV POSTGRES_ZIP=${POSTGRES_ZIP}
+
+ENV POSTGRES_ROOT=C:\pgsql
+ENV POSTGRES_USER=pvs
+ENV POSTGRES_PASSWORD=pvs
+ENV POSTGRES_DB=pvs_tracker
+ENV PGDATA=C:\pgsql\data
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+RUN $zipUrl = \"https://get.enterprisedb.com/postgresql/$env:POSTGRES_ZIP\"; `
+    Invoke-WebRequest -Uri $zipUrl -OutFile $env:POSTGRES_ZIP; `
+    Expand-Archive -Path $env:POSTGRES_ZIP -DestinationPath C:\; `
+    Remove-Item -Force $env:POSTGRES_ZIP; `
+    if (Test-Path 'C:\pgsql') { `
+        Write-Host 'PostgreSQL binaries ready at C:\pgsql'; `
+    } else { `
+        throw 'Unexpected PostgreSQL zip layout (expected C:\pgsql)'; `
+    }
+
+COPY deploy/docker-compose-windows/scripts/postgres-entrypoint.ps1 C:/scripts/postgres-entrypoint.ps1
+
+EXPOSE 5432
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 --start-period=90s `
+    CMD powershell -Command "& 'C:\pgsql\bin\pg_isready.exe' -U $env:POSTGRES_USER -d $env:POSTGRES_DB; if ($LASTEXITCODE -ne 0) { exit 1 }"
+
+ENTRYPOINT ["powershell", "-File", "C:/scripts/postgres-entrypoint.ps1"]
