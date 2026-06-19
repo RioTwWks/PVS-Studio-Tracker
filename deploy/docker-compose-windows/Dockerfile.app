@@ -71,7 +71,6 @@ RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tl
     $env:Path = \"$pyDir;$pyDir\Scripts;\" + $env:Path; `
     Write-Host \"Using Python at $pyExe\"; `
     & $pyExe --version; `
-    & $pyExe -m pip install --upgrade pip; `
     New-Item -ItemType Directory -Force -Path C:\\Docker | Out-Null; `
     Set-Content -Path C:\\Docker\\python-path.txt -Value $pyExe -NoNewline; `
     if ((Test-Path $gitLocal)) { `
