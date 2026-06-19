@@ -1,0 +1,10 @@
+{
+  "dns": ["10.0.0.1"],
+  "proxies": {
+    "default": {
+      "httpProxy": "http://proxy.corp.local:8080",
+      "httpsProxy": "http://proxy.corp.local:8080",
+      "noProxy": "localhost,127.0.0.1,.corp.local"
+    }
+  }
+}
