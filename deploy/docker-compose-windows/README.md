@@ -90,7 +90,7 @@ Webhook URL для TFS: `http://<host>:8080/webhook/inbound`.
 |------|------------|
 | `docker-compose.yml` | app-1, app-2, workers (БД на хосте) |
 | `docker-compose.postgres.yml` | override: контейнер `postgres` |
-| `Dockerfile.app` | Python 3.12 + приложение |
+| `Dockerfile.app` | Python 3.12 + MinGit + приложение |
 | `Dockerfile.postgres` | PostgreSQL 16 zip binaries |
 | `rolling-update.ps1` | zero-downtime обновление |
 | `.env.example` | шаблон переменных |
