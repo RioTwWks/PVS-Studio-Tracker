@@ -32,7 +32,7 @@ ENV HTTP_PROXY=${HTTP_PROXY}
 ENV HTTPS_PROXY=${HTTPS_PROXY}
 ENV NO_PROXY=${NO_PROXY}
 
-SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+SHELL ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
 COPY deploy/docker-compose-windows/build-deps/ C:/build-deps/
 
@@ -107,13 +107,15 @@ COPY pyproject.toml ./
 COPY pvs_tracker ./pvs_tracker
 COPY static ./static
 
-ENV PATH="C:\\Program Files\\Python312;C:\\Program Files\\Python312\\Scripts;C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;C:\\Windows\\System32;C:\\Windows"
+# Не затирать системный PATH полностью — иначе Step 27 не найдёт powershell.exe.
+ENV PATH="C:\\Program Files\\Python312;C:\\Program Files\\Python312\\Scripts;C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows"
+ENV PIP_TRUSTED_HOST="pypi.org pypi.python.org files.pythonhosted.org"
 
 RUN $pyExe = Get-Content -Path C:\\Docker\\python-path.txt -Raw; `
     $pyExe = $pyExe.Trim(); `
     if (-not (Test-Path $pyExe)) { throw \"python.exe not found at $pyExe\" }; `
     Write-Host \"pip install via $pyExe\"; `
-    & $pyExe -m pip install --no-cache-dir . psycopg2-binary
+    & $pyExe -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --no-cache-dir . psycopg2-binary
 
 ENV PYTHONUNBUFFERED=1
 
