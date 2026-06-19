@@ -1,24 +1,16 @@
     {# === Tab Content: Issues (SonarQube-style) === #}
     <div class="sq-project-tab-content" id="tab-issues" style="display: none;">
         {% include "dashboard/_platform_switcher.html" %}
-        <div class="sq-card sq-issues-card">
-            <div class="sq-card-header sq-card-header-actions">
-                <div>
-                    <i class="bi bi-list-ul"></i> <span data-i18n="tab_issues">Issues</span>
-                    <span class="sq-issues-count" id="issues-header-count">{{ issues_total|default(0) }} <span data-i18n="total_lower">total</span></span>
-                </div>
-            </div>
-
-            <div class="sq-card-body sq-card-no-padding">
-                <div id="issues-table-full"
-                    data-issues-url="/ui/issues?project_id={{ project.id }}&platform_filter={{ platform_filter|default('windows')|urlencode }}{% if active_branch %}&branch={{ active_branch|urlencode }}{% endif %}"
-                    data-issues-loaded="false">
-                    <div class="sq-loading">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden" data-i18n="loading_data">Loading...</span>
-                        </div>
-                        <span data-i18n="loading_issues">Loading issues...</span>
+        <div class="sq-issues-panel">
+            <div id="issues-table-full"
+                class="sq-issues-panel-inner"
+                data-issues-url="/ui/issues?project_id={{ project.id }}&platform_filter={{ platform_filter|default('windows')|urlencode }}{% if active_branch %}&branch={{ active_branch|urlencode }}{% endif %}"
+                data-issues-loaded="false">
+                <div class="sq-loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden" data-i18n="loading_data">Loading...</span>
                     </div>
+                    <span data-i18n="loading_issues">Loading issues...</span>
                 </div>
             </div>
         </div>

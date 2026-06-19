@@ -148,7 +148,7 @@ def test_upload_stores_code_snapshot_in_database(client):
     assert "int main" in r.text
 
 
-def test_issues_infinite_scroll_uses_initial_50_then_25(client):
+def test_issues_infinite_scroll_uses_initial_80_then_40(client):
     with Session(main.engine) as session:
         project = Project(name="infinite-scroll-project")
         session.add(project)
@@ -160,7 +160,7 @@ def test_issues_infinite_scroll_uses_initial_50_then_25(client):
         session.commit()
         session.refresh(run)
 
-        for idx in range(80):
+        for idx in range(120):
             session.add(
                 Issue(
                     run_id=run.id,
@@ -179,17 +179,17 @@ def test_issues_infinite_scroll_uses_initial_50_then_25(client):
     first = client.get(f"/ui/issues?project_id={project_id}&branch=main&sort_by=file&order=asc")
     assert first.status_code == 200
     assert "src/file_000.cpp" in first.text
-    assert "src/file_049.cpp" in first.text
-    assert "src/file_050.cpp" not in first.text
+    assert "src/file_079.cpp" in first.text
+    assert "src/file_080.cpp" not in first.text
 
     second = client.get(
         f"/ui/issues?project_id={project_id}&branch=main&page=2&fragment=true&sort_by=file&order=asc"
     )
     assert second.status_code == 200
-    assert "src/file_049.cpp" not in second.text
-    assert "src/file_050.cpp" in second.text
-    assert "src/file_074.cpp" in second.text
-    assert "src/file_075.cpp" not in second.text
+    assert "src/file_079.cpp" not in second.text
+    assert "src/file_080.cpp" in second.text
+    assert "src/file_119.cpp" in second.text
+    assert "src/file_120.cpp" not in second.text
 
 
 def test_ui_upload_redirects_to_dashboard(client):

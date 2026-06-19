@@ -982,7 +982,7 @@ async def ui_issues(
                 **base_vars,
                 "issues": [],
                 "total": 0,
-                "per_page": 25 if fragment else 50,
+                "per_page": 40 if fragment else 80,
                 "run_id": None,
                 "display_paths": {},
                 "issue_platforms": {},
@@ -997,8 +997,8 @@ async def ui_issues(
             },
         )
 
-    initial_per_page = 50
-    per_page = 25 if fragment else initial_per_page
+    initial_per_page = 80
+    per_page = 40 if fragment else initial_per_page
     offset = initial_per_page + max(page - 2, 0) * per_page if fragment else (page - 1) * per_page
     total = len(all_issues)
     issues = all_issues[offset : offset + per_page]

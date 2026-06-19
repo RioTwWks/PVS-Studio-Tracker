@@ -80,6 +80,9 @@
   --sq-transition: 220ms cubic-bezier(0.4, 0, 0.2, 1);
   --sq-transition-slow: 360ms cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* Page width — use most of wide monitors */
+  --sq-page-max-width: min(1920px, calc(100vw - 24px));
+
   /* Home project list status (как PVS_Sonar_WebHook_FastAPI) */
   --sq-project-active-from: #1688e8;
   --sq-project-active-to: #09b6d4;
@@ -193,7 +196,7 @@ a:hover {
 }
 
 .sq-header-container {
-  max-width: 1400px;
+  max-width: var(--sq-page-max-width);
   margin: 0 auto;
   padding: 0 var(--sq-spacing-lg);
   display: flex;
@@ -309,13 +312,13 @@ a:hover {
 
 .sq-main {
   min-height: calc(100vh - 50px);
-  padding: var(--sq-spacing-lg) 0;
+  padding: var(--sq-spacing-md) 0;
 }
 
 .sq-container {
-  max-width: 1400px;
+  max-width: var(--sq-page-max-width);
   margin: 0 auto;
-  padding: 0 var(--sq-spacing-lg);
+  padding: 0 var(--sq-spacing-md);
 }
 
 /* ============================================================
@@ -372,7 +375,7 @@ a:hover {
    ============================================================ */
 
 .sq-project-page {
-  max-width: 1400px;
+  max-width: var(--sq-page-max-width);
 }
 
 .sq-project-header {
@@ -596,22 +599,29 @@ a:hover {
 }
 
 /* === SonarQube-style Issues Layout === */
-.sq-issues-card .sq-card-body {
-  min-height: 480px;
+.sq-issues-panel {
+  border: 1px solid var(--sq-border-light);
+  border-radius: var(--sq-radius-lg);
+  background: var(--sq-bg-secondary);
+  overflow: hidden;
+}
+
+.sq-issues-panel-inner {
+  min-height: calc(100vh - 200px);
 }
 
 .sq-issues-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  min-height: 480px;
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-height: calc(100vh - 200px);
   background: var(--sq-bg-secondary);
 }
 
 .sq-issues-sidebar {
   border-right: 1px solid var(--sq-border-light);
-  padding: var(--sq-spacing-md);
+  padding: var(--sq-spacing-sm) var(--sq-spacing-md);
   overflow-y: auto;
-  max-height: calc(100vh - 220px);
+  max-height: calc(100vh - 200px);
   background: var(--sq-bg-primary);
 }
 
@@ -695,10 +705,10 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: var(--sq-spacing-md);
-  padding: var(--sq-spacing-sm) var(--sq-spacing-md);
+  padding: 6px var(--sq-spacing-md);
   border-bottom: 1px solid var(--sq-border-light);
   background: var(--sq-bg-secondary);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--sq-text-secondary);
 }
 
@@ -716,8 +726,8 @@ a:hover {
 .sq-issues-groups {
   flex: 1;
   overflow-y: auto;
-  max-height: calc(100vh - 260px);
-  padding: var(--sq-spacing-sm) var(--sq-spacing-md) var(--sq-spacing-lg);
+  max-height: calc(100vh - 200px);
+  padding: var(--sq-spacing-xs) var(--sq-spacing-md) var(--sq-spacing-md);
 }
 
 .sq-file-group {
@@ -761,16 +771,23 @@ a:hover {
 }
 
 .sq-issue-card-body {
-  padding: var(--sq-spacing-sm) var(--sq-spacing-md);
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  gap: 4px 16px;
+  align-items: start;
 }
 
 .sq-issue-card-title {
   display: block;
   color: var(--sq-text-link);
   text-decoration: none;
-  font-size: 14px;
-  line-height: 1.45;
-  margin-bottom: var(--sq-spacing-sm);
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 0;
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .sq-issue-card-title:hover {
@@ -783,9 +800,13 @@ a:hover {
 
 .sq-issue-card-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--sq-spacing-xs);
-  margin-bottom: var(--sq-spacing-sm);
+  margin-bottom: 0;
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .sq-issue-tag {
@@ -827,9 +848,11 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sq-spacing-sm);
-  font-size: 12px;
+  gap: 10px;
+  font-size: 11px;
   color: var(--sq-text-muted);
+  grid-column: 1 / -1;
+  grid-row: 2;
 }
 
 .sq-issue-status-pill {
@@ -908,8 +931,8 @@ a:hover {
 /* Issue detail — 3-column SonarQube layout */
 .sq-issue-detail {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 220px;
-  min-height: 520px;
+  grid-template-columns: 260px minmax(0, 1fr) 200px;
+  min-height: calc(100vh - 220px);
   background: var(--sq-bg-secondary);
 }
 
