@@ -15,6 +15,7 @@ services:
       dockerfile: deploy/docker-compose-windows/Dockerfile.app
       args:
         WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
+        USE_OFFLINE_DEPS: ${USE_OFFLINE_DEPS:-0}
     env_file: .env
     environment:
       REST_QUEUE_MODE: external
@@ -48,6 +49,7 @@ services:
       dockerfile: deploy/docker-compose-windows/Dockerfile.app
       args:
         WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
+        USE_OFFLINE_DEPS: ${USE_OFFLINE_DEPS:-0}
     env_file: .env
     environment:
       REST_QUEUE_MODE: external

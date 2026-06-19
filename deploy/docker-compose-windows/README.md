@@ -17,6 +17,51 @@ Zero-downtime стек для **Windows Server** с Docker Engine (native Window
 4. **nginx for Windows** на хосте — единая точка входа `:8080` (см. [`deploy/nginx/`](../nginx/)).
 5. **PostgreSQL** — не SQLite.
 
+## Сборка образа: DNS и offline-режим
+
+При `docker build` шаг `RUN Invoke-WebRequest` выполняется **внутри временного Windows-контейнера**. Ошибка:
+
+```text
+The remote name could not be resolved: 'www.python.org'
+```
+
+означает, что **в build-контейнере не работает DNS** (не синтаксис Dockerfile). Частые причины на Windows Server:
+
+- у службы Docker не заданы DNS-серверы;
+- корпоративный DNS/прокси недоступен из контейнерной сети;
+- нет исходящего доступа в интернет.
+
+### Проверка DNS на хосте и в контейнере
+
+```powershell
+# Хост
+Resolve-DnsName www.python.org
+
+# Контейнер (Windows)
+docker run --rm mcr.microsoft.com/windows/servercore:ltsc2019-amd64 powershell -Command "Resolve-DnsName www.python.org"
+```
+
+### Исправление DNS для Docker Engine
+
+В `C:\ProgramData\docker\config\daemon.json`:
+
+```json
+{
+  "dns": ["10.0.0.1", "8.8.8.8"]
+}
+```
+
+Подставьте DNS вашей сети (AD DNS), перезапустите службу `docker`.
+
+### Offline-сборка (без интернета в контейнере)
+
+1. Скачайте на **хосте** установщики в [`build-deps/`](build-deps/) — см. [`build-deps/README.md`](build-deps/README.md).
+2. Соберите с флагом:
+
+```powershell
+docker compose build --build-arg USE_OFFLINE_DEPS=1
+```
+
 ## Быстрый старт
 
 ### 1. nginx на хосте
