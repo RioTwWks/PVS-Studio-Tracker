@@ -70,6 +70,8 @@ RUN function Save-RemoteFile([string]$Url, [string]$OutFile) { `
     Write-Host \"Using Python at $pyExe\"; `
     & $pyExe --version; `
     & $pyExe -m pip install --upgrade pip; `
+    New-Item -ItemType Directory -Force -Path C:\\Docker | Out-Null; `
+    Set-Content -Path C:\\Docker\\python-path.txt -Value $pyExe -NoNewline; `
     if ($offline) { `
         Copy-Item $gitLocal .\\$env:GIT_ZIP; `
     } else { `
