@@ -220,14 +220,19 @@ def check_sonarqube_health() -> dict[str, Any]:
 
 
 def collect_integration_health(session: Session) -> dict[str, Any]:
-    """Сводка статусов сервиса и интеграций."""
+    """Сводка статусов сервиса, интеграций, воркеров и deployment."""
+    from pvs_tracker.runtime_health import collect_runtime_health
+
     checks = [
         check_service_health(session),
         check_jira_health(),
         check_tfs_health(),
         check_sonarqube_health(),
     ]
+    runtime = collect_runtime_health(session)
     return {
         "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "integrations": checks,
+        "workers": runtime["workers"],
+        "deployment": runtime["deployment"],
     }

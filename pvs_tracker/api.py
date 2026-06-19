@@ -1307,7 +1307,7 @@ async def get_integrations_status_api(
     _admin: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    """Статусы подключения к Jira, TFS, SonarQube и состояние сервиса (admin only)."""
+    """Статусы интеграций, REST queue воркеров и zero-downtime deployment (admin only)."""
     from pvs_tracker.integration_health import collect_integration_health
 
     return collect_integration_health(session)
