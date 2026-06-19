@@ -17,7 +17,7 @@ Zero-downtime стек для **Windows Server** с Docker Engine (native Window
 4. **nginx for Windows** на хосте — единая точка входа `:8080` (см. [`deploy/nginx/`](../nginx/)).
 5. **PostgreSQL** — не SQLite.
 
-## Сборка образа: DNS и offline-режим
+## Сборка образа: DNS, proxy и offline-режим
 
 При `docker build` шаг `RUN Invoke-WebRequest` выполняется **внутри временного Windows-контейнера**. Ошибка:
 
@@ -25,35 +25,103 @@ Zero-downtime стек для **Windows Server** с Docker Engine (native Window
 The remote name could not be resolved: 'www.python.org'
 ```
 
-означает, что **в build-контейнере не работает DNS** (не синтаксис Dockerfile). Частые причины на Windows Server:
+чаще всего означает **DNS в build-контейнере**, но в корпоративной сети часто нужны **и DNS, и proxy** — они настраиваются **отдельно** для каждого уровня.
 
-- у службы Docker не заданы DNS-серверы;
-- корпоративный DNS/прокси недоступен из контейнерной сети;
-- нет исходящего доступа в интернет.
+### Где какой proxy действует
 
-### Проверка DNS на хосте и в контейнере
+| Уровень | Наследует системный proxy? | Зачем |
+|---------|---------------------------|-------|
+| Браузер / пользовательские приложения | Да (Internet Options / PAC) | UI, скачивание файлов вручную |
+| PowerShell на **хосте** | Частично (IE/WebRequest profile) | `Invoke-WebRequest` в интерактивной сессии |
+| Служба **Docker Engine** | **Нет** | `docker pull` базовых образов |
+| **`RUN` внутри `docker build`** | **Нет** | Скачивание Python/MinGit в Dockerfile |
+| **Запущенные** app/worker контейнеры | **Нет** | `git clone`, Jenkins, Jira, SMTP |
+
+Системный proxy Windows **не попадает** в build-контейнер автоматически.
+
+### 1. Proxy для Docker Engine (pull образов)
+
+`C:\ProgramData\docker\config\daemon.json`:
+
+```json
+{
+  "dns": ["10.0.0.1"],
+  "proxies": {
+    "default": {
+      "httpProxy": "http://proxy.corp.local:8080",
+      "httpsProxy": "http://proxy.corp.local:8080",
+      "noProxy": "localhost,127.0.0.1,.corp.local"
+    }
+  }
+}
+```
+
+Перезапустите службу `docker`. Без этого `docker pull mcr.microsoft.com/...` может не работать, даже если в браузере всё открывается.
+
+Проверка WinHTTP proxy на хосте (от имени администратора):
+
+```powershell
+netsh winhttp show proxy
+```
+
+### 2. Proxy для сборки образа (RUN в Dockerfile)
+
+В `.env` рядом с compose:
+
+```ini
+HTTP_PROXY=http://proxy.corp.local:8080
+HTTPS_PROXY=http://proxy.corp.local:8080
+NO_PROXY=localhost,127.0.0.1,.corp.local
+```
+
+`docker compose build` передаст их в `Dockerfile.app` (`Invoke-WebRequest -Proxy` и `pip`).
+
+Или явно:
+
+```powershell
+docker compose build `
+  --build-arg HTTP_PROXY=http://proxy.corp.local:8080 `
+  --build-arg HTTPS_PROXY=http://proxy.corp.local:8080
+```
+
+### 3. Proxy для работающих контейнеров (git, CI)
+
+Если app/worker ходят во внешние URL через proxy, добавьте в `.env` (передаётся в контейнеры):
+
+```ini
+HTTP_PROXY=http://proxy.corp.local:8080
+HTTPS_PROXY=http://proxy.corp.local:8080
+NO_PROXY=localhost,127.0.0.1,.corp.local,postgres,host.docker.internal
+```
+
+Git внутри контейнера:
+
+```powershell
+git config --global http.proxy http://proxy.corp.local:8080
+git config --global https.proxy http://proxy.corp.local:8080
+```
+
+(можно добавить в `Dockerfile.app` при необходимости).
+
+### Проверка DNS и сети
 
 ```powershell
 # Хост
 Resolve-DnsName www.python.org
+Invoke-WebRequest -Uri https://www.python.org -UseBasicParsing
 
-# Контейнер (Windows)
+# Build-контейнер (DNS)
 docker run --rm mcr.microsoft.com/windows/servercore:ltsc2019-amd64 powershell -Command "Resolve-DnsName www.python.org"
+
+# Build-контейнер (через proxy)
+docker run --rm -e HTTPS_PROXY=http://proxy.corp.local:8080 mcr.microsoft.com/windows/servercore:ltsc2019-amd64 powershell -Command "Invoke-WebRequest -Uri https://www.python.org -Proxy $env:HTTPS_PROXY -UseBasicParsing"
 ```
 
 ### Исправление DNS для Docker Engine
 
-В `C:\ProgramData\docker\config\daemon.json`:
+Если `Resolve-DnsName` в контейнере падает — добавьте DNS в тот же `daemon.json` (см. выше `"dns": [...]`).
 
-```json
-{
-  "dns": ["10.0.0.1", "8.8.8.8"]
-}
-```
-
-Подставьте DNS вашей сети (AD DNS), перезапустите службу `docker`.
-
-### Offline-сборка (без интернета в контейнере)
+### Offline-сборка (без сети в build-контейнере)
 
 1. Скачайте на **хосте** установщики в [`build-deps/`](build-deps/) — см. [`build-deps/README.md`](build-deps/README.md).
 2. Соберите с флагом:
