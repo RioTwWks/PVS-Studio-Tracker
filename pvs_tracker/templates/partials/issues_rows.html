@@ -1,18 +1,35 @@
-{% for issue in issues %}
-    {% include 'partials/issue_row.html' %}
+{% from 'partials/_issues_query_string.html' import issues_params %}
+{% for file_path, display_path, file_issues in issue_groups %}
+<div class="sq-file-group" data-file-path="{{ file_path }}">
+    {% if file_path and not file_path.startswith('__analysis__/') %}
+    <header class="sq-file-group-header">
+        <i class="bi bi-file-earmark-code"></i>
+        <span class="sq-file-group-name" title="{{ file_path }}">{{ display_path }}</span>
+    </header>
+    {% elif file_path.startswith('__analysis__/') %}
+    <header class="sq-file-group-header sq-file-group-analysis">
+        <i class="bi bi-gear"></i>
+        <span data-i18n="analysis_only_issues">Analysis issues</span>
+    </header>
+    {% endif %}
+    <div class="sq-file-group-issues">
+        {% for issue in file_issues %}
+            {% include 'partials/issue_card.html' %}
+        {% endfor %}
+    </div>
+</div>
 {% endfor %}
 
 {% if has_next %}
-<tr id="load-more-sentinel"
-    hx-get="/ui/issues?project_id={{ project_id }}&branch={{ branch|urlencode }}&platform_filter={{ platform_filter|default('windows')|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&q={{ q|urlencode }}&page={{ next_page }}&per_page=25&fragment=true&sort_by={{ sort_by }}&order={{ order }}"
-    hx-trigger="pvs-load-more"
-    hx-swap="outerHTML"
-    hx-target="this"
-    hx-include="none">
-    <td colspan="{% if show_platform_badge %}11{% else %}10{% endif %}" class="text-center py-2">
-        <div class="sq-loading">
-            <span data-i18n="loading_data">Loading...</span>
-        </div>
-    </td>
-</tr>
+<div id="load-more-sentinel"
+     class="sq-issues-load-more"
+     hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, type_filter, priority_filter, q, next_page, sort_by, order, true) }}"
+     hx-trigger="pvs-load-more"
+     hx-swap="outerHTML"
+     hx-target="this"
+     hx-include="none">
+    <div class="sq-loading">
+        <span data-i18n="loading_data">Loading...</span>
+    </div>
+</div>
 {% endif %}

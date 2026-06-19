@@ -471,6 +471,9 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 from pvs_tracker.project_urls import project_ui_path, register_project_url_globals
 
 register_project_url_globals(templates.env)
+from pvs_tracker.issues_query import software_quality_label
+
+templates.env.globals["software_quality_label"] = software_quality_label
 
 # Register code_viewer router and pass templates reference
 code_viewer_module.templates = templates
@@ -854,6 +857,33 @@ async def ui_trends_fragment(
     )
 
 
+def _issues_display_paths(
+    session: Session,
+    project: Project,
+    issues: list[Issue],
+    issue_platforms: dict[int, str],
+    platform_filter: str,
+) -> dict[int, str]:
+    from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
+    from pvs_tracker.platforms import PLATFORMS
+
+    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
+    display_paths: dict[int, str] = {}
+    for issue in issues:
+        plat = issue_platforms.get(issue.id)
+        if not plat:
+            plat = platform_filter if platform_filter in PLATFORMS else "windows"
+        effective_root = get_effective_source_root(
+            project.source_root_win,
+            project.source_root_linux,
+            global_settings,
+            project.source_root_macos,
+            platform=plat,
+        )
+        display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
+    return display_paths
+
+
 @app.get("/ui/issues", response_class=HTMLResponse)
 async def ui_issues(
     request: Request,
@@ -862,6 +892,8 @@ async def ui_issues(
     platform_filter: str = "windows",
     severity: str = "",
     status_filter: str = "",
+    type_filter: str = "",
+    priority_filter: str = "",
     q: str = "",
     page: int = 1,
     sort_by: str = "file",
@@ -869,8 +901,13 @@ async def ui_issues(
     fragment: bool = False,
     session: Session = Depends(get_session),
 ):
-    from pvs_tracker.file_resolver import get_effective_source_root, normalize_file_path_for_display
-    from pvs_tracker.issues_query import resolve_issues_for_filter
+    from pvs_tracker.issues_query import (
+        compute_issue_facets,
+        compute_total_effort,
+        format_relative_time,
+        group_issues_by_file,
+        resolve_issues_for_filter,
+    )
     from pvs_tracker.platforms import normalize_platform_filter
 
     pf = normalize_platform_filter(platform_filter)
@@ -881,29 +918,156 @@ async def ui_issues(
     classifiers = session.exec(select(ErrorClassifier)).all()
     classifier_map = {c.id: c for c in classifiers}
 
-    empty_vars = {
+    base_vars = {
         "current_user": _ui_current_user(request),
-        "issues": [],
-        "total": 0,
-        "page": page,
-        "per_page": 25 if fragment else 50,
         "project_id": project_id,
         "branch": branch,
         "platform_filter": pf,
         "severity": severity,
         "status_filter": status_filter,
+        "type_filter": type_filter,
+        "priority_filter": priority_filter,
         "q": q,
-        "run_id": None,
         "classifier_map": classifier_map,
-        "display_paths": {},
-        "issue_platforms": {},
-        "issue_run_ids": {},
-        "show_platform_badge": False,
         "sort_by": sort_by,
         "order": order,
-        "has_next": False,
-        "next_page": 1,
+        "page": page,
     }
+
+    all_for_facets, run_id, issue_platforms, issue_run_ids, show_platform = (
+        resolve_issues_for_filter(
+            session,
+            project,
+            branch,
+            pf,
+            q=q,
+            sort_by=sort_by,
+            order=order,
+            classifier_map=classifier_map,
+        )
+    )
+
+    all_issues, _, issue_platforms, issue_run_ids, show_platform = (
+        resolve_issues_for_filter(
+            session,
+            project,
+            branch,
+            pf,
+            severity=severity,
+            status_filter=status_filter,
+            type_filter=type_filter,
+            priority_filter=priority_filter,
+            q=q,
+            sort_by=sort_by,
+            order=order,
+            classifier_map=classifier_map,
+        )
+    )
+
+    facets = compute_issue_facets(
+        all_for_facets,
+        classifier_map,
+        severity=severity,
+        status_filter=status_filter,
+        type_filter=type_filter,
+        priority_filter=priority_filter,
+    )
+    total_effort = compute_total_effort(all_issues, classifier_map)
+
+    if not all_issues and run_id is None:
+        return templates.TemplateResponse(
+            request,
+            "issues_table.html" if not fragment else "partials/issues_rows.html",
+            {
+                **base_vars,
+                "issues": [],
+                "total": 0,
+                "per_page": 25 if fragment else 50,
+                "run_id": None,
+                "display_paths": {},
+                "issue_platforms": {},
+                "issue_run_ids": {},
+                "show_platform_badge": False,
+                "has_next": False,
+                "next_page": 1,
+                "facets": facets,
+                "issue_groups": [],
+                "relative_times": {},
+                "total_effort": 0,
+            },
+        )
+
+    initial_per_page = 50
+    per_page = 25 if fragment else initial_per_page
+    offset = initial_per_page + max(page - 2, 0) * per_page if fragment else (page - 1) * per_page
+    total = len(all_issues)
+    issues = all_issues[offset : offset + per_page]
+
+    display_paths = _issues_display_paths(session, project, issues, issue_platforms, pf)
+    issue_groups = group_issues_by_file(issues, display_paths)
+    relative_times = {i.id: format_relative_time(i.created_at) for i in issues if i.id}
+
+    has_next = offset + per_page < total
+    next_page = page + 1
+
+    template_vars = {
+        **base_vars,
+        "issues": issues,
+        "total": total,
+        "per_page": per_page,
+        "run_id": run_id,
+        "display_paths": display_paths,
+        "issue_platforms": issue_platforms,
+        "issue_run_ids": issue_run_ids,
+        "show_platform_badge": show_platform,
+        "has_next": has_next,
+        "next_page": next_page,
+        "facets": facets,
+        "issue_groups": issue_groups,
+        "relative_times": relative_times,
+        "total_effort": total_effort,
+    }
+
+    if fragment:
+        return templates.TemplateResponse(request, "partials/issues_rows.html", template_vars)
+    return templates.TemplateResponse(request, "issues_table.html", template_vars)
+
+
+@app.get("/ui/issues/{issue_id}", response_class=HTMLResponse)
+async def ui_issue_detail(
+    request: Request,
+    issue_id: int,
+    project_id: int,
+    branch: str = "",
+    platform_filter: str = "windows",
+    severity: str = "",
+    status_filter: str = "",
+    type_filter: str = "",
+    priority_filter: str = "",
+    q: str = "",
+    page: int = 1,
+    sort_by: str = "file",
+    order: str = "asc",
+    session: Session = Depends(get_session),
+):
+    from pvs_tracker.issues_query import (
+        format_relative_time,
+        group_issues_by_file,
+        resolve_issues_for_filter,
+    )
+    from pvs_tracker.platforms import normalize_platform_filter
+
+    pf = normalize_platform_filter(platform_filter)
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+
+    classifiers = session.exec(select(ErrorClassifier)).all()
+    classifier_map = {c.id: c for c in classifiers}
 
     all_issues, run_id, issue_platforms, issue_run_ids, show_platform = (
         resolve_issues_for_filter(
@@ -913,6 +1077,8 @@ async def ui_issues(
             pf,
             severity=severity,
             status_filter=status_filter,
+            type_filter=type_filter,
+            priority_filter=priority_filter,
             q=q,
             sort_by=sort_by,
             order=order,
@@ -920,66 +1086,46 @@ async def ui_issues(
         )
     )
 
-    if not all_issues and run_id is None:
-        return templates.TemplateResponse(
-            request,
-            "issues_table.html" if not fragment else "partials/issues_rows.html",
-            empty_vars,
-        )
+    if not any(i.id == issue.id for i in all_issues):
+        raise HTTPException(404, "Issue not in current filter scope")
 
-    initial_per_page = 50
-    per_page = 25 if fragment else initial_per_page
-    offset = initial_per_page + max(page - 2, 0) * per_page if fragment else (page - 1) * per_page
-    total = len(all_issues)
-    issues = all_issues[offset : offset + per_page]
+    nav_limit = 200
+    nav_issues = all_issues[:nav_limit]
+    nav_display_paths = _issues_display_paths(session, project, nav_issues, issue_platforms, pf)
+    nav_groups = group_issues_by_file(nav_issues, nav_display_paths)
 
-    global_settings = session.exec(select(GlobalSettings).where(GlobalSettings.id == 1)).first()
-    display_paths: dict[int, str] = {}
-    for issue in issues:
-        from pvs_tracker.platforms import PLATFORMS
+    display_paths = _issues_display_paths(session, project, [issue], issue_platforms, pf)
+    relative_times = {issue.id: format_relative_time(issue.created_at)} if issue.id else {}
 
-        plat = issue_platforms.get(issue.id)
-        if not plat:
-            plat = pf if pf in PLATFORMS else "windows"
-        effective_root = get_effective_source_root(
-            project.source_root_win,
-            project.source_root_linux,
-            global_settings,
-            project.source_root_macos,
-            platform=plat,
-        )
-        display_paths[issue.id] = normalize_file_path_for_display(issue.file_path, effective_root)
-
-    has_next = offset + per_page < total
-    next_page = page + 1
-
-    template_vars = {
-        "current_user": _ui_current_user(request),
-        "issues": issues,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "project_id": project_id,
-        "branch": branch,
-        "platform_filter": pf,
-        "severity": severity,
-        "status_filter": status_filter,
-        "q": q,
-        "run_id": run_id,
-        "classifier_map": classifier_map,
-        "display_paths": display_paths,
-        "issue_platforms": issue_platforms,
-        "issue_run_ids": issue_run_ids,
-        "show_platform_badge": show_platform,
-        "sort_by": sort_by,
-        "order": order,
-        "has_next": has_next,
-        "next_page": next_page,
-    }
-
-    if fragment:
-        return templates.TemplateResponse(request, "partials/issues_rows.html", template_vars)
-    return templates.TemplateResponse(request, "issues_table.html", template_vars)
+    return templates.TemplateResponse(
+        request,
+        "issue_detail.html",
+        {
+            "current_user": _ui_current_user(request),
+            "issue": issue,
+            "project_id": project_id,
+            "branch": branch,
+            "platform_filter": pf,
+            "severity": severity,
+            "status_filter": status_filter,
+            "type_filter": type_filter,
+            "priority_filter": priority_filter,
+            "q": q,
+            "page": page,
+            "sort_by": sort_by,
+            "order": order,
+            "run_id": run_id,
+            "classifier_map": classifier_map,
+            "display_paths": display_paths,
+            "issue_platforms": issue_platforms,
+            "issue_run_ids": issue_run_ids,
+            "show_platform_badge": show_platform,
+            "nav_groups": nav_groups,
+            "nav_shown": len(nav_issues),
+            "total": len(all_issues),
+            "relative_times": relative_times,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

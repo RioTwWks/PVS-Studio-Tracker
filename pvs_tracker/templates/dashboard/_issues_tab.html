@@ -1,56 +1,11 @@
-    {# === Tab Content: Issues === #}
+    {# === Tab Content: Issues (SonarQube-style) === #}
     <div class="sq-project-tab-content" id="tab-issues" style="display: none;">
         {% include "dashboard/_platform_switcher.html" %}
-        <div class="sq-card">
+        <div class="sq-card sq-issues-card">
             <div class="sq-card-header sq-card-header-actions">
                 <div>
                     <i class="bi bi-list-ul"></i> <span data-i18n="tab_issues">Issues</span>
                     <span class="sq-issues-count" id="issues-header-count">{{ issues_total|default(0) }} <span data-i18n="total_lower">total</span></span>
-                </div>
-                <button class="sq-btn sq-btn-sm sq-btn-outline" type="button" data-bs-toggle="collapse" data-bs-target="#filters-collapse" aria-expanded="false">
-                    <i class="bi bi-funnel"></i> <span data-i18n="filters">Filters</span>
-                </button>
-            </div>
-
-            {# Collapsible Filters #}
-            <div class="collapse" id="filters-collapse">
-                <div class="sq-filters-bar">
-                    <form hx-get="/ui/issues" hx-target="#issues-table-full" hx-trigger="submit" hx-indicator="#issues-table-full" hx-swap="innerHTML" class="sq-filters-form">
-                        <input type="hidden" name="project_id" value="{{ project.id }}">
-                        <input type="hidden" name="branch" value="{{ active_branch }}">
-                        <input type="hidden" name="platform_filter" value="{{ platform_filter|default('windows') }}">
-
-                        <div class="sq-filter-group">
-                            <label class="sq-filter-label" data-i18n="severity_label">Severity</label>
-                            <select name="severity" class="sq-select">
-                                <option value="" data-i18n="severity_all">All</option>
-                                <option value="High" data-i18n="severity_high">High</option>
-                                <option value="Medium" data-i18n="severity_medium">Medium</option>
-                                <option value="Low" data-i18n="severity_low">Low</option>
-                            </select>
-                        </div>
-
-                        <div class="sq-filter-group">
-                            <label class="sq-filter-label" data-i18n="status_label">Status</label>
-                            <select name="status_filter" class="sq-select">
-                                <option value="" data-i18n="status_active">Active</option>
-                                <option value="new" data-i18n="status_new_only">New only</option>
-                                <option value="existing" data-i18n="status_existing_only">Existing only</option>
-                                <option value="fixed" data-i18n="status_fixed_only">Fixed only</option>
-                            </select>
-                        </div>
-
-                        <div class="sq-filter-group sq-filter-search">
-                            <label class="sq-filter-label" data-i18n="search_label">Search</label>
-                            <input type="text" name="q" class="sq-input" data-i18n-placeholder="search_placeholder" placeholder="File, rule, message...">
-                        </div>
-
-                        <div class="sq-filter-actions">
-                            <button type="submit" class="sq-btn sq-btn-primary sq-btn-sm">
-                                <i class="bi bi-search"></i> <span data-i18n="apply_button">Apply</span>
-                            </button>
-                        </div>
-                    </form>
                 </div>
             </div>
 
