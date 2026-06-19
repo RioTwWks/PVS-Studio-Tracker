@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from pvs_tracker import main
-from pvs_tracker.models import ErrorClassifier, Project
+from pvs_tracker.models import ErrorClassifier, Issue, Project
 
 
 SAMPLE_REPORT = {
@@ -134,7 +134,7 @@ def test_dashboard_includes_classifier_summary(client):
 
 
 def test_ui_issues_shows_classifier_info(client):
-    """Test that issues UI shows classifier type and priority."""
+    """Test that issues UI shows classifier type and priority in SonarQube-style cards."""
     # Login and upload
     client.post("/login", data={"username": "test", "password": "test"}, follow_redirects=False)
     
@@ -154,15 +154,21 @@ def test_ui_issues_shows_classifier_info(client):
     r = client.get(f"/ui/issues?project_id={project_id}")
     assert r.status_code == 200
     
-    # Should show classifier info
+    # SonarQube-style layout and classifier info
+    assert "sq-issues-layout" in r.text
+    assert "sq-issue-card" in r.text
     assert "BUG" in r.text
     assert "MAJOR" in r.text
-    assert "sort_by=status" in r.text
-    assert "sort_by=type" in r.text
-    assert "sort_by=priority" in r.text
+    assert "Reliability" in r.text
     assert 'hx-target="#issues-table-full"' in r.text
     assert 'hx-target="body"' not in r.text
+    assert "sq-issues-facet" in r.text
 
-    for sort_by in ("status", "severity", "rule", "type", "priority", "file"):
-        r = client.get(f"/ui/issues?project_id={project_id}&sort_by={sort_by}&order=asc")
-        assert r.status_code == 200
+    # Detail view
+    with Session(main.engine) as session:
+        issue = session.exec(select(Issue).where(Issue.rule_code == "V1001")).first()
+        assert issue is not None
+    r = client.get(f"/ui/issues/{issue.id}?project_id={project_id}")
+    assert r.status_code == 200
+    assert "sq-issue-detail" in r.text
+    assert "tab_where_issue" in r.text or "Where is the issue" in r.text

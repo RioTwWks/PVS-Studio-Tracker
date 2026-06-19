@@ -1,0 +1,18 @@
+{# Builds query string for issues list/detail HTMX URLs #}
+{% macro issues_params(
+    project_id,
+    branch='',
+    platform_filter='windows',
+    severity='',
+    status_filter='',
+    type_filter='',
+    priority_filter='',
+    q='',
+    page=1,
+    sort_by='file',
+    order='asc',
+    fragment=false,
+    issue_id=''
+) -%}
+project_id={{ project_id }}&branch={{ branch|urlencode }}&platform_filter={{ platform_filter|default('windows')|urlencode }}&severity={{ severity|urlencode }}&status_filter={{ status_filter|urlencode }}&type_filter={{ type_filter|urlencode }}&priority_filter={{ priority_filter|urlencode }}&q={{ q|urlencode }}&page={{ page }}&sort_by={{ sort_by }}&order={{ order }}{% if fragment %}&fragment=true{% endif %}{% if issue_id %}&selected={{ issue_id }}{% endif %}
+{%- endmacro %}

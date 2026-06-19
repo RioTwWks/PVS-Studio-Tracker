@@ -257,10 +257,29 @@
         if (event.detail && event.detail.target && event.detail.target.id === 'issues-table-full') {
             issuesScrollArmed = false;
             initIssuesInfiniteScroll();
+            initIssueDetailCodeViewer(event.detail.target);
         } else if (event.target && event.target.id === 'load-more-sentinel') {
             initIssuesInfiniteScroll();
+        } else if (event.detail && event.detail.target && event.detail.target.id === 'sq-issue-detail-code') {
+            initIssueDetailCodeViewer(event.detail.target);
         }
     });
+
+    function initIssueDetailCodeViewer(root) {
+        const container = root.querySelector
+            ? root.querySelector('#sq-issue-detail-code')
+            : document.getElementById('sq-issue-detail-code');
+        if (!container) {
+            return;
+        }
+        if (window.CodeViewer) {
+            window.CodeViewer.reset();
+            window.CodeViewer.init(container);
+        }
+        if (typeof Prism !== 'undefined') {
+            container.querySelectorAll('.sq-code-line-code').forEach((el) => Prism.highlightElement(el));
+        }
+    }
 
     window.addEventListener('scroll', () => {
         if (isIssuesTabActive()) {

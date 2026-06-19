@@ -1,0 +1,126 @@
+{% from 'partials/_issues_query_string.html' import issues_params %}
+<aside class="sq-issues-sidebar">
+    <form class="sq-issues-sidebar-search"
+          hx-get="/ui/issues"
+          hx-target="#issues-table-full"
+          hx-trigger="submit"
+          hx-swap="innerHTML">
+        <input type="hidden" name="project_id" value="{{ project_id }}">
+        <input type="hidden" name="branch" value="{{ branch }}">
+        <input type="hidden" name="platform_filter" value="{{ platform_filter|default('windows') }}">
+        <input type="hidden" name="severity" value="{{ severity }}">
+        <input type="hidden" name="status_filter" value="{{ status_filter }}">
+        <input type="hidden" name="type_filter" value="{{ type_filter|default('') }}">
+        <input type="hidden" name="priority_filter" value="{{ priority_filter|default('') }}">
+        <input type="search" name="q" class="sq-input sq-input-sm" value="{{ q }}"
+               data-i18n-placeholder="search_placeholder" placeholder="File, rule, message...">
+        <button type="submit" class="sq-btn sq-btn-sm sq-btn-primary" aria-label="Search">
+            <i class="bi bi-search"></i>
+        </button>
+    </form>
+
+    <details class="sq-issues-facet" open>
+        <summary class="sq-issues-facet-title" data-i18n="severity_label">Severity</summary>
+        <ul class="sq-issues-facet-list">
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, '', status_filter, type_filter, priority_filter, q) }}"
+                   class="sq-issues-facet-link{% if not severity %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, '', status_filter, type_filter, priority_filter, q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    <span data-i18n="severity_all">All</span>
+                </a>
+            </li>
+            {% for sev, label_key in [('High', 'severity_high'), ('Medium', 'severity_medium'), ('Low', 'severity_low')] %}
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, sev, status_filter, type_filter, priority_filter, q) }}"
+                   class="sq-issues-facet-link{% if severity == sev %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, sev, status_filter, type_filter, priority_filter, q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    <span data-i18n="{{ label_key }}">{{ sev }}</span>
+                    <span class="sq-issues-facet-count">{{ facets.severity.get(sev, 0) }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+
+    <details class="sq-issues-facet" open>
+        <summary class="sq-issues-facet-title" data-i18n="status_label">Status</summary>
+        <ul class="sq-issues-facet-list">
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, '', type_filter, priority_filter, q) }}"
+                   class="sq-issues-facet-link{% if not status_filter %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, '', type_filter, priority_filter, q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    <span data-i18n="status_active">Active</span>
+                    <span class="sq-issues-facet-count">{{ facets.status.get('new', 0) + facets.status.get('existing', 0) }}</span>
+                </a>
+            </li>
+            {% for st, label_key in [('new', 'status_new_only'), ('existing', 'status_existing_only'), ('fixed', 'status_fixed_only')] %}
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, st, type_filter, priority_filter, q) }}"
+                   class="sq-issues-facet-link{% if status_filter == st %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, st, type_filter, priority_filter, q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    <span data-i18n="{{ label_key }}">{{ st }}</span>
+                    <span class="sq-issues-facet-count">{{ facets.status.get(st, 0) }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+
+    {% if facets.type %}
+    <details class="sq-issues-facet" open>
+        <summary class="sq-issues-facet-title" data-i18n="type">Type</summary>
+        <ul class="sq-issues-facet-list">
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, '', priority_filter, q) }}"
+                   class="sq-issues-facet-link{% if not type_filter %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, '', priority_filter, q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    <span data-i18n="severity_all">All</span>
+                </a>
+            </li>
+            {% for tp, cnt in facets.type.items()|sort %}
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, tp, priority_filter, q) }}"
+                   class="sq-issues-facet-link{% if type_filter == tp %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, tp, priority_filter, q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    {{ tp }}
+                    <span class="sq-issues-facet-count">{{ cnt }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
+
+    {% if facets.priority %}
+    <details class="sq-issues-facet">
+        <summary class="sq-issues-facet-title" data-i18n="priority">Priority</summary>
+        <ul class="sq-issues-facet-list">
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, type_filter, '', q) }}"
+                   class="sq-issues-facet-link{% if not priority_filter %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, type_filter, '', q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    <span data-i18n="severity_all">All</span>
+                </a>
+            </li>
+            {% for pr, cnt in facets.priority.items()|sort %}
+            <li>
+                <a href="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, type_filter, pr, q) }}"
+                   class="sq-issues-facet-link{% if priority_filter == pr %} is-active{% endif %}"
+                   hx-get="/ui/issues?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, type_filter, pr, q) }}"
+                   hx-target="#issues-table-full" hx-swap="innerHTML">
+                    {{ pr }}
+                    <span class="sq-issues-facet-count">{{ cnt }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
+</aside>

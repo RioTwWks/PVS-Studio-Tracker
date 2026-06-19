@@ -1,0 +1,78 @@
+{% from 'partials/_issues_query_string.html' import issues_params %}
+{% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
+{% set display_path = display_paths.get(issue.id, issue.file_path) %}
+{% set issue_run_id = issue_run_ids.get(issue.id, run_id) if issue_run_ids is defined else run_id %}
+{% set quality = software_quality_label(classifier.type if classifier else None) %}
+{% set is_analysis_only = issue.file_path and issue.file_path.startswith('__analysis__/') %}
+
+<article class="sq-issue-card severity-{{ issue.severity|lower }}"
+         id="issue-card-{{ issue.id }}">
+    <div class="sq-issue-card-body">
+        <a class="sq-issue-card-title"
+           href="/ui/issues/{{ issue.id }}?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, type_filter, priority_filter, q, page, sort_by, order) }}"
+           hx-get="/ui/issues/{{ issue.id }}?{{ issues_params(project_id, branch, platform_filter, severity, status_filter, type_filter, priority_filter, q, page, sort_by, order) }}"
+           hx-target="#issues-table-full"
+           hx-swap="innerHTML"
+           hx-push-url="false">
+            <span class="sq-issue-rule">{{ issue.rule_code }}</span>:
+            {{ issue.message }}
+        </a>
+
+        <div class="sq-issue-card-tags">
+            {% if classifier and classifier.category %}
+            <span class="sq-issue-tag sq-issue-tag-attribute" title="{{ classifier.category }}">
+                {{ classifier.category }}
+            </span>
+            {% endif %}
+            <span class="sq-issue-tag sq-issue-tag-quality sq-quality-{{ quality|lower }}">
+                <i class="bi bi-bug"></i> {{ quality }}
+            </span>
+        </div>
+
+        <div class="sq-issue-card-meta">
+            <span class="sq-issue-status-pill status-{{ issue.status }}">
+                {% if issue.status == 'new' %}<span data-i18n="issue_status_new">Open</span>
+                {% elif issue.status == 'fixed' %}<span data-i18n="issue_status_fixed">Fixed</span>
+                {% elif issue.status == 'ignored' %}<span data-i18n="issue_status_ignored">Ignored</span>
+                {% else %}<span data-i18n="issue_status_existing">Open</span>{% endif %}
+            </span>
+
+            {% if issue.author_name or issue.author_email %}
+            <span class="sq-issue-meta-item sq-issue-assignee" title="{{ issue.author_email or '' }}">
+                <i class="bi bi-person"></i>
+                {{ issue.author_name or issue.author_email }}
+            </span>
+            {% endif %}
+
+            {% if issue.cwe_id or (classifier and classifier.cwe_id) %}
+            <span class="sq-issue-meta-item sq-issue-label-tag">cwe</span>
+            {% endif %}
+            <span class="sq-issue-meta-item sq-issue-label-tag">pvs-studio</span>
+
+            {% if not is_analysis_only %}
+            <span class="sq-issue-meta-item sq-issue-line">L{{ issue.line }}</span>
+            {% endif %}
+
+            {% if issue.created_at %}
+            <span class="sq-issue-meta-item sq-issue-time">{{ relative_times.get(issue.id, '') }}</span>
+            {% endif %}
+
+            {% if classifier %}
+            <span class="sq-issue-meta-item sq-issue-type">
+                <i class="bi bi-bug"></i> {{ classifier.type }}
+            </span>
+            {% endif %}
+
+            <span class="sq-issue-meta-item sq-issue-severity severity-{{ issue.severity|lower }}">
+                <i class="bi bi-circle-fill"></i> {{ issue.severity }}
+            </span>
+
+            {% if show_platform_badge %}
+            {% set plat = issue_platforms.get(issue.id, '') if issue_platforms is defined else '' %}
+            {% if plat %}
+            <span class="sq-issue-meta-item sq-platform-badge" data-i18n="platform_{{ plat }}">{{ plat }}</span>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</article>
