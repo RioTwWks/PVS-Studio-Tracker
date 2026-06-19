@@ -23,7 +23,8 @@
 | Вариант | Папка | Когда использовать |
 |---------|-------|-------------------|
 | **Nginx** | [nginx/](nginx/) | Windows Server, NSSM + nginx for Windows |
-| **Docker Compose** | [docker-compose/](docker-compose/) | Linux-хост или Docker Desktop, быстрый стенд |
+| **Compose (Windows)** | [docker-compose-windows/](docker-compose-windows/) | Windows Server + Docker Engine, контейнеры app/worker |
+| **Compose (Linux)** | [docker-compose/](docker-compose/) | Linux-хост или Docker Desktop, быстрый стенд |
 | **Kubernetes** | [k8s/](k8s/) | Кластер K8S, production с autoscaling |
 
 Подробная инструкция: [docs/zero-downtime-deployment.md](../docs/zero-downtime-deployment.md).  

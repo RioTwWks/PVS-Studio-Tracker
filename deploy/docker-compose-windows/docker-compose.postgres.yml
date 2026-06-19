@@ -1,0 +1,82 @@
+# Override: PostgreSQL в Windows-контейнере вместо инстанса на хосте.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+
+services:
+  postgres:
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose-windows/Dockerfile.postgres
+      args:
+        WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
+    environment:
+      POSTGRES_USER: pvs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pvs}
+      POSTGRES_DB: pvs_tracker
+    volumes:
+      - pvs_pg_data:C:/pgsql/data
+    healthcheck:
+      test:
+        - CMD
+        - powershell
+        - -Command
+        - >-
+          & 'C:\pgsql\bin\pg_isready.exe' -U pvs -d pvs_tracker;
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    restart: unless-stopped
+
+  app-1:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app-2:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker-jenkins:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker-jira:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker-tfs:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker-webhook:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker-smtp:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pvs_pg_data:
