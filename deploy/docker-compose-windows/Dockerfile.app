@@ -56,10 +56,20 @@ RUN function Save-RemoteFile([string]$Url, [string]$OutFile) { `
         $pyUrl = \"https://www.python.org/ftp/python/$env:PYTHON_VERSION/$env:PYTHON_INSTALLER\"; `
         Save-RemoteFile -Url $pyUrl -OutFile $env:PYTHON_INSTALLER; `
     }; `
-    Start-Process -FilePath .\\$env:PYTHON_INSTALLER -ArgumentList @('/quiet', 'InstallAllUsers=1', 'PrependPath=1', 'Include_pip=1') -Wait; `
+    $proc = Start-Process -FilePath .\\$env:PYTHON_INSTALLER -ArgumentList @('/quiet', 'InstallAllUsers=1', 'PrependPath=1', 'Include_pip=1') -Wait -PassThru; `
+    if ($proc.ExitCode -ne 0) { throw \"Python installer failed with exit code $($proc.ExitCode)\" }; `
     Remove-Item -Force $env:PYTHON_INSTALLER; `
-    python --version; `
-    python -m pip install --upgrade pip; `
+    $pyExe = 'C:\\Program Files\\Python312\\python.exe'; `
+    if (-not (Test-Path $pyExe)) { `
+        $found = Get-ChildItem 'C:\\Program Files' -Filter python.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1; `
+        if (-not $found) { throw 'python.exe not found after installer finished' }; `
+        $pyExe = $found.FullName; `
+    }; `
+    $pyDir = Split-Path $pyExe -Parent; `
+    $env:Path = \"$pyDir;$pyDir\Scripts;\" + $env:Path; `
+    Write-Host \"Using Python at $pyExe\"; `
+    & $pyExe --version; `
+    & $pyExe -m pip install --upgrade pip; `
     if ($offline) { `
         Copy-Item $gitLocal .\\$env:GIT_ZIP; `
     } else { `
