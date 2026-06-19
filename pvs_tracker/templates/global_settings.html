@@ -149,7 +149,7 @@
             </div>
         </div>
         <div class="tab-pane fade" id="tab-integrations">
-            <div class="sq-card">
+            <div class="sq-card mb-4">
                 <div class="sq-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span><i class="bi bi-plug"></i> <span data-i18n="settings_integrations_header">Статус подключений</span></span>
                     <button type="button" class="sq-btn sq-btn-outline sq-btn-sm" id="integrations-refresh-btn" onclick="loadIntegrationsStatus()">
@@ -173,6 +173,59 @@
                                 </tr>
                             </thead>
                             <tbody id="integrations-status-body">
+                                <tr><td colspan="5" class="text-muted" data-i18n="loading">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sq-card mb-4">
+                <div class="sq-card-header">
+                    <span><i class="bi bi-cpu"></i> <span data-i18n="settings_workers_header">REST queue воркеры</span></span>
+                </div>
+                <div class="sq-card-body">
+                    <p class="text-muted mb-3" data-i18n="settings_workers_desc">
+                        Jenkins, Jira, TFS, webhook и SMTP. В Docker/K8S воркеры запускаются отдельными контейнерами (REST_QUEUE_MODE=external).
+                    </p>
+                    <div class="table-responsive">
+                        <table class="sq-table" id="workers-status-table">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="col_worker">Воркер</th>
+                                    <th data-i18n="col_status">Статус</th>
+                                    <th data-i18n="col_details">Детали</th>
+                                    <th data-i18n="col_queue">Очередь</th>
+                                </tr>
+                            </thead>
+                            <tbody id="workers-status-body">
+                                <tr><td colspan="4" class="text-muted" data-i18n="loading">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sq-card">
+                <div class="sq-card-header">
+                    <span><i class="bi bi-hdd-stack"></i> <span data-i18n="settings_deployment_header">Deployment и zero-downtime</span></span>
+                </div>
+                <div class="sq-card-body">
+                    <p class="text-muted mb-3" data-i18n="settings_deployment_desc">
+                        Экземпляр приложения, health probes и готовность к rolling update без потери веб-хуков.
+                    </p>
+                    <div class="table-responsive">
+                        <table class="sq-table" id="deployment-status-table">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="col_component">Компонент</th>
+                                    <th data-i18n="col_status">Статус</th>
+                                    <th data-i18n="col_url">URL</th>
+                                    <th data-i18n="col_details">Детали</th>
+                                    <th data-i18n="col_latency">Задержка</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deployment-status-body">
                                 <tr><td colspan="5" class="text-muted" data-i18n="loading">Загрузка...</td></tr>
                             </tbody>
                         </table>
@@ -230,10 +283,28 @@ const INTEGRATION_LABELS = {
     sonarqube: 'SonarQube',
 };
 
+const WORKER_LABELS = {
+    worker_jenkins: 'Jenkins',
+    worker_jira: 'Jira',
+    worker_tfs: 'TFS',
+    worker_webhook: 'Webhook',
+    worker_smtp: 'SMTP',
+};
+
+const DEPLOYMENT_LABELS = {
+    instance: 'Instance',
+    database: 'Database',
+    rest_queue_mode: 'REST queue mode',
+    health_live: 'Liveness probe',
+    health_ready: 'Readiness probe',
+    zero_downtime: 'Zero-downtime',
+};
+
 const INTEGRATION_STATUS_CLASS = {
     ok: 'bg-success',
     error: 'bg-danger',
     not_configured: 'bg-secondary',
+    idle: 'bg-info',
 };
 
 function integrationStatusLabel(status) {
@@ -241,53 +312,119 @@ function integrationStatusLabel(status) {
     if (typeof I18n !== 'undefined' && I18n.t(key) !== key) {
         return I18n.t(key);
     }
-    const fallback = { ok: 'OK', error: 'Error', not_configured: 'Not configured' };
+    const fallback = { ok: 'OK', error: 'Error', not_configured: 'Not configured', idle: 'Idle' };
     return fallback[status] || status;
+}
+
+function componentLabel(labels, name) {
+    const key = labels[name];
+    if (key) return key;
+    if (typeof I18n !== 'undefined') {
+        const i18nKey = 'component_' + name;
+        const translated = I18n.t(i18nKey);
+        if (translated !== i18nKey) return translated;
+    }
+    return name;
+}
+
+function renderStatusTableRow(item, label) {
+    const badgeClass = INTEGRATION_STATUS_CLASS[item.status] || 'bg-secondary';
+    const latency = item.latency_ms != null ? item.latency_ms + ' ms' : '—';
+    const details = item.message || '—';
+    const url = item.url ? '<code class="small">' + escapeHtml(item.url) + '</code>' : '—';
+    return '<tr>' +
+        '<td><strong>' + escapeHtml(label) + '</strong></td>' +
+        '<td><span class="badge ' + badgeClass + '">' + escapeHtml(integrationStatusLabel(item.status)) + '</span></td>' +
+        '<td>' + url + '</td>' +
+        '<td>' + escapeHtml(details) + '</td>' +
+        '<td>' + escapeHtml(latency) + '</td>' +
+        '</tr>';
+}
+
+function renderWorkerRow(item) {
+    const label = componentLabel(WORKER_LABELS, item.name);
+    const badgeClass = INTEGRATION_STATUS_CLASS[item.status] || 'bg-secondary';
+    const details = item.details || {};
+    const queueParts = [];
+    if (details.pending != null) queueParts.push('pending: ' + details.pending);
+    if (details.processing != null) queueParts.push('processing: ' + details.processing);
+    if (details.failed != null) queueParts.push('failed: ' + details.failed);
+    const queue = queueParts.length ? queueParts.join(', ') : '—';
+    const mode = details.mode ? '[' + details.mode + '] ' : '';
+    return '<tr>' +
+        '<td><strong>' + escapeHtml(label) + '</strong></td>' +
+        '<td><span class="badge ' + badgeClass + '">' + escapeHtml(integrationStatusLabel(item.status)) + '</span></td>' +
+        '<td>' + escapeHtml(mode + (item.message || '—')) + '</td>' +
+        '<td>' + escapeHtml(queue) + '</td>' +
+        '</tr>';
+}
+
+function setTableLoading(tbody, colspan, message) {
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="text-muted">' + escapeHtml(message) + '</td></tr>';
+}
+
+function setTableError(tbody, colspan, message) {
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="text-danger">' + escapeHtml(message) + '</td></tr>';
 }
 
 async function loadIntegrationsStatus() {
     const tbody = document.getElementById('integrations-status-body');
+    const workersBody = document.getElementById('workers-status-body');
+    const deploymentBody = document.getElementById('deployment-status-body');
     const meta = document.getElementById('integrations-status-meta');
     const refreshBtn = document.getElementById('integrations-refresh-btn');
     if (!tbody) return;
 
+    const loadingText = typeof I18n !== 'undefined' ? I18n.t('loading') : 'Loading...';
     if (refreshBtn) refreshBtn.disabled = true;
-    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">' +
-        escapeHtml(typeof I18n !== 'undefined' ? I18n.t('loading') : 'Loading...') + '</td></tr>';
+    setTableLoading(tbody, 5, loadingText);
+    setTableLoading(workersBody, 4, loadingText);
+    setTableLoading(deploymentBody, 5, loadingText);
 
     try {
         const resp = await apiFetch('/api/v2/settings/integrations/status');
         if (!resp.ok) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-danger">' +
-                escapeHtml(tr('access_denied', 'Access denied')) + '</td></tr>';
+            const denied = tr('access_denied', 'Access denied');
+            setTableError(tbody, 5, denied);
+            setTableError(workersBody, 4, denied);
+            setTableError(deploymentBody, 5, denied);
             return;
         }
         const data = await resp.json();
         const items = data.integrations || [];
+        const workers = data.workers || [];
+        const deployment = data.deployment || [];
         if (meta && data.checked_at) {
             const prefix = typeof I18n !== 'undefined' ? I18n.t('integrations_checked_at') : 'Checked at';
             meta.textContent = prefix + ': ' + formatDate(data.checked_at);
         }
         if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-muted">—</td></tr>';
-            return;
+            setTableLoading(tbody, 5, '—');
+        } else {
+            tbody.innerHTML = items.map((item) => {
+                const label = INTEGRATION_LABELS[item.name] || item.name;
+                return renderStatusTableRow(item, label);
+            }).join('');
         }
-        tbody.innerHTML = items.map((item) => {
-            const label = INTEGRATION_LABELS[item.name] || item.name;
-            const badgeClass = INTEGRATION_STATUS_CLASS[item.status] || 'bg-secondary';
-            const latency = item.latency_ms != null ? item.latency_ms + ' ms' : '—';
-            const details = item.message || '—';
-            const url = item.url ? '<code class="small">' + escapeHtml(item.url) + '</code>' : '—';
-            return '<tr>' +
-                '<td><strong>' + escapeHtml(label) + '</strong></td>' +
-                '<td><span class="badge ' + badgeClass + '">' + escapeHtml(integrationStatusLabel(item.status)) + '</span></td>' +
-                '<td>' + url + '</td>' +
-                '<td>' + escapeHtml(details) + '</td>' +
-                '<td>' + escapeHtml(latency) + '</td>' +
-                '</tr>';
-        }).join('');
+        if (!workers.length) {
+            setTableLoading(workersBody, 4, '—');
+        } else {
+            workersBody.innerHTML = workers.map(renderWorkerRow).join('');
+        }
+        if (!deployment.length) {
+            setTableLoading(deploymentBody, 5, '—');
+        } else {
+            deploymentBody.innerHTML = deployment.map((item) => {
+                const label = componentLabel(DEPLOYMENT_LABELS, item.name);
+                return renderStatusTableRow(item, label);
+            }).join('');
+        }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-danger">' + escapeHtml(e.message) + '</td></tr>';
+        setTableError(tbody, 5, e.message);
+        setTableError(workersBody, 4, e.message);
+        setTableError(deploymentBody, 5, e.message);
     } finally {
         if (refreshBtn) refreshBtn.disabled = false;
     }

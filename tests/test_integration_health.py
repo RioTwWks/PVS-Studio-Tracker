@@ -62,19 +62,27 @@ def test_check_sonarqube_health_ok(mock_session_cls):
     assert result["status"] == "ok"
 
 
+@patch("pvs_tracker.runtime_health.collect_runtime_health")
 @patch("pvs_tracker.integration_health.check_sonarqube_health")
 @patch("pvs_tracker.integration_health.check_tfs_health")
 @patch("pvs_tracker.integration_health.check_jira_health")
-def test_collect_integration_health(mock_jira, mock_tfs, mock_sonar):
+def test_collect_integration_health(mock_jira, mock_tfs, mock_sonar, mock_runtime):
     mock_jira.return_value = {"name": "jira", "status": "ok", "url": "", "message": ""}
     mock_tfs.return_value = {"name": "tfs", "status": "ok", "url": "", "message": ""}
     mock_sonar.return_value = {"name": "sonarqube", "status": "ok", "url": "", "message": ""}
+    mock_runtime.return_value = {
+        "checked_at": "2026-01-01T00:00:00Z",
+        "workers": [{"name": "worker_jenkins", "status": "ok", "message": "", "details": {}}],
+        "deployment": [{"name": "instance", "status": "ok", "message": "", "details": {}}],
+    }
 
     with Session(main.engine) as session:
         payload = collect_integration_health(session)
     assert "checked_at" in payload
     assert len(payload["integrations"]) == 4
     assert payload["integrations"][0]["name"] == "service"
+    assert len(payload["workers"]) == 1
+    assert len(payload["deployment"]) == 1
 
 
 def test_integrations_status_api_requires_admin(client):
@@ -104,3 +112,7 @@ def test_integrations_status_api_admin(client):
         data = resp.json()
         names = [item["name"] for item in data["integrations"]]
         assert names == ["service", "jira", "tfs", "sonarqube"]
+        assert "workers" in data
+        assert "deployment" in data
+        assert len(data["workers"]) == 5
+        assert any(item["name"] == "zero_downtime" for item in data["deployment"])

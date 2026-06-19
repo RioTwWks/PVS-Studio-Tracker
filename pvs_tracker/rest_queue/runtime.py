@@ -51,6 +51,19 @@ def stop_embedded_workers() -> None:
     _workers.clear()
 
 
+def embedded_workers_status() -> dict[str, dict[str, object]]:
+    """Статус встроенных воркеров по service (пусто если mode != embedded)."""
+    if queue_mode() != "embedded":
+        return {}
+    return {
+        worker.service: {
+            "alive": worker.is_alive(),
+            "worker_id": worker.worker_id,
+        }
+        for worker in _workers
+    }
+
+
 def run_external_workers(services: tuple[str, ...]) -> None:
     """Блокирующий цикл для отдельного процесса/контейнера воркера."""
     interval = poll_interval()
