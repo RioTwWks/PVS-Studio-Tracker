@@ -17,6 +17,174 @@ Zero-downtime стек для **Windows Server** с Docker Engine (native Window
 4. **nginx for Windows** на хосте — единая точка входа `:8080` (см. [`deploy/nginx/`](../nginx/)).
 5. **PostgreSQL** — не SQLite.
 
+## Установка Docker Engine 29.x (с MCR / Docker 19.03)
+
+Скрипт: [`install-docker-engine.ps1`](install-docker-engine.ps1) — скачивает static zip, заменяет бинарники, регистрирует службу, ставит Compose plugin.
+
+**PowerShell от администратора:**
+
+```powershell
+cd deploy\docker-compose-windows
+
+# Базовая установка (online)
+.\install-docker-engine.ps1
+
+# С DNS и proxy для daemon (работает на 29.x; на 19.03 блок proxies ломает службу)
+.\install-docker-engine.ps1 -DockerVersion 29.5.3 `
+  -DnsServers 10.0.0.1 `
+  -DaemonHttpProxy http://proxy.corp.local:8080 `
+  -DaemonHttpsProxy http://proxy.corp.local:8080 `
+  -DaemonNoProxy "localhost,127.0.0.1,.corp.local"
+
+# Скачивание zip через proxy (на хосте)
+.\install-docker-engine.ps1 -HttpProxy http://proxy.corp.local:8080 -HttpsProxy http://proxy.corp.local:8080
+
+# Offline — zip уже на диске
+.\install-docker-engine.ps1 -ZipPath C:\Install\docker-29.5.3.zip
+```
+
+Проверка:
+
+```powershell
+docker version
+docker compose version
+docker run --rm mcr.microsoft.com/windows/nanoserver:ltsc2019 cmd /c echo OK
+```
+
+Пример `daemon.json` для ручной правки: [`daemon.json.example`](daemon.json.example).
+
+### Если служба не стартует после правки daemon.json
+
+```powershell
+Rename-Item C:\ProgramData\docker\config\daemon.json daemon.json.bak -ErrorAction SilentlyContinue
+Restart-Service docker
+Get-EventLog -LogName Application -Source docker -Newest 5 | Format-List Message
+```
+
+Ошибка `directives don't match any configuration option: default` — это **Docker 19.03**; блок `"proxies": { "default": ... }` поддерживается в **20.10+ / 29.x**.
+
+### Ручная установка (без скрипта)
+
+1. Скачать: https://download.docker.com/win/static/stable/x86_64/docker-29.5.3.zip  
+2. Остановить службу, `dockerd --unregister-service`  
+3. Распаковать в `C:\Program Files\Docker`, добавить в PATH  
+4. `dockerd --register-service` → `Start-Service docker`  
+5. Compose plugin: `docker-compose-windows-x86_64.exe` → `C:\Program Files\Docker\cli-plugins\docker-compose.exe`  
+   (релизы: https://github.com/docker/compose/releases)
+
+## Сборка образа: DNS, proxy и offline-режим
+
+При `docker build` шаг `RUN Invoke-WebRequest` выполняется **внутри временного Windows-контейнера**. Ошибка:
+
+```text
+The remote name could not be resolved: 'www.python.org'
+```
+
+чаще всего означает **DNS в build-контейнере**, но в корпоративной сети часто нужны **и DNS, и proxy** — они настраиваются **отдельно** для каждого уровня.
+
+### Где какой proxy действует
+
+| Уровень | Наследует системный proxy? | Зачем |
+|---------|---------------------------|-------|
+| Браузер / пользовательские приложения | Да (Internet Options / PAC) | UI, скачивание файлов вручную |
+| PowerShell на **хосте** | Частично (IE/WebRequest profile) | `Invoke-WebRequest` в интерактивной сессии |
+| Служба **Docker Engine** | **Нет** | `docker pull` базовых образов |
+| **`RUN` внутри `docker build`** | **Нет** | Скачивание Python/MinGit в Dockerfile |
+| **Запущенные** app/worker контейнеры | **Нет** | `git clone`, Jenkins, Jira, SMTP |
+
+Системный proxy Windows **не попадает** в build-контейнер автоматически.
+
+### 1. Proxy для Docker Engine (pull образов)
+
+`C:\ProgramData\docker\config\daemon.json`:
+
+```json
+{
+  "dns": ["10.0.0.1"],
+  "proxies": {
+    "default": {
+      "httpProxy": "http://proxy.corp.local:8080",
+      "httpsProxy": "http://proxy.corp.local:8080",
+      "noProxy": "localhost,127.0.0.1,.corp.local"
+    }
+  }
+}
+```
+
+Перезапустите службу `docker`. Без этого `docker pull mcr.microsoft.com/...` может не работать, даже если в браузере всё открывается.
+
+Проверка WinHTTP proxy на хосте (от имени администратора):
+
+```powershell
+netsh winhttp show proxy
+```
+
+### 2. Proxy для сборки образа (RUN в Dockerfile)
+
+В `.env` рядом с compose:
+
+```ini
+HTTP_PROXY=http://proxy.corp.local:8080
+HTTPS_PROXY=http://proxy.corp.local:8080
+NO_PROXY=localhost,127.0.0.1,.corp.local
+```
+
+`docker compose build` передаст их в `Dockerfile.app` (`Invoke-WebRequest -Proxy` и `pip`).
+
+Или явно:
+
+```powershell
+docker compose build `
+  --build-arg HTTP_PROXY=http://proxy.corp.local:8080 `
+  --build-arg HTTPS_PROXY=http://proxy.corp.local:8080
+```
+
+### 3. Proxy для работающих контейнеров (git, CI)
+
+Если app/worker ходят во внешние URL через proxy, добавьте в `.env` (передаётся в контейнеры):
+
+```ini
+HTTP_PROXY=http://proxy.corp.local:8080
+HTTPS_PROXY=http://proxy.corp.local:8080
+NO_PROXY=localhost,127.0.0.1,.corp.local,postgres,host.docker.internal
+```
+
+Git внутри контейнера:
+
+```powershell
+git config --global http.proxy http://proxy.corp.local:8080
+git config --global https.proxy http://proxy.corp.local:8080
+```
+
+(можно добавить в `Dockerfile.app` при необходимости).
+
+### Проверка DNS и сети
+
+```powershell
+# Хост
+Resolve-DnsName www.python.org
+Invoke-WebRequest -Uri https://www.python.org -UseBasicParsing
+
+# Build-контейнер (DNS)
+docker run --rm mcr.microsoft.com/windows/servercore:ltsc2019-amd64 powershell -Command "Resolve-DnsName www.python.org"
+
+# Build-контейнер (через proxy)
+docker run --rm -e HTTPS_PROXY=http://proxy.corp.local:8080 mcr.microsoft.com/windows/servercore:ltsc2019-amd64 powershell -Command "Invoke-WebRequest -Uri https://www.python.org -Proxy $env:HTTPS_PROXY -UseBasicParsing"
+```
+
+### Исправление DNS для Docker Engine
+
+Если `Resolve-DnsName` в контейнере падает — добавьте DNS в тот же `daemon.json` (см. выше `"dns": [...]`).
+
+### Offline-сборка (без сети в build-контейнере)
+
+1. Скачайте на **хосте** установщики в [`build-deps/`](build-deps/) — см. [`build-deps/README.md`](build-deps/README.md).
+2. Соберите с флагом:
+
+```powershell
+docker compose build --build-arg USE_OFFLINE_DEPS=1
+```
+
 ## Быстрый старт
 
 ### 1. nginx на хосте
