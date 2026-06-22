@@ -1176,6 +1176,104 @@ async def ui_issue_why(
     )
 
 
+def _issue_activity_template_vars(
+    request: Request,
+    issue: Issue,
+    project_id: int,
+    session: Session,
+) -> dict:
+    from pvs_tracker.issue_activity import build_issue_activity_timeline, format_activity_timestamp
+
+    events = build_issue_activity_timeline(session, issue, project_id)
+    return {
+        "issue": issue,
+        "project_id": project_id,
+        "current_user": _ui_current_user(request),
+        "activity_events": [
+            {
+                "timestamp": event.timestamp,
+                "timestamp_display": format_activity_timestamp(event.timestamp),
+                "kind": event.kind,
+                "lines": event.lines,
+                "actor_name": event.actor_name,
+                "actor_email": event.actor_email,
+            }
+            for event in events
+        ],
+    }
+
+
+@app.get("/ui/issues/{issue_id}/activity", response_class=HTMLResponse)
+async def ui_issue_activity(
+    request: Request,
+    issue_id: int,
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+
+    return templates.TemplateResponse(
+        request,
+        "partials/issue_activity.html",
+        _issue_activity_template_vars(request, issue, project_id, session),
+    )
+
+
+@app.post("/ui/issues/{issue_id}/comments", response_class=HTMLResponse)
+async def ui_issue_add_comment(
+    request: Request,
+    issue_id: int,
+    project_id: int,
+    comment: str = Form(...),
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
+    from pvs_tracker.api import log_activity
+
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+
+    text = comment.strip()
+    if not text:
+        raise HTTPException(400, "Comment cannot be empty")
+
+    session.add(
+        IssueComment(
+            issue_id=issue_id,
+            user_id=user.id,
+            comment=text,
+        )
+    )
+    log_activity(
+        session,
+        "comment",
+        "issue",
+        entity_id=issue_id,
+        project_id=project_id,
+        user_id=user.id,
+        details=text[:500],
+    )
+    session.commit()
+
+    return templates.TemplateResponse(
+        request,
+        "partials/issue_activity.html",
+        _issue_activity_template_vars(request, issue, project_id, session),
+    )
+
+
+@app.post("/ui/upload", response_class=HTMLResponse)
 async def upload_report_ui(
     request: Request,
     project_name: str = Form(...),
