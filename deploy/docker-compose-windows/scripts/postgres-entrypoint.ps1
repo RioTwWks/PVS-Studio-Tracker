@@ -16,9 +16,11 @@ if (-not (Test-Path $pgData)) {
 $pgVersionFile = Join-Path $pgData "PG_VERSION"
 if (-not (Test-Path $pgVersionFile)) {
     Write-Host "Initializing PostgreSQL data directory at $pgData ..."
-    & (Join-Path $pgBin "initdb.exe") -D $pgData -U postgres -E UTF8 --locale=C -A trust
+    $initdb = Join-Path $pgBin "initdb.exe"
+    # --locale=C часто отсутствует на Windows Server; без него берётся системная локаль.
+    & $initdb -D $pgData -U postgres -E UTF8 -A trust
     if ($LASTEXITCODE -ne 0) {
-        throw "initdb failed"
+        throw "initdb failed with exit code $LASTEXITCODE"
     }
 }
 
@@ -37,6 +39,9 @@ if (Test-Path $conf) {
 
 if (Test-Path $hba) {
     $hbaText = Get-Content -Raw -Path $hba
+    if ($hbaText -notmatch "127\.0\.0\.1/32") {
+        Add-Content -Path $hba -Value "host all all 127.0.0.1/32 trust"
+    }
     if ($hbaText -notmatch "0\.0\.0\.0/0") {
         Add-Content -Path $hba -Value "host all all 0.0.0.0/0 md5"
         Add-Content -Path $hba -Value "host all all ::/0 md5"

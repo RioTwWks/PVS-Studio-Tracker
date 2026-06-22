@@ -20,17 +20,20 @@ services:
     volumes:
       - pvs_pg_data:C:/pgsql/data
     healthcheck:
+      # CMD-форма: без PowerShell и без $LASTEXITCODE (Compose иначе подставляет пустую переменную).
       test:
         - CMD
-        - powershell
-        - -Command
-        - >-
-          & 'C:\pgsql\bin\pg_isready.exe' -U pvs -d pvs_tracker;
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+        - C:\pgsql\bin\pg_isready.exe
+        - -h
+        - 127.0.0.1
+        - -p
+        - "5432"
+        - -U
+        - postgres
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 90s
+      retries: 18
+      start_period: 120s
     restart: unless-stopped
 
   app-1:

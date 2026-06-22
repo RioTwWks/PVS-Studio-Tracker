@@ -46,7 +46,7 @@ services:
     ports:
       - "8082:8080"
 
-  worker: &worker
+  x-worker: &worker
     build:
       context: ../..
       dockerfile: deploy/docker-compose-windows/Dockerfile.app
