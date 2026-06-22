@@ -18,7 +18,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pvs}
       POSTGRES_DB: pvs_tracker
     volumes:
-      - pvs_pg_data:C:/pgsql/data
+      # Bind mount: на Windows named volume часто ломает initdb (Permission denied на ACL).
+      # Сброс данных: docker compose down && Remove-Item -Recurse -Force .\pgdata
+      - ./pgdata:C:/pgsql/data
     healthcheck:
       # CMD-форма: без PowerShell и без $LASTEXITCODE (Compose иначе подставляет пустую переменную).
       test:
@@ -85,5 +87,3 @@ services:
       postgres:
         condition: service_healthy
 
-volumes:
-  pvs_pg_data:
