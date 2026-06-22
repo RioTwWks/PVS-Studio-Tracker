@@ -65,7 +65,7 @@ COPY deploy/docker-compose-windows/scripts/postgres-entrypoint.ps1 C:/scripts/po
 
 EXPOSE 5432
 
-HEALTHCHECK --interval=10s --timeout=5s --retries=12 --start-period=90s `
-    CMD C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -Command "& 'C:\pgsql\bin\pg_isready.exe' -U $env:POSTGRES_USER -d $env:POSTGRES_DB; if ($LASTEXITCODE -ne 0) { exit 1 }"
+HEALTHCHECK --interval=10s --timeout=5s --retries=18 --start-period=120s `
+    CMD C:\\pgsql\\bin\\pg_isready.exe -h 127.0.0.1 -p 5432 -U postgres
 
 ENTRYPOINT ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-File", "C:/scripts/postgres-entrypoint.ps1"]
