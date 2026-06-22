@@ -13,6 +13,7 @@ import httpx
 from sqlmodel import Session, select
 
 from pvs_tracker.models import ErrorClassifier
+from pvs_tracker.rule_documentation import rule_documentation_url
 
 logger = logging.getLogger(__name__)
 
@@ -369,7 +370,7 @@ def sync_warnings_catalog(session: Session) -> dict[str, Any]:
     updated = 0
 
     for entry in entries:
-        doc_url = f"{DOC_BASE_URL}#{entry.rule_code.lower()}"
+        doc_url = rule_documentation_url(entry.rule_code)
         lang = resolve_warning_language(entry.rule_code, entry.category, entry.language)
         existing = session.exec(
             select(ErrorClassifier).where(ErrorClassifier.rule_code == entry.rule_code)

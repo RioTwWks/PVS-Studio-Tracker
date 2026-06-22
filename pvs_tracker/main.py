@@ -472,8 +472,15 @@ from pvs_tracker.project_urls import project_ui_path, register_project_url_globa
 
 register_project_url_globals(templates.env)
 from pvs_tracker.issues_query import software_quality_label
+from pvs_tracker.rule_documentation import (
+    build_classifier_maps,
+    fetch_rule_documentation,
+    resolve_issue_classifier,
+    rule_documentation_url,
+)
 
 templates.env.globals["software_quality_label"] = software_quality_label
+templates.env.globals["resolve_issue_classifier"] = resolve_issue_classifier
 
 # Register code_viewer router and pass templates reference
 code_viewer_module.templates = templates
@@ -916,7 +923,7 @@ async def ui_issues(
         raise HTTPException(404, "Project not found")
 
     classifiers = session.exec(select(ErrorClassifier)).all()
-    classifier_map = {c.id: c for c in classifiers}
+    classifier_map, classifier_by_code = build_classifier_maps(classifiers)
 
     base_vars = {
         "current_user": _ui_current_user(request),
@@ -929,6 +936,7 @@ async def ui_issues(
         "priority_filter": priority_filter,
         "q": q,
         "classifier_map": classifier_map,
+        "classifier_by_code": classifier_by_code,
         "sort_by": sort_by,
         "order": order,
         "page": page,
@@ -1067,7 +1075,7 @@ async def ui_issue_detail(
         raise HTTPException(404, "Issue not found")
 
     classifiers = session.exec(select(ErrorClassifier)).all()
-    classifier_map = {c.id: c for c in classifiers}
+    classifier_map, classifier_by_code = build_classifier_maps(classifiers)
 
     all_issues, run_id, issue_platforms, issue_run_ids, show_platform = (
         resolve_issues_for_filter(
@@ -1116,6 +1124,7 @@ async def ui_issue_detail(
             "order": order,
             "run_id": run_id,
             "classifier_map": classifier_map,
+            "classifier_by_code": classifier_by_code,
             "display_paths": display_paths,
             "issue_platforms": issue_platforms,
             "issue_run_ids": issue_run_ids,
@@ -1128,12 +1137,45 @@ async def ui_issue_detail(
     )
 
 
-# ---------------------------------------------------------------------------
-# API routes
-# ---------------------------------------------------------------------------
+@app.get("/ui/issues/{issue_id}/why", response_class=HTMLResponse)
+async def ui_issue_why(
+    request: Request,
+    issue_id: int,
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+
+    classifiers = session.exec(select(ErrorClassifier)).all()
+    classifier_map, classifier_by_code = build_classifier_maps(classifiers)
+    classifier = resolve_issue_classifier(issue, classifier_map, classifier_by_code)
+
+    doc_url = (
+        classifier.doc_url
+        if classifier and classifier.doc_url
+        else rule_documentation_url(issue.rule_code)
+    )
+    doc_html, doc_error = await fetch_rule_documentation(issue.rule_code)
+
+    return templates.TemplateResponse(
+        request,
+        "partials/issue_why.html",
+        {
+            "issue": issue,
+            "classifier": classifier,
+            "doc_html": doc_html,
+            "doc_error": doc_error,
+            "doc_url": doc_url,
+        },
+    )
 
 
-@app.post("/ui/upload", response_class=HTMLResponse)
 async def upload_report_ui(
     request: Request,
     project_name: str = Form(...),

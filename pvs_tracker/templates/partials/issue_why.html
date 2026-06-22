@@ -1,0 +1,56 @@
+{% if doc_html %}
+<div class="sq-issue-why-doc">
+    {{ doc_html | safe }}
+</div>
+{% elif classifier %}
+<div class="sq-issue-why-content">
+    <h3>{{ classifier.name }}</h3>
+    {% if classifier.description %}
+    <p>{{ classifier.description }}</p>
+    {% endif %}
+    {% if issue.message and issue.message != classifier.name %}
+    <p class="sq-issue-why-message">{{ issue.message }}</p>
+    {% endif %}
+</div>
+{% elif issue.message %}
+<div class="sq-issue-why-content">
+    <p class="sq-issue-why-message">{{ issue.message }}</p>
+</div>
+{% endif %}
+
+{% if classifier or doc_url %}
+<dl class="sq-issue-why-meta">
+    {% if classifier %}
+    <dt data-i18n="type">Type</dt>
+    <dd>{{ classifier.type }}</dd>
+    <dt data-i18n="priority">Priority</dt>
+    <dd>{{ classifier.priority }}</dd>
+    {% if classifier.cwe_id %}
+    <dt>CWE</dt>
+    <dd>CWE-{{ classifier.cwe_id }}</dd>
+    {% endif %}
+    {% if classifier.category %}
+    <dt data-i18n="category_label">Category</dt>
+    <dd>{{ classifier.category }}</dd>
+    {% endif %}
+    {% endif %}
+    {% if doc_url %}
+    <dt data-i18n="documentation">Documentation</dt>
+    <dd><a href="{{ doc_url }}" target="_blank" rel="noopener">{{ doc_url }}</a></dd>
+    {% endif %}
+</dl>
+{% endif %}
+
+{% if doc_error and not doc_html %}
+<div class="sq-alert sq-alert-warning sq-issue-why-fallback">
+    <i class="bi bi-info-circle"></i>
+    <span>{{ doc_error }}</span>
+    {% if doc_url %}
+    <a href="{{ doc_url }}" target="_blank" rel="noopener" data-i18n="open_pvs_documentation">Open PVS documentation</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if not doc_html and not classifier and not issue.message %}
+<p data-i18n="no_classifier_info">No classifier information available for this rule.</p>
+{% endif %}
