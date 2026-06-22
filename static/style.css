@@ -1169,8 +1169,65 @@ a:hover {
   font-size: var(--sq-issues-fs-base);
 }
 
+.sq-issue-why-doc {
+  max-width: 900px;
+  line-height: 1.65;
+  font-size: var(--sq-issues-fs-base);
+}
+
+.sq-issue-why-doc h1 {
+  font-size: var(--sq-issues-fs-detail-title);
+  margin: 0 0 var(--sq-spacing-md);
+  line-height: 1.35;
+}
+
+.sq-issue-why-doc p {
+  margin: 0 0 var(--sq-spacing-md);
+}
+
+.sq-issue-why-doc pre {
+  margin: 0 0 var(--sq-spacing-md);
+  padding: var(--sq-spacing-md);
+  border-radius: var(--sq-radius-md);
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid var(--sq-border-light);
+  background: var(--sq-bg-tertiary);
+}
+
+.sq-issue-why-doc pre.err {
+  border-color: var(--sq-severity-high);
+  background: var(--sq-severity-high-bg);
+}
+
+.sq-issue-why-doc pre.norm {
+  border-color: var(--sq-status-fixed);
+  background: var(--sq-status-fixed-bg);
+}
+
+.sq-issue-why-doc pre.neut {
+  border-color: var(--sq-border);
+}
+
+.sq-issue-why-doc code {
+  font-family: var(--sq-font-mono);
+}
+
+.sq-issue-why-fallback {
+  margin-top: var(--sq-spacing-md);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sq-spacing-sm);
+}
+
+.sq-issue-why-message {
+  color: var(--sq-text-secondary);
+}
+
 .sq-issue-why-content {
-  max-width: 800px;
+  max-width: 900px;
   font-size: var(--sq-issues-fs-base);
   line-height: 1.65;
 }

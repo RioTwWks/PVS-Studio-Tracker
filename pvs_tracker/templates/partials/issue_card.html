@@ -1,5 +1,5 @@
 {% from 'partials/_issues_query_string.html' import issues_params %}
-{% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
+{% set classifier = resolve_issue_classifier(issue, classifier_map, classifier_by_code) if classifier_by_code is defined else classifier_map.get(issue.classifier_id) %}
 {% set display_path = display_paths.get(issue.id, issue.file_path) %}
 {% set issue_run_id = issue_run_ids.get(issue.id, run_id) if issue_run_ids is defined else run_id %}
 {% set quality = software_quality_label(classifier.type if classifier else None) %}
