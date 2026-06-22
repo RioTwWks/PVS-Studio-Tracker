@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 
 $pgRoot = $env:POSTGRES_ROOT
 $pgBin = Join-Path $pgRoot "bin"
+$env:Path = "$pgBin;" + $env:Path
 $pgData = $env:PGDATA
 $pgUser = $env:POSTGRES_USER
 $pgPass = $env:POSTGRES_PASSWORD
@@ -17,10 +18,15 @@ $pgVersionFile = Join-Path $pgData "PG_VERSION"
 if (-not (Test-Path $pgVersionFile)) {
     Write-Host "Initializing PostgreSQL data directory at $pgData ..."
     $initdb = Join-Path $pgBin "initdb.exe"
-    # --locale=C часто отсутствует на Windows Server; без него берётся системная локаль.
-    & $initdb -D $pgData -U postgres -E UTF8 -A trust
+    if (-not (Test-Path $initdb)) {
+        throw "initdb.exe not found at $initdb"
+    }
+    $initOut = & $initdb -D $pgData -U postgres -E UTF8 -A trust 2>&1
+    $initOut | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) {
-        throw "initdb failed with exit code $LASTEXITCODE"
+        Get-ChildItem -Path $pgData -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        $hex = '{0:X}' -f [int32]$LASTEXITCODE
+        throw "initdb failed with exit code $LASTEXITCODE (0x$hex). On Windows containers this often means missing VC++ runtime in the image."
     }
 }
 

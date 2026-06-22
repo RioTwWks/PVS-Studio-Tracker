@@ -13,12 +13,14 @@ FROM ltsc2019:latest
 
 ARG POSTGRES_VERSION=16.6-1
 ARG POSTGRES_ZIP=postgresql-16.6-1-windows-x64-binaries.zip
+ARG VC_REDIST=vc_redist.x64.exe
 ARG USE_OFFLINE_DEPS=0
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ARG NO_PROXY
 
 ENV POSTGRES_ZIP=${POSTGRES_ZIP}
+ENV VC_REDIST=${VC_REDIST}
 ENV POSTGRES_ROOT=C:\pgsql
 ENV POSTGRES_USER=pvs
 ENV POSTGRES_PASSWORD=pvs
@@ -59,7 +61,28 @@ RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tl
         Write-Host 'PostgreSQL binaries ready at C:\pgsql'; `
     } else { `
         throw 'Unexpected PostgreSQL zip layout (expected C:\pgsql)'; `
-    }
+    }; `
+    $vcLocal = Join-Path 'C:\build-deps' $env:VC_REDIST; `
+    if ($offline -and -not (Test-Path $vcLocal)) { throw \"Offline build: missing $vcLocal (Visual C++ Redistributable)\" }; `
+    if (Test-Path $vcLocal) { `
+        Write-Host 'Using VC++ redist from build-deps'; `
+        Copy-Item $vcLocal .\\$env:VC_REDIST; `
+    } else { `
+        Save-RemoteFile -Url 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $env:VC_REDIST; `
+    }; `
+    $vcProc = Start-Process -FilePath .\\$env:VC_REDIST -ArgumentList @('/install', '/quiet', '/norestart') -Wait -PassThru; `
+    if ($vcProc.ExitCode -notin 0, 1638) { throw \"VC++ redist failed with exit code $($vcProc.ExitCode)\" }; `
+    Remove-Item -Force $env:VC_REDIST; `
+    $env:Path = 'C:\pgsql\bin;' + $env:Path; `
+    $testData = 'C:\pgsql\initdb-smoke-test'; `
+    if (Test-Path $testData) { Remove-Item $testData -Recurse -Force }; `
+    Write-Host 'Smoke test: initdb in image build ...'; `
+    & 'C:\pgsql\bin\initdb.exe' -D $testData -U postgres -E UTF8 -A trust; `
+    if ($LASTEXITCODE -ne 0) { throw \"initdb smoke test failed with exit code $LASTEXITCODE (missing VC++ runtime?)\" }; `
+    Remove-Item $testData -Recurse -Force; `
+    Write-Host 'initdb smoke test OK'
+
+ENV PATH="C:\\pgsql\\bin;C:\\Windows\\System32;C:\\Windows"
 
 COPY deploy/docker-compose-windows/scripts/postgres-entrypoint.ps1 C:/scripts/postgres-entrypoint.ps1
 

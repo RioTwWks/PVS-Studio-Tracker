@@ -252,6 +252,36 @@ Webhook URL для TFS: `http://<host>:8080/webhook/inbound`.
 .\rolling-update.ps1 -Service app-1 -NginxConf "C:\nginx\conf\nginx.conf" -WithPostgresContainer
 ```
 
+## Troubleshooting
+
+### `initdb failed with exit code -1073741515`
+
+Код `0xC000013D` — не хватает **Visual C++ Redistributable** для PostgreSQL zip binaries. Образ postgres теперь ставит `vc_redist.x64.exe` при сборке. Пересоберите:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgres --no-cache
+```
+
+Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-deps/README.md`](build-deps/README.md)).
+
+### Volume `pvs_pg_data` не удаляется / network in use
+
+Остался старый контейнер `worker-1` или `x-worker-1`:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml down --remove-orphans
+docker rm -f docker-compose-windows-worker-1 docker-compose-windows-x-worker-1 2>$null
+docker volume rm docker-compose-windows_pvs_pg_data
+```
+
+Если volume всё ещё занят — `Restart-Service docker`, затем снова `docker volume rm`.
+
+### Orphan containers после обновления compose
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --remove-orphans
+```
+
 ## Файлы
 
 | Файл | Назначение |
