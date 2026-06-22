@@ -8,6 +8,22 @@
 # PostgreSQL в контейнере (опционально):
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 
+# Шаблон воркера (extension field — не создаёт отдельный контейнер).
+x-worker: &worker
+  build:
+    context: ../..
+    dockerfile: deploy/docker-compose-windows/Dockerfile.app
+    args:
+      WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
+      USE_OFFLINE_DEPS: ${USE_OFFLINE_DEPS:-0}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+  env_file: .env
+  environment:
+    REST_QUEUE_MODE: external
+  restart: unless-stopped
+
 services:
   app-1: &app
     build:
@@ -45,21 +61,6 @@ services:
     <<: *app
     ports:
       - "8082:8080"
-
-  x-worker: &worker
-    build:
-      context: ../..
-      dockerfile: deploy/docker-compose-windows/Dockerfile.app
-      args:
-        WINDOWS_VERSION: ${WINDOWS_VERSION:-ltsc2019-amd64}
-        USE_OFFLINE_DEPS: ${USE_OFFLINE_DEPS:-0}
-        HTTP_PROXY: ${HTTP_PROXY:-}
-        HTTPS_PROXY: ${HTTPS_PROXY:-}
-        NO_PROXY: ${NO_PROXY:-}
-    env_file: .env
-    environment:
-      REST_QUEUE_MODE: external
-    restart: unless-stopped
 
   worker-jenkins:
     <<: *worker
