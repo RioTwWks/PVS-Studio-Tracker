@@ -107,6 +107,9 @@
             <button type="button" class="sq-issue-detail-tab" data-tab="why" role="tab" aria-selected="false">
                 <span data-i18n="tab_why_issue">Why is this an issue?</span>
             </button>
+            <button type="button" class="sq-issue-detail-tab" data-tab="activity" role="tab" aria-selected="false">
+                <span data-i18n="tab_activity">Activity</span>
+            </button>
         </div>
 
         <div class="sq-issue-detail-panels">
@@ -141,6 +144,15 @@
                 <div id="sq-issue-why-content"
                      class="sq-issue-why-loader"
                      data-why-url="/ui/issues/{{ issue.id }}/why?project_id={{ project_id }}"
+                     data-loaded="false">
+                    <div class="sq-loading"><span data-i18n="loading_data">Loading...</span></div>
+                </div>
+            </div>
+
+            <div class="sq-issue-detail-panel" data-panel="activity" role="tabpanel" hidden>
+                <div id="sq-issue-activity-content"
+                     class="sq-issue-activity-loader"
+                     data-activity-url="/ui/issues/{{ issue.id }}/activity?project_id={{ project_id }}"
                      data-loaded="false">
                     <div class="sq-loading"><span data-i18n="loading_data">Loading...</span></div>
                 </div>
@@ -209,6 +221,16 @@
                         if (typeof Prism !== 'undefined') {
                             why.querySelectorAll('code').forEach((el) => Prism.highlightElement(el));
                         }
+                    });
+                }
+            }
+            if (name === 'activity') {
+                const activity = document.getElementById('sq-issue-activity-content');
+                if (activity && activity.dataset.loaded !== 'true' && activity.dataset.activityUrl) {
+                    activity.dataset.loaded = 'true';
+                    htmx.ajax('GET', activity.dataset.activityUrl, {
+                        target: '#sq-issue-activity-content',
+                        swap: 'innerHTML',
                     });
                 }
             }
