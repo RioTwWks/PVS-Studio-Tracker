@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -40,6 +42,7 @@ from pvs_tracker.code_viewer import merge_code_snapshot, router as code_viewer_r
 from pvs_tracker.api import router as api_v2_router
 from pvs_tracker.quality_gate import create_default_quality_gate, evaluate_quality_gate
 from pvs_tracker.security import hash_password
+from pvs_tracker.startup_state import mark_startup_finished
 from pvs_tracker.auth_service import (
     authenticate_credentials,
     clear_session,
@@ -79,9 +82,24 @@ def _run_startup_init() -> None:
 async def _app_lifespan(_app: FastAPI):
     from pvs_tracker.rest_queue.runtime import start_embedded_workers, stop_embedded_workers
 
-    _run_startup_init()
-    start_embedded_workers()
+    async def _init_background() -> None:
+        error: BaseException | None = None
+        try:
+            await asyncio.to_thread(_run_startup_init)
+            start_embedded_workers()
+        except BaseException as exc:
+            error = exc
+            logger.exception("Startup initialization failed")
+        finally:
+            mark_startup_finished(error)
+
+    init_task = asyncio.create_task(_init_background())
+
     yield
+
+    init_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await init_task
     stop_embedded_workers()
 
 
