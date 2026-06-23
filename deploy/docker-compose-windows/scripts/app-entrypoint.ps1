@@ -12,6 +12,19 @@ function Enable-AppFirewall {
     }
 }
 
+function Test-DatabaseTcp {
+    param([string]$HostName, [int]$Port = 5432)
+
+    try {
+        $tcp = Test-NetConnection -ComputerName $HostName -Port $Port -WarningAction SilentlyContinue
+        Write-Host "TCP probe ${HostName}:${Port} -> TcpTestSucceeded=$($tcp.TcpTestSucceeded)"
+        return $tcp.TcpTestSucceeded
+    } catch {
+        Write-Warning "TCP probe ${HostName}:${Port} failed: $_"
+        return $false
+    }
+}
+
 $defaultCmd = @(
     "C:\Program Files\Python312\python.exe",
     "-m",
@@ -21,6 +34,8 @@ $defaultCmd = @(
     "0.0.0.0",
     "--port",
     "8080",
+    "--log-level",
+    "info",
     "--timeout-graceful-shutdown",
     "30"
 )
@@ -36,6 +51,22 @@ $exe = $args[0]
 $cmdArgs = @()
 if ($args.Count -gt 1) {
     $cmdArgs = $args[1..($args.Count - 1)]
+}
+
+Write-Host "Python:"
+& $exe --version 2>&1 | ForEach-Object { Write-Host $_ }
+
+$dbUrl = $env:DATABASE_URL
+if ($dbUrl) {
+    Write-Host "DATABASE_URL host segment: $($dbUrl -replace '^[^@]+@','***@')"
+}
+
+$pgHost = $env:POSTGRES_HOST
+if (-not $pgHost) { $pgHost = "postgres" }
+$pgOk = Test-DatabaseTcp -HostName $pgHost
+if (-not $pgOk -and $pgHost -ne "host.docker.internal") {
+    Write-Host "Retrying database via host.docker.internal (published port 5432)..."
+    Test-DatabaseTcp -HostName "host.docker.internal" | Out-Null
 }
 
 Write-Host "Starting: $exe $($cmdArgs -join ' ')"

@@ -107,8 +107,7 @@ def _disable_ldap_by_default(request, monkeypatch):
 @pytest.fixture(autouse=True)
 def isolated_db():
     SQLModel.metadata.drop_all(main.engine)
-    SQLModel.metadata.create_all(main.engine)
-    main._initialize_default_data()
+    main._run_startup_init()
 
     with Session(main.engine) as session:
         _load_test_classifiers(session)

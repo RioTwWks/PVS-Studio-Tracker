@@ -268,23 +268,35 @@ Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-de
 
 Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. Если **изнутри** контейнера тоже timeout — uvicorn не запустился (не firewall хоста).
 
-**Частая причина:** на Windows Docker `CMD` из Dockerfile не всегда попадает в `ENTRYPOINT` (`app-entrypoint.ps1` получал пустые `$args` и завершался до uvicorn). В `docker-compose.yml` для `app-1`/`app-2` задан явный `command:`; entrypoint при пустых аргументах запускает uvicorn по умолчанию.
+**Частая причина:** uvicorn зависает при импорте `main.py` на подключении к PostgreSQL (`psycopg2` ждёт бесконечно). Исправления:
 
-Пересоберите **оба** app-образа (один тег `pvs-tracker-app`):
+- миграции перенесены в **lifespan** (uvicorn стартует и пишет лог до БД);
+- `DB_CONNECT_TIMEOUT=10` — ошибка в логах вместо вечного зависания;
+- по умолчанию `POSTGRES_HOST=host.docker.internal` (postgres опубликован на `:5432` хоста) — надёжнее service DNS `postgres` на Windows Docker.
+
+В `.env` замените `POSTGRES_HOST=postgres` на `POSTGRES_HOST=host.docker.internal` (или удалите строку — compose подставит default).
+
+Пересоберите app:
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 app-2 --no-cache
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate app-1 app-2
 ```
 
-1. Логи приложения (ищите `Starting:` / traceback):
+1. Логи (ищите `Uvicorn running`, `TCP probe`, `Startup:`, traceback):
 
 ```powershell
 docker logs docker-compose-windows-app-1-1 --tail 100
-docker inspect docker-compose-windows-app-1-1 --format "{{.State.Status}} exit={{.State.ExitCode}} restarts={{.RestartCount}}"
 ```
 
-2. Проверка изнутри контейнера:
+2. TCP до БД из app-контейнера:
+
+```powershell
+docker exec docker-compose-windows-app-1-1 powershell -Command "Test-NetConnection host.docker.internal -Port 5432"
+docker exec docker-compose-windows-app-1-1 powershell -Command "Test-NetConnection postgres -Port 5432"
+```
+
+3. Проверка HTTP изнутри:
 
 ```powershell
 docker exec docker-compose-windows-app-1-1 powershell -Command "(Invoke-WebRequest http://127.0.0.1:8080/health/live -UseBasicParsing).StatusCode"
@@ -307,10 +319,11 @@ New-NetFirewallRule -DisplayName "PVS-Tracker 8082" -Direction Inbound -Protocol
 
 4. В `.env` не должно быть пустых `GIT_CACHE_DIR=` / `SNAPSHOTS_DIR=` (см. compose: `C:/app/data/...`).
 
-5. `DATABASE_URL` должен быть `@postgres:5432`:
+5. `DATABASE_URL` должен указывать на доступный хост (`@host.docker.internal:5432` или `@postgres:5432`):
 
 ```powershell
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
+docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr POSTGRES_HOST
 ```
 
 ### Postgres connection errors
@@ -318,9 +331,10 @@ docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{p
 Корневая причина: PostgreSQL слушал только `127.0.0.1:5432` (закомментированный `listen_addresses` в postgresql.conf). Entrypoint теперь принудительно ставит `listen_addresses=*`.
 
 ```powershell
-# .env — используйте service DNS, не host.docker.internal:
-POSTGRES_HOST=postgres
+# .env — host.docker.internal надёжнее service DNS postgres на Windows Docker:
+POSTGRES_HOST=host.docker.internal
 POSTGRES_PASSWORD=pvs
+DB_CONNECT_TIMEOUT=10
 
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgres --no-cache
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate
