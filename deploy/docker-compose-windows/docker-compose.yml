@@ -48,6 +48,7 @@ services:
       CI_TEMP_DIR: C:/app/temp_repos
     command:
       - C:\Program Files\Python312\python.exe
+      - -u
       - -m
       - uvicorn
       - pvs_tracker.main:app

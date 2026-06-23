@@ -9,6 +9,10 @@ from fastapi.responses import JSONResponse
 from sqlmodel import Session, text
 
 from pvs_tracker.db import get_session
+from pvs_tracker.startup_state import (
+    startup_initialization_complete,
+    startup_initialization_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +28,13 @@ def liveness() -> dict[str, str]:
 @router.get("/health/ready")
 def readiness(session: Session = Depends(get_session)) -> JSONResponse:
     """БД доступна — используется readiness probe перед маршрутизацией трафика."""
+    if not startup_initialization_complete():
+        err = startup_initialization_error()
+        detail = "initializing" if err is None else str(err)
+        return JSONResponse(
+            {"status": "unavailable", "database": detail},
+            status_code=503,
+        )
     try:
         session.exec(text("SELECT 1")).first()
         return JSONResponse({"status": "ok", "database": "ok"})

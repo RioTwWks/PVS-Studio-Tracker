@@ -18,15 +18,52 @@ function Test-DatabaseTcp {
     try {
         $tcp = Test-NetConnection -ComputerName $HostName -Port $Port -WarningAction SilentlyContinue
         Write-Host "TCP probe ${HostName}:${Port} -> TcpTestSucceeded=$($tcp.TcpTestSucceeded)"
-        return $tcp.TcpTestSucceeded
+        return [bool]$tcp.TcpTestSucceeded
     } catch {
         Write-Warning "TCP probe ${HostName}:${Port} failed: $_"
         return $false
     }
 }
 
+function Resolve-DatabaseUrl {
+    $pgUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "pvs" }
+    $pgPass = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "pvs" }
+    $pgDb = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "pvs_tracker" }
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    [void]$candidates.Add("host.docker.internal")
+
+    try {
+        $route = Get-NetRoute -AddressFamily IPv4 |
+            Where-Object { $_.DestinationPrefix -eq "0.0.0.0/0" } |
+            Select-Object -First 1
+        if ($route -and $route.NextHop -and $route.NextHop -ne "0.0.0.0") {
+            [void]$candidates.Add([string]$route.NextHop)
+        }
+    } catch {
+        Write-Warning "Could not detect default gateway: $_"
+    }
+
+    [void]$candidates.Add("postgres")
+
+    foreach ($hostName in $candidates) {
+        if (-not $hostName) { continue }
+        if (Test-DatabaseTcp -HostName $hostName) {
+            $env:DATABASE_URL = "postgresql+psycopg2://${pgUser}:${pgPass}@${hostName}:5432/${pgDb}"
+            Write-Host "DATABASE_URL set to host $hostName"
+            return
+        }
+    }
+
+    Write-Warning "Database TCP probe failed for all candidates: $($candidates -join ', ')"
+    if ($env:DATABASE_URL) {
+        Write-Host "Keeping existing DATABASE_URL from environment"
+    }
+}
+
 $defaultCmd = @(
     "C:\Program Files\Python312\python.exe",
+    "-u",
     "-m",
     "uvicorn",
     "pvs_tracker.main:app",
@@ -56,17 +93,13 @@ if ($args.Count -gt 1) {
 Write-Host "Python:"
 & $exe --version 2>&1 | ForEach-Object { Write-Host $_ }
 
-$dbUrl = $env:DATABASE_URL
-if ($dbUrl) {
-    Write-Host "DATABASE_URL host segment: $($dbUrl -replace '^[^@]+@','***@')"
-}
+Resolve-DatabaseUrl
 
-$pgHost = $env:POSTGRES_HOST
-if (-not $pgHost) { $pgHost = "postgres" }
-$pgOk = Test-DatabaseTcp -HostName $pgHost
-if (-not $pgOk -and $pgHost -ne "host.docker.internal") {
-    Write-Host "Retrying database via host.docker.internal (published port 5432)..."
-    Test-DatabaseTcp -HostName "host.docker.internal" | Out-Null
+Write-Host "Smoke test: import pvs_tracker.main"
+& $exe -u -c "import pvs_tracker.main; print('import ok')" 2>&1 | ForEach-Object { Write-Host $_ }
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Import pvs_tracker.main failed with exit code $LASTEXITCODE"
+    exit $LASTEXITCODE
 }
 
 Write-Host "Starting: $exe $($cmdArgs -join ' ')"

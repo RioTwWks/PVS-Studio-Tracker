@@ -106,8 +106,15 @@ def _disable_ldap_by_default(request, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_db():
+    import pvs_tracker.startup_state as startup_state
+    from pvs_tracker.startup_state import mark_startup_finished
+
+    startup_state._init_done.clear()
+    startup_state._init_error = None
+
     SQLModel.metadata.drop_all(main.engine)
     main._run_startup_init()
+    mark_startup_finished(None)
 
     with Session(main.engine) as session:
         _load_test_classifiers(session)

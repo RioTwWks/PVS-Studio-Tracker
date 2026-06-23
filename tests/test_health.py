@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
@@ -38,6 +40,12 @@ def test_health_live(client: TestClient):
 
 
 def test_health_ready(client: TestClient):
+    from pvs_tracker.startup_state import startup_initialization_complete
+
+    deadline = time.monotonic() + 10.0
+    while not startup_initialization_complete() and time.monotonic() < deadline:
+        time.sleep(0.05)
+
     response = client.get("/health/ready")
     assert response.status_code == 200
     body = response.json()

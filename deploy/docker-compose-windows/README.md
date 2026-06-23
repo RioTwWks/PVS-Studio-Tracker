@@ -268,13 +268,13 @@ Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-de
 
 Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. Если **изнутри** контейнера тоже timeout — uvicorn не запустился (не firewall хоста).
 
-**Частая причина:** uvicorn зависает при импорте `main.py` на подключении к PostgreSQL (`psycopg2` ждёт бесконечно). Исправления:
+**Частая причина:** uvicorn **не открывает порт 8080**, пока не завершится lifespan. Синхронная инициализация БД + `POSTGRES_HOST=postgres` в `.env` (подставлялся в `DATABASE_URL` через `${POSTGRES_HOST}`) → зависание DNS/подключения.
 
-- миграции перенесены в **lifespan** (uvicorn стартует и пишет лог до БД);
-- `DB_CONNECT_TIMEOUT=10` — ошибка в логах вместо вечного зависания;
-- по умолчанию `POSTGRES_HOST=host.docker.internal` (postgres опубликован на `:5432` хоста) — надёжнее service DNS `postgres` на Windows Docker.
+Исправления:
 
-В `.env` замените `POSTGRES_HOST=postgres` на `POSTGRES_HOST=host.docker.internal` (или удалите строку — compose подставит default).
+- инициализация БД в **фоне** (lifespan не блокирует bind);
+- `DATABASE_URL` в compose **жёстко** `@host.docker.internal:5432` (игнорирует `.env POSTGRES_HOST=postgres`);
+- entrypoint сам подбирает хост БД (gateway / postgres) и делает smoke-import.
 
 Пересоберите app:
 
@@ -283,23 +283,23 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate app-1 app-2
 ```
 
-1. Логи (ищите `Uvicorn running`, `TCP probe`, `Startup:`, traceback):
+1. Логи (ожидается `import ok`, `Uvicorn running`, `DATABASE_URL set to host ...`):
 
 ```powershell
 docker logs docker-compose-windows-app-1-1 --tail 100
 ```
 
-2. TCP до БД из app-контейнера:
-
-```powershell
-docker exec docker-compose-windows-app-1-1 powershell -Command "Test-NetConnection host.docker.internal -Port 5432"
-docker exec docker-compose-windows-app-1-1 powershell -Command "Test-NetConnection postgres -Port 5432"
-```
-
-3. Проверка HTTP изнутри:
+2. Проверка HTTP (live должен отвечать сразу, ready — после init БД):
 
 ```powershell
 docker exec docker-compose-windows-app-1-1 powershell -Command "(Invoke-WebRequest http://127.0.0.1:8080/health/live -UseBasicParsing).StatusCode"
+docker exec docker-compose-windows-app-1-1 powershell -Command "(Invoke-WebRequest http://127.0.0.1:8080/health/ready -UseBasicParsing).StatusCode"
+```
+
+3. Убедитесь, что compose подставил правильный URL (не `@postgres:`):
+
+```powershell
+docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
 ```
 
 3. С хоста (на **той же машине**, где Docker):
