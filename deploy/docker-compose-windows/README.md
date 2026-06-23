@@ -288,27 +288,33 @@ docker exec docker-compose-windows-app-1-1 powershell -Command "Invoke-WebReques
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
 ```
 
-5. **`connection to server at "postgres" ... Connection timed out`** — на Windows containers прямой TCP между контейнерами часто не работает. **Решение по умолчанию:** `POSTGRES_HOST=host.docker.internal` в `.env` и опубликованный порт `5432:5432` (см. `docker-compose.postgres.yml`).
+5. **`connection to server at "postgres" ... Connection timed out`** или **`could not translate host name "host.docker.internal"`**
+
+Корневая причина: PostgreSQL слушал только `127.0.0.1:5432` (закомментированный `listen_addresses` в postgresql.conf). Entrypoint теперь принудительно ставит `listen_addresses=*`.
 
 ```powershell
-# В .env:
-POSTGRES_HOST=host.docker.internal
+# .env — используйте service DNS, не host.docker.internal:
+POSTGRES_HOST=postgres
 POSTGRES_PASSWORD=pvs
 
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgres --no-cache
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate
+```
+
+В логе postgres должно быть `TCP 0.0.0.0:5432 ... LISTENING`:
+
+```powershell
+docker logs docker-compose-windows-postgres-1 --tail 15
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
 ```
 
-Проверка с хоста (published port):
+`DATABASE_URL` должен содержать `@postgres:5432`.
+
+Проверка:
 
 ```powershell
 Test-NetConnection localhost -Port 5432
-```
-
-Проверка из app (должен быть host.docker.internal, не postgres):
-
-```powershell
-docker exec docker-compose-windows-app-1-1 powershell -Command "python -c \"import os; print(os.environ.get('DATABASE_URL',''))\""
+curl http://localhost:8081/health/ready
 ```
 
 ### `initdb: Permission denied` на `C:/pgsql/data`
