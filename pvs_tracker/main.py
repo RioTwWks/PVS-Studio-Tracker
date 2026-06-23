@@ -492,10 +492,9 @@ def _load_error_classifiers(session: Session) -> None:
 # Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 from pvs_tracker.project_urls import project_ui_path, register_project_url_globals
+from pvs_tracker.template_helpers import software_quality_label
 
 register_project_url_globals(templates.env)
-from pvs_tracker.issues_query import software_quality_label
-
 templates.env.globals["software_quality_label"] = software_quality_label
 
 # Register code_viewer router and pass templates reference
