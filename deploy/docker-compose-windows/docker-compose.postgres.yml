@@ -2,15 +2,10 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 #
-# POSTGRES_HOST=postgres (service DNS) после listen_addresses=* в postgres entrypoint.
-# host.docker.internal — запасной вариант; нужен extra_hosts (см. x-app-hosts).
+# POSTGRES_HOST=postgres (service DNS). extra_hosts/host-gateway не поддерживается на Windows Docker.
 
 x-postgres-env: &postgres_env
   DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@${POSTGRES_HOST:-postgres}:5432/pvs_tracker
-
-x-app-hosts: &app_hosts
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
 
 services:
   postgres:
@@ -48,7 +43,6 @@ services:
     restart: unless-stopped
 
   app-1:
-    <<: *app_hosts
     environment:
       <<: *postgres_env
     depends_on:
@@ -56,7 +50,6 @@ services:
         condition: service_healthy
 
   app-2:
-    <<: *app_hosts
     environment:
       <<: *postgres_env
     depends_on:
@@ -64,7 +57,6 @@ services:
         condition: service_healthy
 
   worker-jenkins:
-    <<: *app_hosts
     environment:
       <<: *postgres_env
     depends_on:
@@ -72,7 +64,6 @@ services:
         condition: service_healthy
 
   worker-jira:
-    <<: *app_hosts
     environment:
       <<: *postgres_env
     depends_on:
@@ -80,7 +71,6 @@ services:
         condition: service_healthy
 
   worker-tfs:
-    <<: *app_hosts
     environment:
       <<: *postgres_env
     depends_on:
@@ -88,7 +78,6 @@ services:
         condition: service_healthy
 
   worker-webhook:
-    <<: *app_hosts
     environment:
       <<: *postgres_env
     depends_on:
@@ -96,7 +85,6 @@ services:
         condition: service_healthy
 
   worker-smtp:
-    <<: *app_hosts
     environment:
       <<: *postgres_env
     depends_on:
