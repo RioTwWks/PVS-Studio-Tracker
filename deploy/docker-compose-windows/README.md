@@ -264,31 +264,53 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgr
 
 Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-deps/README.md`](build-deps/README.md)).
 
-### `app-1` / `app-2` рестартуются, `curl :8081` timeout
+### `app-1` / `app-2` рестартуются, `curl :8081` timeout, nginx 502/504
 
-1. Логи приложения (главный источник):
+Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. С хоста трафик идёт через Docker NAT — его блокирует **Windows Firewall внутри app-контейнера** (аналогично postgres).
+
+Пересоберите app-образ (`scripts/app-entrypoint.ps1` открывает порт 8080):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 --no-cache
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate app-1 app-2
+```
+
+1. Логи приложения:
 
 ```powershell
 docker logs docker-compose-windows-app-1-1 --tail 100
 ```
 
-2. Проверка изнутри контейнера (если успеет подняться):
+2. Проверка изнутри контейнера:
 
 ```powershell
-docker exec docker-compose-windows-app-1-1 powershell -Command "Invoke-WebRequest http://127.0.0.1:8080/health/live -UseBasicParsing"
+docker exec docker-compose-windows-app-1-1 powershell -Command "(Invoke-WebRequest http://127.0.0.1:8080/health/live -UseBasicParsing).StatusCode"
 ```
 
-Если **внутри OK, с хоста timeout** — Windows Firewall / HNS для портов `8081`/`8082`.
+3. С хоста (на **той же машине**, где Docker):
 
-3. Частая причина: в `.env` пустые `GIT_CACHE_DIR=` / `SNAPSHOTS_DIR=` ломали импорт `main.py` (воркеры при этом живут). Обновите `.env` или `git pull` — в compose заданы пути `C:/app/data/...`.
+```powershell
+Test-NetConnection localhost -Port 8081
+curl http://localhost:8081/health/ready
+```
 
-4. Проверьте `DATABASE_URL` в контейнере (должен быть `@postgres:5432`, не `host.docker.internal`):
+Если изнутри OK, с хоста timeout — firewall **на Windows Server (хост)**:
+
+```powershell
+New-NetFirewallRule -DisplayName "PVS-Tracker 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
+New-NetFirewallRule -DisplayName "PVS-Tracker 8081" -Direction Inbound -Protocol TCP -LocalPort 8081 -Action Allow
+New-NetFirewallRule -DisplayName "PVS-Tracker 8082" -Direction Inbound -Protocol TCP -LocalPort 8082 -Action Allow
+```
+
+4. В `.env` не должно быть пустых `GIT_CACHE_DIR=` / `SNAPSHOTS_DIR=` (см. compose: `C:/app/data/...`).
+
+5. `DATABASE_URL` должен быть `@postgres:5432`:
 
 ```powershell
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
 ```
 
-5. **`connection to server at "postgres" ... Connection timed out`** или **`could not translate host name "host.docker.internal"`**
+### Postgres connection errors
 
 Корневая причина: PostgreSQL слушал только `127.0.0.1:5432` (закомментированный `listen_addresses` в postgresql.conf). Entrypoint теперь принудительно ставит `listen_addresses=*`.
 
