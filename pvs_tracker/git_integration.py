@@ -30,8 +30,17 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 # Directory for Git worktrees (temporary clones)
-GIT_CACHE_DIR = os.getenv("GIT_CACHE_DIR", os.path.join(os.path.dirname(__file__), "..", ".git_cache"))
-SNAPSHOTS_DIR = os.getenv("SNAPSHOTS_DIR", os.path.join(os.path.dirname(__file__), "..", "data", "snapshots"))
+def _env_path(var_name: str, default: str) -> str:
+    """Пустая строка в .env не должна перебивать default (docker compose env_file)."""
+    raw = os.getenv(var_name)
+    if raw is None or not str(raw).strip():
+        return default
+    return str(raw).strip()
+
+
+_REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
+GIT_CACHE_DIR = _env_path("GIT_CACHE_DIR", os.path.join(_REPO_ROOT, ".git_cache"))
+SNAPSHOTS_DIR = _env_path("SNAPSHOTS_DIR", os.path.join(_REPO_ROOT, "data", "snapshots"))
 Path(SNAPSHOTS_DIR).mkdir(parents=True, exist_ok=True)
 # Cache TTL in minutes (avoid re-cloning too frequently)
 CACHE_TTL_MINUTES = int(os.getenv("GIT_CACHE_TTL_MINUTES", "60"))

@@ -264,6 +264,30 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgr
 
 Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-deps/README.md`](build-deps/README.md)).
 
+### `app-1` / `app-2` рестартуются, `curl :8081` timeout
+
+1. Логи приложения (главный источник):
+
+```powershell
+docker logs docker-compose-windows-app-1-1 --tail 100
+```
+
+2. Проверка изнутри контейнера (если успеет подняться):
+
+```powershell
+docker exec docker-compose-windows-app-1-1 powershell -Command "Invoke-WebRequest http://127.0.0.1:8080/health/live -UseBasicParsing"
+```
+
+Если **внутри OK, с хоста timeout** — Windows Firewall / HNS для портов `8081`/`8082`.
+
+3. Частая причина: в `.env` пустые `GIT_CACHE_DIR=` / `SNAPSHOTS_DIR=` ломали импорт `main.py` (воркеры при этом живут). Обновите `.env` или `git pull` — в compose заданы пути `C:/app/data/...`.
+
+4. Проверьте `DATABASE_URL` в контейнере (должен быть `@postgres:5432`, не `host.docker.internal`):
+
+```powershell
+docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
+```
+
 ### `initdb: Permission denied` на `C:/pgsql/data`
 
 На Windows **named volume** не даёт `initdb` менять ACL каталога. Решение в compose: **bind mount** `./pgdata` (уже в `docker-compose.postgres.yml`). Entrypoint инициализирует кластер во временной папке образа и копирует в `pgdata`.
