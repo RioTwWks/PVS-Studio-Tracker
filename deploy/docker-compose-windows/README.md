@@ -288,6 +288,27 @@ docker exec docker-compose-windows-app-1-1 powershell -Command "Invoke-WebReques
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
 ```
 
+5. **`connection to server at "postgres" ... Connection timed out`** — PostgreSQL в Windows-контейнере слушает только localhost или firewall блокирует :5432. Обновите postgres entrypoint (`git pull`), пересоберите postgres:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgres --no-cache
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate postgres
+```
+
+Проверка с app-контейнера:
+
+```powershell
+docker exec docker-compose-windows-app-1-1 powershell -Command "Test-NetConnection postgres -Port 5432"
+```
+
+**Workaround:** если TCP между контейнерами не работает, в `.env` / override используйте `host.docker.internal` (порт 5432 публикуется на хост):
+
+```ini
+DATABASE_URL=postgresql+psycopg2://pvs:pvs@host.docker.internal:5432/pvs_tracker
+```
+
+И в `docker-compose.postgres.yml` для app/worker временно замените `@postgres:` на `@host.docker.internal:`.
+
 ### `initdb: Permission denied` на `C:/pgsql/data`
 
 На Windows **named volume** не даёт `initdb` менять ACL каталога. Решение в compose: **bind mount** `./pgdata` (уже в `docker-compose.postgres.yml`). Entrypoint инициализирует кластер во временной папке образа и копирует в `pgdata`.
