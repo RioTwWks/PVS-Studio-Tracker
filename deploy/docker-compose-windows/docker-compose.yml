@@ -22,6 +22,9 @@ x-worker: &worker
   env_file: .env
   environment:
     REST_QUEUE_MODE: external
+    GIT_CACHE_DIR: C:/app/data/git_cache
+    SNAPSHOTS_DIR: C:/app/data/snapshots
+    CI_TEMP_DIR: C:/app/temp_repos
   restart: unless-stopped
 
 services:
@@ -38,6 +41,9 @@ services:
     env_file: .env
     environment:
       REST_QUEUE_MODE: external
+      GIT_CACHE_DIR: C:/app/data/git_cache
+      SNAPSHOTS_DIR: C:/app/data/snapshots
+      CI_TEMP_DIR: C:/app/temp_repos
     ports:
       - "8081:8080"
     healthcheck:
