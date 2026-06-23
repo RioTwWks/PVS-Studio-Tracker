@@ -1,6 +1,12 @@
 # Override: PostgreSQL в Windows-контейнере вместо инстанса на хосте.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+#
+# На Windows containers прямой TCP app -> postgres (172.17.x.x) часто таймаутит.
+# DATABASE_URL идёт через host.docker.internal + опубликованный порт 5432.
+
+x-postgres-env: &postgres_env
+  DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@${POSTGRES_HOST:-host.docker.internal}:5432/pvs_tracker
 
 services:
   postgres:
@@ -21,11 +27,9 @@ services:
       # Bind mount: на Windows named volume часто ломает initdb (Permission denied на ACL).
       # Сброс данных: docker compose down && Remove-Item -Recurse -Force .\pgdata
       - ./pgdata:C:/pgsql/data
-    # Публикация порта — fallback для Windows, если межконтейнерный TCP не проходит.
     ports:
       - "5432:5432"
     healthcheck:
-      # CMD-форма: без PowerShell и без $LASTEXITCODE (Compose иначе подставляет пустую переменную).
       test:
         - CMD
         - C:\pgsql\bin\pg_isready.exe
@@ -43,50 +47,49 @@ services:
 
   app-1:
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+      <<: *postgres_env
     depends_on:
       postgres:
         condition: service_healthy
 
   app-2:
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+      <<: *postgres_env
     depends_on:
       postgres:
         condition: service_healthy
 
   worker-jenkins:
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+      <<: *postgres_env
     depends_on:
       postgres:
         condition: service_healthy
 
   worker-jira:
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+      <<: *postgres_env
     depends_on:
       postgres:
         condition: service_healthy
 
   worker-tfs:
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+      <<: *postgres_env
     depends_on:
       postgres:
         condition: service_healthy
 
   worker-webhook:
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+      <<: *postgres_env
     depends_on:
       postgres:
         condition: service_healthy
 
   worker-smtp:
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
+      <<: *postgres_env
     depends_on:
       postgres:
         condition: service_healthy
-

@@ -288,26 +288,28 @@ docker exec docker-compose-windows-app-1-1 powershell -Command "Invoke-WebReques
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
 ```
 
-5. **`connection to server at "postgres" ... Connection timed out`** — PostgreSQL в Windows-контейнере слушает только localhost или firewall блокирует :5432. Обновите postgres entrypoint (`git pull`), пересоберите postgres:
+5. **`connection to server at "postgres" ... Connection timed out`** — на Windows containers прямой TCP между контейнерами часто не работает. **Решение по умолчанию:** `POSTGRES_HOST=host.docker.internal` в `.env` и опубликованный порт `5432:5432` (см. `docker-compose.postgres.yml`).
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgres --no-cache
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate postgres
+# В .env:
+POSTGRES_HOST=host.docker.internal
+POSTGRES_PASSWORD=pvs
+
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate
+docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
 ```
 
-Проверка с app-контейнера:
+Проверка с хоста (published port):
 
 ```powershell
-docker exec docker-compose-windows-app-1-1 powershell -Command "Test-NetConnection postgres -Port 5432"
+Test-NetConnection localhost -Port 5432
 ```
 
-**Workaround:** если TCP между контейнерами не работает, в `.env` / override используйте `host.docker.internal` (порт 5432 публикуется на хост):
+Проверка из app (должен быть host.docker.internal, не postgres):
 
-```ini
-DATABASE_URL=postgresql+psycopg2://pvs:pvs@host.docker.internal:5432/pvs_tracker
+```powershell
+docker exec docker-compose-windows-app-1-1 powershell -Command "python -c \"import os; print(os.environ.get('DATABASE_URL',''))\""
 ```
-
-И в `docker-compose.postgres.yml` для app/worker временно замените `@postgres:` на `@host.docker.internal:`.
 
 ### `initdb: Permission denied` на `C:/pgsql/data`
 
