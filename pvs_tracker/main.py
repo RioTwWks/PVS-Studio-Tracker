@@ -493,9 +493,16 @@ def _load_error_classifiers(session: Session) -> None:
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 from pvs_tracker.project_urls import project_ui_path, register_project_url_globals
 from pvs_tracker.template_helpers import software_quality_label
+from pvs_tracker.rule_documentation import (
+    build_classifier_maps,
+    fetch_rule_documentation,
+    resolve_issue_classifier,
+    rule_documentation_url,
+)
 
 register_project_url_globals(templates.env)
 templates.env.globals["software_quality_label"] = software_quality_label
+templates.env.globals["resolve_issue_classifier"] = resolve_issue_classifier
 
 # Register code_viewer router and pass templates reference
 code_viewer_module.templates = templates
@@ -938,7 +945,7 @@ async def ui_issues(
         raise HTTPException(404, "Project not found")
 
     classifiers = session.exec(select(ErrorClassifier)).all()
-    classifier_map = {c.id: c for c in classifiers}
+    classifier_map, classifier_by_code = build_classifier_maps(classifiers)
 
     base_vars = {
         "current_user": _ui_current_user(request),
@@ -951,6 +958,7 @@ async def ui_issues(
         "priority_filter": priority_filter,
         "q": q,
         "classifier_map": classifier_map,
+        "classifier_by_code": classifier_by_code,
         "sort_by": sort_by,
         "order": order,
         "page": page,
@@ -1089,7 +1097,7 @@ async def ui_issue_detail(
         raise HTTPException(404, "Issue not found")
 
     classifiers = session.exec(select(ErrorClassifier)).all()
-    classifier_map = {c.id: c for c in classifiers}
+    classifier_map, classifier_by_code = build_classifier_maps(classifiers)
 
     all_issues, run_id, issue_platforms, issue_run_ids, show_platform = (
         resolve_issues_for_filter(
@@ -1138,6 +1146,7 @@ async def ui_issue_detail(
             "order": order,
             "run_id": run_id,
             "classifier_map": classifier_map,
+            "classifier_by_code": classifier_by_code,
             "display_paths": display_paths,
             "issue_platforms": issue_platforms,
             "issue_run_ids": issue_run_ids,
@@ -1150,9 +1159,140 @@ async def ui_issue_detail(
     )
 
 
-# ---------------------------------------------------------------------------
-# API routes
-# ---------------------------------------------------------------------------
+@app.get("/ui/issues/{issue_id}/why", response_class=HTMLResponse)
+async def ui_issue_why(
+    request: Request,
+    issue_id: int,
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+
+    classifiers = session.exec(select(ErrorClassifier)).all()
+    classifier_map, classifier_by_code = build_classifier_maps(classifiers)
+    classifier = resolve_issue_classifier(issue, classifier_map, classifier_by_code)
+
+    doc_url = (
+        classifier.doc_url
+        if classifier and classifier.doc_url
+        else rule_documentation_url(issue.rule_code)
+    )
+    doc_html, doc_error = await fetch_rule_documentation(issue.rule_code)
+
+    return templates.TemplateResponse(
+        request,
+        "partials/issue_why.html",
+        {
+            "issue": issue,
+            "classifier": classifier,
+            "doc_html": doc_html,
+            "doc_error": doc_error,
+            "doc_url": doc_url,
+        },
+    )
+
+
+def _issue_activity_template_vars(
+    request: Request,
+    issue: Issue,
+    project_id: int,
+    session: Session,
+) -> dict:
+    from pvs_tracker.issue_activity import build_issue_activity_timeline, format_activity_timestamp
+
+    events = build_issue_activity_timeline(session, issue, project_id)
+    return {
+        "issue": issue,
+        "project_id": project_id,
+        "current_user": _ui_current_user(request),
+        "activity_events": [
+            {
+                "timestamp": event.timestamp,
+                "timestamp_display": format_activity_timestamp(event.timestamp),
+                "kind": event.kind,
+                "lines": event.lines,
+                "actor_name": event.actor_name,
+                "actor_email": event.actor_email,
+            }
+            for event in events
+        ],
+    }
+
+
+@app.get("/ui/issues/{issue_id}/activity", response_class=HTMLResponse)
+async def ui_issue_activity(
+    request: Request,
+    issue_id: int,
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+
+    return templates.TemplateResponse(
+        request,
+        "partials/issue_activity.html",
+        _issue_activity_template_vars(request, issue, project_id, session),
+    )
+
+
+@app.post("/ui/issues/{issue_id}/comments", response_class=HTMLResponse)
+async def ui_issue_add_comment(
+    request: Request,
+    issue_id: int,
+    project_id: int,
+    comment: str = Form(...),
+    user: User = Depends(require_auth),
+    session: Session = Depends(get_session),
+):
+    from pvs_tracker.api import log_activity
+
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    issue = session.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+
+    text = comment.strip()
+    if not text:
+        raise HTTPException(400, "Comment cannot be empty")
+
+    session.add(
+        IssueComment(
+            issue_id=issue_id,
+            user_id=user.id,
+            comment=text,
+        )
+    )
+    log_activity(
+        session,
+        "comment",
+        "issue",
+        entity_id=issue_id,
+        project_id=project_id,
+        user_id=user.id,
+        details=text[:500],
+    )
+    session.commit()
+
+    return templates.TemplateResponse(
+        request,
+        "partials/issue_activity.html",
+        _issue_activity_template_vars(request, issue, project_id, session),
+    )
 
 
 @app.post("/ui/upload", response_class=HTMLResponse)

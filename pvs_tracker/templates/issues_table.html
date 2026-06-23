@@ -2,6 +2,7 @@
 {% from 'partials/_issues_query_string.html' import issues_params %}
 {% if issues is not defined %}{% set issues = [] %}{% endif %}
 {% if classifier_map is not defined %}{% set classifier_map = {} %}{% endif %}
+{% if classifier_by_code is not defined %}{% set classifier_by_code = {} %}{% endif %}
 {% if display_paths is not defined %}{% set display_paths = {} %}{% endif %}
 {% if facets is not defined %}{% set facets = {'severity': {}, 'status': {}, 'type': {}, 'priority': {}} %}{% endif %}
 {% if issue_groups is not defined %}{% set issue_groups = [] %}{% endif %}

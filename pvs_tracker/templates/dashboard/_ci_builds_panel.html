@@ -1,0 +1,85 @@
+<div id="jenkins-builds-panel"
+     class="sq-jenkins-builds-panel"
+     data-auto-refresh="{{ '1' if auto_refresh else '0' }}">
+    <div class="sq-card mt-3">
+        <div class="sq-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>
+                <i class="bi bi-terminal"></i>
+                <span data-i18n="ci_builds_title">Jenkins builds</span>
+            </span>
+            <div class="d-flex align-items-center gap-2">
+                {% if auto_refresh %}
+                <span class="sq-badge bg-info text-dark sq-jenkins-live-badge">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span data-i18n="ci_builds_live">Live</span>
+                </span>
+                {% endif %}
+                <button type="button"
+                        class="sq-btn sq-btn-sm sq-btn-secondary"
+                        hx-get="{{ project_ui_path(project, 'ci-builds', build=selected_build|string if selected_build else '', queue=selected_queue|string if selected_queue and not selected_build else '') }}"
+                        hx-target="#jenkins-builds-panel"
+                        hx-swap="outerHTML">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span data-i18n="ci_builds_refresh">Refresh</span>
+                </button>
+            </div>
+        </div>
+        <div class="sq-card-body">
+            {% if jenkins_error %}
+            <div class="alert alert-warning mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> {{ jenkins_error }}
+            </div>
+            {% elif not jenkins_builds %}
+            <p class="text-muted mb-0" data-i18n="ci_builds_empty">No Jenkins builds found for this project yet.</p>
+            {% else %}
+            <div class="sq-jenkins-builds-layout">
+                <div class="sq-jenkins-builds-list" role="list">
+                    {% for item in jenkins_builds %}
+                    <button type="button"
+                            class="sq-jenkins-build-item{% if item.is_selected %} is-active{% endif %}"
+                            role="listitem"
+                            hx-get="{{ project_ui_path(project, 'ci-builds', build=item.build_number|string if item.build_number else '', queue=item.queue_id|string if item.queue_id and not item.build_number else '') }}"
+                            hx-target="#jenkins-builds-panel"
+                            hx-swap="outerHTML">
+                        <span class="sq-jenkins-build-label">{{ item.label }}</span>
+                        <span class="sq-badge sq-jenkins-status sq-jenkins-status-{{ item.status|lower }}">{{ item.status }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                <div class="sq-jenkins-console-wrap">
+                    <div class="sq-jenkins-console-toolbar d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            {% if selected_build %}
+                            <span class="fw-semibold">#{{ selected_build }}</span>
+                            {% elif selected_queue %}
+                            <span class="fw-semibold">queue #{{ selected_queue }}</span>
+                            {% endif %}
+                            {% if console_status %}
+                            <span class="sq-badge sq-jenkins-status sq-jenkins-status-{{ console_status|lower }}">{{ console_status }}</span>
+                            {% endif %}
+                        </div>
+                        {% for item in jenkins_builds if item.is_selected and item.console_url %}
+                        <a href="{{ item.console_url }}" target="_blank" rel="noopener noreferrer"
+                           class="sq-btn sq-btn-sm sq-btn-secondary text-decoration-none">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                            <span data-i18n="ci_open_console">Console</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    <pre id="jenkins-console-output" class="sq-jenkins-console-output">{% if console_text %}{{ console_text }}{% endif %}</pre>
+                    {% if not console_text %}
+                    <p class="text-muted small mt-2 mb-0" data-i18n="ci_builds_console_empty">No console output yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% if auto_refresh %}
+    <div hx-get="{{ project_ui_path(project, 'ci-builds', build=selected_build|string if selected_build else '', queue=selected_queue|string if selected_queue and not selected_build else '') }}"
+         hx-trigger="every 5s"
+         hx-target="#jenkins-builds-panel"
+         hx-swap="outerHTML"
+         hidden></div>
+    {% endif %}
+</div>

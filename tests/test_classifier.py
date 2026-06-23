@@ -172,3 +172,11 @@ def test_ui_issues_shows_classifier_info(client):
     assert r.status_code == 200
     assert "sq-issue-detail" in r.text
     assert "tab_where_issue" in r.text or "Where is the issue" in r.text
+
+    why = client.get(f"/ui/issues/{issue.id}/why?project_id={project_id}")
+    assert why.status_code == 200
+    assert "sq-issue-why-doc" in why.text or "sq-issue-why-content" in why.text or "logic error" in why.text.lower()
+
+    activity = client.get(f"/ui/issues/{issue.id}/activity?project_id={project_id}")
+    assert activity.status_code == 200
+    assert "sq-issue-activity" in activity.text

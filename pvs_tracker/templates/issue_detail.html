@@ -1,6 +1,6 @@
 {# SonarQube-style issue detail — 3-column layout #}
 {% from 'partials/_issues_query_string.html' import issues_params %}
-{% set classifier = classifier_map.get(issue.classifier_id) if classifier_map else None %}
+{% set classifier = resolve_issue_classifier(issue, classifier_map, classifier_by_code) if classifier_by_code is defined else classifier_map.get(issue.classifier_id) %}
 {% set display_path = display_paths.get(issue.id, issue.file_path) %}
 {% set issue_run_id = issue_run_ids.get(issue.id, run_id) if issue_run_ids is defined else run_id %}
 {% set quality = software_quality_label(classifier.type if classifier else None) %}
@@ -107,6 +107,9 @@
             <button type="button" class="sq-issue-detail-tab" data-tab="why" role="tab" aria-selected="false">
                 <span data-i18n="tab_why_issue">Why is this an issue?</span>
             </button>
+            <button type="button" class="sq-issue-detail-tab" data-tab="activity" role="tab" aria-selected="false">
+                <span data-i18n="tab_activity">Activity</span>
+            </button>
         </div>
 
         <div class="sq-issue-detail-panels">
@@ -138,36 +141,21 @@
             </div>
 
             <div class="sq-issue-detail-panel" data-panel="why" role="tabpanel" hidden>
-                {% if classifier %}
-                <div class="sq-issue-why-content">
-                    <h3>{{ classifier.name }}</h3>
-                    {% if classifier.description %}
-                    <p>{{ classifier.description }}</p>
-                    {% endif %}
-                    <dl class="sq-issue-why-meta">
-                        <dt data-i18n="type">Type</dt>
-                        <dd>{{ classifier.type }}</dd>
-                        <dt data-i18n="priority">Priority</dt>
-                        <dd>{{ classifier.priority }}</dd>
-                        {% if classifier.cwe_id %}
-                        <dt>CWE</dt>
-                        <dd>CWE-{{ classifier.cwe_id }}</dd>
-                        {% endif %}
-                        {% if classifier.category %}
-                        <dt data-i18n="category_label">Category</dt>
-                        <dd>{{ classifier.category }}</dd>
-                        {% endif %}
-                        {% if classifier.doc_url %}
-                        <dt data-i18n="documentation">Documentation</dt>
-                        <dd><a href="{{ classifier.doc_url }}" target="_blank" rel="noopener">{{ classifier.doc_url }}</a></dd>
-                        {% endif %}
-                    </dl>
+                <div id="sq-issue-why-content"
+                     class="sq-issue-why-loader"
+                     data-why-url="/ui/issues/{{ issue.id }}/why?project_id={{ project_id }}"
+                     data-loaded="false">
+                    <div class="sq-loading"><span data-i18n="loading_data">Loading...</span></div>
                 </div>
-                {% else %}
-                <div class="sq-issue-why-content">
-                    <p data-i18n="no_classifier_info">No classifier information available for this rule.</p>
+            </div>
+
+            <div class="sq-issue-detail-panel" data-panel="activity" role="tabpanel" hidden>
+                <div id="sq-issue-activity-content"
+                     class="sq-issue-activity-loader"
+                     data-activity-url="/ui/issues/{{ issue.id }}/activity?project_id={{ project_id }}"
+                     data-loaded="false">
+                    <div class="sq-loading"><span data-i18n="loading_data">Loading...</span></div>
                 </div>
-                {% endif %}
             </div>
         </div>
     </main>
@@ -222,6 +210,30 @@
                 panel.classList.toggle('is-active', active);
                 panel.hidden = !active;
             });
+            if (name === 'why') {
+                const why = document.getElementById('sq-issue-why-content');
+                if (why && why.dataset.loaded !== 'true' && why.dataset.whyUrl) {
+                    why.dataset.loaded = 'true';
+                    htmx.ajax('GET', why.dataset.whyUrl, {
+                        target: '#sq-issue-why-content',
+                        swap: 'innerHTML',
+                    }).then(() => {
+                        if (typeof Prism !== 'undefined') {
+                            why.querySelectorAll('code').forEach((el) => Prism.highlightElement(el));
+                        }
+                    });
+                }
+            }
+            if (name === 'activity') {
+                const activity = document.getElementById('sq-issue-activity-content');
+                if (activity && activity.dataset.loaded !== 'true' && activity.dataset.activityUrl) {
+                    activity.dataset.loaded = 'true';
+                    htmx.ajax('GET', activity.dataset.activityUrl, {
+                        target: '#sq-issue-activity-content',
+                        swap: 'innerHTML',
+                    });
+                }
+            }
         });
     });
 })();

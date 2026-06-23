@@ -1,0 +1,46 @@
+<div class="sq-issue-activity">
+    <h3 class="sq-issue-activity-title" data-i18n="tab_activity">Activity</h3>
+
+    {% if current_user %}
+    <form class="sq-issue-activity-comment-form"
+          hx-post="/ui/issues/{{ issue.id }}/comments?project_id={{ project_id }}"
+          hx-target="#sq-issue-activity-content"
+          hx-swap="innerHTML">
+        <textarea name="comment" class="sq-input sq-issue-activity-comment-input" rows="3"
+                  data-i18n-placeholder="activity_add_comment_placeholder"
+                  placeholder="Add a comment..." required></textarea>
+        <button type="submit" class="sq-btn sq-btn-sm sq-btn-outline">
+            <span data-i18n="activity_add_comment">Add a comment</span>
+        </button>
+    </form>
+    {% else %}
+    <p class="sq-issue-activity-login-hint">
+        <a href="/login" data-i18n="login_to_comment">Log in to add a comment</a>
+    </p>
+    {% endif %}
+
+    <div class="sq-issue-activity-feed">
+        {% if activity_events and activity_events|length > 0 %}
+            {% for event in activity_events %}
+            <article class="sq-issue-activity-event sq-issue-activity-{{ event.kind }}">
+                <time class="sq-issue-activity-time">{{ event.timestamp_display }}</time>
+                <div class="sq-issue-activity-body">
+                    {% if event.actor_name %}
+                    <div class="sq-issue-activity-actor">
+                        <i class="bi bi-person"></i>
+                        <span title="{{ event.actor_email or '' }}">{{ event.actor_name }}</span>
+                    </div>
+                    {% endif %}
+                    <ul class="sq-issue-activity-lines">
+                        {% for line in event.lines %}
+                        <li>{{ line }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </article>
+            {% endfor %}
+        {% else %}
+        <p class="sq-issue-activity-empty" data-i18n="activity_empty">No activity recorded yet.</p>
+        {% endif %}
+    </div>
+</div>
