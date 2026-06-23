@@ -117,8 +117,11 @@ RUN $pyExe = Get-Content -Path C:\\Docker\\python-path.txt -Raw; `
     Write-Host \"pip install via $pyExe\"; `
     & $pyExe -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --no-cache-dir . psycopg2-binary
 
+COPY deploy/docker-compose-windows/scripts/app-entrypoint.ps1 C:/scripts/app-entrypoint.ps1
+
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
+ENTRYPOINT ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-File", "C:/scripts/app-entrypoint.ps1"]
 CMD ["C:\\Program Files\\Python312\\python.exe", "-m", "uvicorn", "pvs_tracker.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-graceful-shutdown", "30"]
