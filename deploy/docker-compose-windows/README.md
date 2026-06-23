@@ -266,19 +266,22 @@ Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-de
 
 ### `app-1` / `app-2` рестартуются, `curl :8081` timeout, nginx 502/504
 
-Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. С хоста трафик идёт через Docker NAT — его блокирует **Windows Firewall внутри app-контейнера** (аналогично postgres).
+Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. Если **изнутри** контейнера тоже timeout — uvicorn не запустился (не firewall хоста).
 
-Пересоберите app-образ (`scripts/app-entrypoint.ps1` открывает порт 8080):
+**Частая причина:** на Windows Docker `CMD` из Dockerfile не всегда попадает в `ENTRYPOINT` (`app-entrypoint.ps1` получал пустые `$args` и завершался до uvicorn). В `docker-compose.yml` для `app-1`/`app-2` задан явный `command:`; entrypoint при пустых аргументах запускает uvicorn по умолчанию.
+
+Пересоберите **оба** app-образа (один тег `pvs-tracker-app`):
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 --no-cache
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 app-2 --no-cache
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate app-1 app-2
 ```
 
-1. Логи приложения:
+1. Логи приложения (ищите `Starting:` / traceback):
 
 ```powershell
 docker logs docker-compose-windows-app-1-1 --tail 100
+docker inspect docker-compose-windows-app-1-1 --format "{{.State.Status}} exit={{.State.ExitCode}} restarts={{.RestartCount}}"
 ```
 
 2. Проверка изнутри контейнера:
