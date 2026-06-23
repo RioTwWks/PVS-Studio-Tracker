@@ -1961,7 +1961,120 @@ a:hover {
 
 .sq-toast-link:hover,
 .sq-jenkins-build-link:hover {
-    opacity: 0.9;
+  opacity: 0.9;
+}
+
+.sq-jenkins-builds-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: var(--sq-spacing-md);
+  min-height: 320px;
+}
+
+.sq-jenkins-builds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.sq-jenkins-build-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--sq-border);
+  border-radius: var(--sq-radius-sm);
+  background: var(--sq-surface);
+  color: var(--sq-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sq-jenkins-build-item:hover,
+.sq-jenkins-build-item.is-active {
+  border-color: var(--sq-brand);
+  background: color-mix(in srgb, var(--sq-brand) 8%, var(--sq-surface));
+}
+
+.sq-jenkins-build-label {
+  font-family: var(--sq-font-mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+}
+
+.sq-jenkins-status {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sq-jenkins-status-queued,
+.sq-jenkins-status-unknown {
+  background: #ffc107;
+  color: #212529;
+}
+
+.sq-jenkins-status-running {
+  background: #0dcaf0;
+  color: #212529;
+}
+
+.sq-jenkins-status-success {
+  background: #198754;
+  color: #fff;
+}
+
+.sq-jenkins-status-failure,
+.sq-jenkins-status-error,
+.sq-jenkins-status-aborted,
+.sq-jenkins-status-unstable {
+  background: #dc3545;
+  color: #fff;
+}
+
+.sq-jenkins-console-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sq-jenkins-console-toolbar {
+  margin-bottom: 0.5rem;
+}
+
+.sq-jenkins-console-output {
+  flex: 1;
+  min-height: 280px;
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: var(--sq-radius-sm);
+  border: 1px solid var(--sq-border);
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: var(--sq-font-mono, ui-monospace, monospace);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sq-jenkins-live-badge {
+  font-size: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .sq-jenkins-builds-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sq-jenkins-builds-list {
+    max-height: 180px;
+  }
 }
 
 .sq-toast-success {

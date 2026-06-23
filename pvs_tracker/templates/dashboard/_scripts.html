@@ -62,7 +62,19 @@
             const sub = window.__initialSettingsSubTab || 'params';
             switchSettingsSubTab(sub);
         }
+
+        if (tabName === 'ci') {
+            loadCiBuildsPanel();
+        }
     }
+
+    function loadCiBuildsPanel() {
+        const panel = document.getElementById('jenkins-builds-panel');
+        if (panel && typeof htmx !== 'undefined') {
+            htmx.trigger(panel, 'ciBuildsLoad');
+        }
+    }
+    window.loadCiBuildsPanel = loadCiBuildsPanel;
 
     function switchSettingsSubTab(subTabName) {
         const valid = ['params', 'sources', 'quality'];
@@ -541,6 +553,17 @@
         if (initialTab && initialTab !== 'overview') {
             switchProjectTab(initialTab);
         }
+
+        document.body.addEventListener('htmx:afterSwap', (event) => {
+            const target = event.detail?.target;
+            if (!target || target.id !== 'jenkins-builds-panel') {
+                return;
+            }
+            const output = document.getElementById('jenkins-console-output');
+            if (output) {
+                output.scrollTop = output.scrollHeight;
+            }
+        });
 
         window.PvsDashboard.syncPlatformButtons();
         window.PvsDashboard.updateIssueBadges({{ issues_total|default(0) }});

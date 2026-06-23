@@ -971,6 +971,9 @@ function sqCiPanelAfterRequest(event) {
     if (xhr?.responseText) {
         handleCiToastFromResponseText(xhr.responseText);
     }
+    if (typeof loadCiBuildsPanel === 'function') {
+        loadCiBuildsPanel();
+    }
 }
 
 document.body.addEventListener('ciToast', (event) => {

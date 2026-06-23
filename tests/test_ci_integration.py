@@ -269,6 +269,121 @@ def test_jenkins_job_console_url():
     assert url.endswith("/job/Test_FastAPI/7/console")
 
 
+def test_pick_default_build_selection_prefers_active():
+    from pvs_tracker.jenkins_service import (
+        JenkinsBuildSnapshot,
+        mark_selected_build,
+        pick_default_build_selection,
+        project_builds_have_active,
+    )
+
+    builds = [
+        JenkinsBuildSnapshot(
+            build_number=40,
+            queue_id=None,
+            status="SUCCESS",
+            label="#40",
+            console_url="http://jenkins/job/40/console",
+        ),
+        JenkinsBuildSnapshot(
+            build_number=None,
+            queue_id=99,
+            status="QUEUED",
+            label="queue #99",
+            console_url="http://jenkins/queue/99",
+        ),
+    ]
+    build_no, queue_no = pick_default_build_selection(builds)
+    assert build_no is None
+    assert queue_no == 99
+    assert project_builds_have_active(builds) is True
+
+    marked = mark_selected_build(builds, build_number=build_no, queue_id=queue_no)
+    assert marked[1].is_selected is True
+
+
+@patch("pvs_tracker.jenkins_service.fetch_project_ci_builds")
+@patch("pvs_tracker.jenkins_service.get_project_build_console")
+def test_ci_builds_panel_route(mock_console, mock_builds, client: TestClient, session: Session):
+    from pvs_tracker.jenkins_service import JenkinsBuildSnapshot
+
+    project = create_ci_project(
+        session,
+        {
+            "name": "ConsoleProj",
+            "slug": "ConsoleProj",
+            "author_email": "a@b.com",
+            "cvs_system": "Git",
+            "repo_path": "https://x.git",
+            "pvs_check_conf_name": "R",
+            "pvs_check_arch": "x64",
+        },
+    )
+    mock_builds.return_value = (
+        [
+            JenkinsBuildSnapshot(
+                build_number=7,
+                queue_id=None,
+                status="RUNNING",
+                label="#7",
+                console_url="http://jenkins/job/7/console",
+            )
+        ],
+        None,
+    )
+    mock_console.return_value = ("Started by user\nBuilding...", "RUNNING")
+
+    r = client.get(f"/ui/projects/{project.slug}/ci-builds")
+    assert r.status_code == 200
+    assert "jenkins-builds-panel" in r.text
+    assert "#7" in r.text
+    assert "Started by user" in r.text
+    assert 'hx-trigger="every 5s"' in r.text
+    mock_console.assert_called_once()
+
+
+@patch("pvs_tracker.jenkins_service.fetch_project_ci_builds")
+def test_ci_builds_panel_shows_queue_item(mock_builds, client: TestClient, session: Session):
+    from pvs_tracker.jenkins_service import JenkinsBuildSnapshot
+
+    project = create_ci_project(
+        session,
+        {
+            "name": "QueueProj",
+            "slug": "QueueProj",
+            "author_email": "a@b.com",
+            "cvs_system": "Git",
+            "repo_path": "https://x.git",
+            "pvs_check_conf_name": "R",
+            "pvs_check_arch": "x64",
+        },
+    )
+    mock_builds.return_value = (
+        [
+            JenkinsBuildSnapshot(
+                build_number=None,
+                queue_id=55,
+                status="QUEUED",
+                label="queue #55",
+                console_url="http://jenkins/queue/55",
+                why="Waiting for executor",
+            )
+        ],
+        None,
+    )
+
+    with patch("pvs_tracker.jenkins_service.get_project_build_console") as mock_console:
+        mock_console.return_value = (
+            "Build is waiting in Jenkins queue (#55).\nWaiting for executor",
+            "QUEUED",
+        )
+        r = client.get(f"/ui/projects/{project.slug}/ci-builds?queue=55")
+    assert r.status_code == 200
+    assert "queue #55" in r.text
+    assert "Waiting for executor" in r.text
+    assert 'hx-trigger="every 5s"' in r.text
+
+
 def test_resolve_assignee_fallback_to_display_name():
     from pvs_tracker.jira_service import JiraService
     from pvs_tracker.models import Run

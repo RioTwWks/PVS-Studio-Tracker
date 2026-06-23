@@ -26,3 +26,15 @@
         {% include "dashboard/_ci_activity_log.html" %}
     </div>
 </div>
+<div id="jenkins-builds-panel"
+     class="sq-jenkins-builds-panel sq-jenkins-builds-placeholder"
+     hx-get="{{ project_ui_path(project, 'ci-builds') }}"
+     hx-trigger="ciBuildsLoad"
+     hx-swap="outerHTML">
+    <div class="sq-card mt-3">
+        <div class="sq-card-body text-muted py-4 text-center">
+            <i class="bi bi-terminal"></i>
+            <span data-i18n="ci_builds_loading">Loading Jenkins builds…</span>
+        </div>
+    </div>
+</div>
