@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import quote
 
-from jenkinsapi.custom_exceptions import NotBuiltYet
+from jenkinsapi.custom_exceptions import JenkinsAPIException, NotBuiltYet
 from jenkinsapi.queue import QueueItem
 
 from pvs_tracker.ci_config import ci_settings
@@ -32,12 +32,57 @@ class JenkinsTriggerResult:
     display_label: str
 
 
+@dataclass(frozen=True)
+class JenkinsBuildSnapshot:
+    """Сборка или элемент очереди Jenkins, относящиеся к проекту."""
+
+    build_number: Optional[int]
+    queue_id: Optional[int]
+    status: str
+    label: str
+    console_url: str
+    timestamp_ms: Optional[int] = None
+    why: Optional[str] = None
+    is_selected: bool = False
+
+
+_PROJECT_SLUG_PARAM_KEYS = ("TRACKER_PROJECT_SLUG", "SONAR_PROJECT_KEY")
+
+
 def jenkins_job_console_url(job_name: str, build_number: int) -> str:
     """Прямая ссылка на /console для известного номера сборки."""
     base = ci_settings.JENKINS_URL.rstrip("/")
     segments = [p for p in job_name.split("/") if p]
     job_path = "/".join(f"job/{quote(seg)}" for seg in segments)
     return f"{base}/{job_path}/{build_number}/console"
+
+
+def _project_slug(project: Project) -> str:
+    return (project.slug or project.name or "").strip()
+
+
+def _params_match_project(params: dict[str, Any], slug: str) -> bool:
+    if not slug:
+        return False
+    for key in _PROJECT_SLUG_PARAM_KEYS:
+        value = params.get(key)
+        if value is not None and str(value).strip() == slug:
+            return True
+    return False
+
+
+def _build_status_label(build: Any) -> str:
+    if build.is_running():
+        return "RUNNING"
+    status = build.get_status()
+    return status or "UNKNOWN"
+
+
+def _snapshot_sort_key(snapshot: JenkinsBuildSnapshot) -> tuple[int, int, int]:
+    status_rank = {"QUEUED": 0, "RUNNING": 1}.get(snapshot.status, 2)
+    build_number = snapshot.build_number or 0
+    queue_id = snapshot.queue_id or 0
+    return (status_rank, -build_number, -queue_id)
 
 
 def _queue_item_web_url(queue_item: QueueItem) -> str:
@@ -198,6 +243,112 @@ class JenkinsService:
             "modified_files.txt": files_path,
         }
 
+    def list_project_builds(
+        self,
+        project: Project,
+        *,
+        limit: int = 15,
+    ) -> list[JenkinsBuildSnapshot]:
+        """Сборки и элементы очереди Jenkins job для slug проекта."""
+        slug = _project_slug(project)
+        if not slug:
+            return []
+
+        job_name = ci_settings.JENKINS_JOB_NAME
+        snapshots: list[JenkinsBuildSnapshot] = []
+        seen_builds: set[int] = set()
+        seen_queues: set[int] = set()
+
+        queue = self.jenkins.get_queue()
+        for queue_item in queue.get_queue_items_for_job(job_name):
+            params = queue_item.get_parameters() or {}
+            if not _params_match_project(params, slug):
+                continue
+            queue_id = int(queue_item.queue_id)
+            if queue_id in seen_queues:
+                continue
+            seen_queues.add(queue_id)
+            try:
+                build_number = queue_item.get_build_number()
+                build = queue_item.get_build()
+                seen_builds.add(build_number)
+                snapshots.append(
+                    JenkinsBuildSnapshot(
+                        build_number=build_number,
+                        queue_id=queue_id,
+                        status=_build_status_label(build),
+                        label=f"#{build_number}",
+                        console_url=f"{build.baseurl.rstrip('/')}/console",
+                        timestamp_ms=build.get_timestamp(),
+                    )
+                )
+            except NotBuiltYet:
+                snapshots.append(
+                    JenkinsBuildSnapshot(
+                        build_number=None,
+                        queue_id=queue_id,
+                        status="QUEUED",
+                        label=f"queue #{queue_id}",
+                        console_url=_queue_item_web_url(queue_item),
+                        why=queue_item.why,
+                    )
+                )
+
+        job = self.jenkins[job_name]
+        for build_number in sorted(job.get_build_ids(), reverse=True):
+            if build_number in seen_builds:
+                continue
+            build = job.get_build(build_number)
+            params = build.get_params()
+            if not _params_match_project(params, slug):
+                continue
+            seen_builds.add(build_number)
+            snapshots.append(
+                JenkinsBuildSnapshot(
+                    build_number=build_number,
+                    queue_id=None,
+                    status=_build_status_label(build),
+                    label=f"#{build_number}",
+                    console_url=f"{build.baseurl.rstrip('/')}/console",
+                    timestamp_ms=build.get_timestamp(),
+                )
+            )
+            if len(seen_builds) >= limit:
+                break
+
+        snapshots.sort(key=_snapshot_sort_key)
+        return snapshots[:limit]
+
+    def get_project_build_console(
+        self,
+        project: Project,
+        *,
+        build_number: Optional[int] = None,
+        queue_id: Optional[int] = None,
+    ) -> tuple[str, str]:
+        """Текст консоли и статус выбранной сборки или элемента очереди."""
+        job_name = ci_settings.JENKINS_JOB_NAME
+        if queue_id is not None and build_number is None:
+            queue_item = self.jenkins.get_queue()[str(queue_id)]
+            try:
+                build = queue_item.get_build()
+                return build.get_console(), _build_status_label(build)
+            except NotBuiltYet:
+                lines = [f"Build is waiting in Jenkins queue (#{queue_id})."]
+                if queue_item.why:
+                    lines.append(queue_item.why)
+                return "\n".join(lines), "QUEUED"
+
+        if build_number is None:
+            return "", "UNKNOWN"
+
+        build = self.jenkins[job_name].get_build(build_number)
+        params = build.get_params()
+        slug = _project_slug(project)
+        if slug and not _params_match_project(params, slug):
+            raise ValueError(f"Build #{build_number} does not belong to project {slug}")
+        return build.get_console(), _build_status_label(build)
+
 
 def get_jenkins_service() -> JenkinsService:
     global _jenkins_service
@@ -216,3 +367,97 @@ def trigger_jenkins_build(
     return get_jenkins_service().trigger_build(
         project, commit_id, first_scan, linux_build, modified_files
     )
+
+
+def fetch_project_ci_builds(
+    project: Project,
+    *,
+    limit: int = 15,
+) -> tuple[list[JenkinsBuildSnapshot], Optional[str]]:
+    """Список сборок проекта; при ошибке Jenkins — пустой список и текст ошибки."""
+    if not ci_settings.JENKINS_URL.strip():
+        return [], "Jenkins URL is not configured"
+    try:
+        return get_jenkins_service().list_project_builds(project, limit=limit), None
+    except JenkinsAPIException as exc:
+        logger.warning("Jenkins API error while listing builds: %s", exc)
+        return [], f"Jenkins API error: {exc}"
+    except Exception as exc:
+        logger.warning("Failed to list Jenkins builds: %s", exc, exc_info=True)
+        return [], f"Failed to connect to Jenkins: {exc}"
+
+
+def get_project_build_console(
+    project: Project,
+    *,
+    build_number: Optional[int] = None,
+    queue_id: Optional[int] = None,
+) -> tuple[str, str]:
+    """Текст консоли; при ошибке — сообщение в теле и статус ERROR."""
+    try:
+        return get_jenkins_service().get_project_build_console(
+            project,
+            build_number=build_number,
+            queue_id=queue_id,
+        )
+    except Exception as exc:
+        logger.warning("Failed to fetch Jenkins console: %s", exc, exc_info=True)
+        return f"Failed to load console output: {exc}", "ERROR"
+
+
+def pick_default_build_selection(
+    builds: list[JenkinsBuildSnapshot],
+) -> tuple[Optional[int], Optional[int]]:
+    """Выбрать сборку по умолчанию: активная (очередь/бег) или последняя."""
+    if not builds:
+        return None, None
+    for snapshot in builds:
+        if snapshot.status in ("QUEUED", "RUNNING"):
+            if snapshot.build_number is not None:
+                return snapshot.build_number, snapshot.queue_id
+            return None, snapshot.queue_id
+    first = builds[0]
+    return first.build_number, first.queue_id if first.status == "QUEUED" else None
+
+
+def mark_selected_build(
+    builds: list[JenkinsBuildSnapshot],
+    *,
+    build_number: Optional[int],
+    queue_id: Optional[int],
+) -> list[JenkinsBuildSnapshot]:
+    """Пометить выбранную строку в списке сборок."""
+    selected_build = build_number
+    selected_queue = queue_id
+    if selected_build is None and selected_queue is None:
+        selected_build, selected_queue = pick_default_build_selection(builds)
+
+    marked: list[JenkinsBuildSnapshot] = []
+    for snapshot in builds:
+        is_selected = False
+        if selected_build is not None and snapshot.build_number == selected_build:
+            is_selected = True
+        elif (
+            selected_build is None
+            and selected_queue is not None
+            and snapshot.queue_id == selected_queue
+            and snapshot.status == "QUEUED"
+        ):
+            is_selected = True
+        marked.append(
+            JenkinsBuildSnapshot(
+                build_number=snapshot.build_number,
+                queue_id=snapshot.queue_id,
+                status=snapshot.status,
+                label=snapshot.label,
+                console_url=snapshot.console_url,
+                timestamp_ms=snapshot.timestamp_ms,
+                why=snapshot.why,
+                is_selected=is_selected,
+            )
+        )
+    return marked
+
+
+def project_builds_have_active(builds: list[JenkinsBuildSnapshot]) -> bool:
+    return any(snapshot.status in ("QUEUED", "RUNNING") for snapshot in builds)

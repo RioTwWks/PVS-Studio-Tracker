@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from urllib.parse import quote
 from fastapi.templating import Jinja2Templates
@@ -95,6 +95,59 @@ def _ci_panel_response(
     return templates.TemplateResponse(
         request, "dashboard/_ci_panel.html", ctx, headers=headers
     )
+
+
+@router.get("/ui/projects/{project_key}/ci-builds", response_class=HTMLResponse)
+def ci_builds_panel(
+    request: Request,
+    project_key: str,
+    session: Session = Depends(get_session),
+    build: Optional[int] = Query(None, ge=1),
+    queue: Optional[int] = Query(None, ge=1),
+) -> HTMLResponse:
+    """HTMX-фрагмент: список сборок Jenkins и вывод консоли для проекта."""
+    project = require_project_by_key(session, project_key)
+    from pvs_tracker.jenkins_service import (
+        fetch_project_ci_builds,
+        get_project_build_console,
+        mark_selected_build,
+        pick_default_build_selection,
+        project_builds_have_active,
+    )
+
+    builds, jenkins_error = fetch_project_ci_builds(project)
+    selected_build = build
+    selected_queue = queue
+    if selected_build is None and selected_queue is None:
+        selected_build, selected_queue = pick_default_build_selection(builds)
+
+    console_text = ""
+    console_status = ""
+    if builds and not jenkins_error:
+        console_text, console_status = get_project_build_console(
+            project,
+            build_number=selected_build,
+            queue_id=selected_queue if selected_build is None else None,
+        )
+
+    ctx = _template_ctx(
+        request,
+        {
+            "project": project,
+            "jenkins_builds": mark_selected_build(
+                builds,
+                build_number=selected_build,
+                queue_id=selected_queue,
+            ),
+            "jenkins_error": jenkins_error,
+            "selected_build": selected_build,
+            "selected_queue": selected_queue,
+            "console_text": console_text,
+            "console_status": console_status,
+            "auto_refresh": project_builds_have_active(builds),
+        },
+    )
+    return templates.TemplateResponse(request, "dashboard/_ci_builds_panel.html", ctx)
 
 
 def _dashboard_settings_redirect(
