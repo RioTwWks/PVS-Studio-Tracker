@@ -22,9 +22,26 @@ function Update-PostgresConfig {
         if ($hbaText -notmatch "127\.0\.0\.1/32") {
             Add-Content -Path $hba -Value "host all all 127.0.0.1/32 trust"
         }
+        if ($hbaText -notmatch "172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+/12") {
+            Add-Content -Path $hba -Value "host all all 172.16.0.0/12 md5"
+        }
         if ($hbaText -notmatch "0\.0\.0\.0/0") {
             Add-Content -Path $hba -Value "host all all 0.0.0.0/0 md5"
             Add-Content -Path $hba -Value "host all all ::/0 md5"
+        }
+    }
+}
+
+function Enable-PostgresFirewall {
+    # Windows-контейнер: без правила firewall другие контейнеры не достучатся до :5432 (timeout).
+    $ruleName = "PVS PostgreSQL 5432"
+    $existing = netsh advfirewall firewall show rule name="$ruleName" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=TCP localport=5432 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Windows Firewall: allowed inbound TCP 5432"
+        } else {
+            Write-Host "WARN: could not add firewall rule for port 5432 (exit $LASTEXITCODE)"
         }
     }
 }
@@ -91,6 +108,7 @@ if (-not (Test-Path $pgVersionFile)) {
 }
 
 Update-PostgresConfig -DataDir $pgData
+Enable-PostgresFirewall
 
 $pgCtl = Join-Path $pgBin "pg_ctl.exe"
 $psql = Join-Path $pgBin "psql.exe"
@@ -100,6 +118,10 @@ $logFile = Join-Path $pgData "postgresql.log"
 if ($LASTEXITCODE -ne 0) {
     throw "pg_ctl start failed with exit code $LASTEXITCODE"
 }
+
+$listenCheck = netstat -an | Select-String "5432"
+Write-Host "Listening sockets for 5432:"
+$listenCheck | ForEach-Object { Write-Host $_.Line.Trim() }
 
 if (-not (Test-Path $initFlag)) {
     Write-Host "Creating role $pgUser and database $pgDb ..."

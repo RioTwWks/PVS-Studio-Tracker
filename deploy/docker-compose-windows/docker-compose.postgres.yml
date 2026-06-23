@@ -21,6 +21,9 @@ services:
       # Bind mount: на Windows named volume часто ломает initdb (Permission denied на ACL).
       # Сброс данных: docker compose down && Remove-Item -Recurse -Force .\pgdata
       - ./pgdata:C:/pgsql/data
+    # Публикация порта — fallback для Windows, если межконтейнерный TCP не проходит.
+    ports:
+      - "5432:5432"
     healthcheck:
       # CMD-форма: без PowerShell и без $LASTEXITCODE (Compose иначе подставляет пустую переменную).
       test:
