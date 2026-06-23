@@ -33,17 +33,12 @@ function Update-PostgresConfig {
 }
 
 function Enable-PostgresFirewall {
-    # Windows-контейнер: без правила firewall другие контейнеры не достучатся до :5432 (timeout).
+    # Windows-контейнер: firewall часто блокирует :5432 (в т.ч. через published port).
+    $netsh = Join-Path $env:SystemRoot "System32\netsh.exe"
+    & $netsh advfirewall set allprofiles state off | Out-Null
+    Write-Host "Windows Firewall disabled in postgres container (dev)"
     $ruleName = "PVS PostgreSQL 5432"
-    $existing = netsh advfirewall firewall show rule name="$ruleName" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=TCP localport=5432 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "Windows Firewall: allowed inbound TCP 5432"
-        } else {
-            Write-Host "WARN: could not add firewall rule for port 5432 (exit $LASTEXITCODE)"
-        }
-    }
+    & $netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=TCP localport=5432 | Out-Null
 }
 
 function Initialize-PostgresDataDir {
@@ -119,7 +114,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "pg_ctl start failed with exit code $LASTEXITCODE"
 }
 
-$listenCheck = netstat -an | Select-String "5432"
+$listenCheck = & (Join-Path $env:SystemRoot "System32\netstat.exe") -an | Select-String "5432"
 Write-Host "Listening sockets for 5432:"
 $listenCheck | ForEach-Object { Write-Host $_.Line.Trim() }
 
