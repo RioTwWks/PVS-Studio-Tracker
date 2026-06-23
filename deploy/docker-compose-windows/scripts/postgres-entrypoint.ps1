@@ -8,14 +8,14 @@ function Update-PostgresConfig {
     $autoConf = Join-Path $DataDir "postgresql.auto.conf"
     $hba = Join-Path $DataDir "pg_hba.conf"
 
-  # initdb оставляет "#listen_addresses = 'localhost'" — regex не срабатывал, сервер слушал только 127.0.0.1.
+    # initdb leaves listen_addresses commented out; force listen on all interfaces.
     if (Test-Path $conf) {
         $lines = Get-Content -Path $conf
-        $filtered = $lines | Where-Object { $_ -notmatch '^\s*#?\s*listen_addresses\s*=' }
+        $filtered = $lines | Where-Object { $_ -notmatch "^\s*#?\s*listen_addresses\s*=" }
         $filtered += "listen_addresses = '*'"
         Set-Content -Path $conf -Value $filtered
     }
-    Set-Content -Path $autoConf -Value "listen_addresses = '*'" -Encoding ascii
+    Set-Content -Path $autoConf -Value "listen_addresses = '*'" -Encoding Ascii
 
     if (Test-Path $hba) {
         $hbaText = Get-Content -Raw -Path $hba
@@ -109,8 +109,8 @@ $pgCtl = Join-Path $pgBin "pg_ctl.exe"
 $psql = Join-Path $pgBin "psql.exe"
 $logFile = Join-Path $pgData "postgresql.log"
 
-# Явный -c гарантирует listen на всех интерфейсах (нужно для Docker NAT / service DNS postgres).
-& $pgCtl -D $pgData -l $logFile -o "-c listen_addresses=*" start -w
+# pg_ctl -c forces listen on all interfaces (required for Docker service DNS).
+& $pgCtl -D $pgData -l $logFile -o '-c listen_addresses=*' start -w
 if ($LASTEXITCODE -ne 0) {
     throw "pg_ctl start failed with exit code $LASTEXITCODE"
 }
@@ -118,8 +118,9 @@ if ($LASTEXITCODE -ne 0) {
 $listenCheck = & (Join-Path $env:SystemRoot "System32\netstat.exe") -an | Select-String "5432"
 Write-Host "Listening sockets for 5432:"
 $listenCheck | ForEach-Object { Write-Host $_.Line.Trim() }
-if (-not ($listenCheck | Where-Object { $_.Line -match '0\.0\.0\.0:5432' })) {
-    Write-Host "WARN: PostgreSQL is not listening on 0.0.0.0:5432 — inter-container access may fail"
+$listeningAll = @($listenCheck | Where-Object { $_.Line -like "*0.0.0.0:5432*" })
+if ($listeningAll.Count -eq 0) {
+    Write-Host "WARN: PostgreSQL is not listening on 0.0.0.0:5432"
 }
 
 if (-not (Test-Path $initFlag)) {
