@@ -58,11 +58,28 @@ import logging as _logging
 _logging.getLogger("spnego").setLevel(_logging.WARNING)
 _logging.getLogger("spnego._gss").setLevel(_logging.WARNING)
 
+logger = _logging.getLogger(__name__)
+
+
+def _run_startup_init() -> None:
+    """DB migrations and seed data — runs in lifespan, not at import (uvicorn must bind first)."""
+    logger.info("Startup: applying database migrations and default data")
+    _migrate_database()
+    _initialize_default_data()
+    with Session(engine) as session:
+        _sync_project_groups(session)
+    with Session(engine) as lang_session:
+        from pvs_tracker.warnings_catalog import backfill_classifier_languages
+
+        backfill_classifier_languages(lang_session)
+    logger.info("Startup: database initialization complete")
+
 
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
     from pvs_tracker.rest_queue.runtime import start_embedded_workers, stop_embedded_workers
 
+    _run_startup_init()
     start_embedded_workers()
     yield
     stop_embedded_workers()
@@ -452,18 +469,6 @@ def _load_error_classifiers(session: Session) -> None:
         session.add(ErrorClassifier(**clf))
     session.commit()
     backfill_classifier_languages(session)
-
-
-_migrate_database()
-_initialize_default_data()
-
-with Session(engine) as session:
-    _sync_project_groups(session)
-
-with Session(engine) as _lang_session:
-    from pvs_tracker.warnings_catalog import backfill_classifier_languages
-
-    backfill_classifier_languages(_lang_session)
 
 
 # Templates
