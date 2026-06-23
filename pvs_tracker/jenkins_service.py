@@ -6,6 +6,7 @@ import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
+import urllib3
 from urllib.parse import quote
 
 from jenkinsapi.custom_exceptions import JenkinsAPIException, NotBuiltYet
@@ -14,6 +15,8 @@ from jenkinsapi.queue import QueueItem
 from pvs_tracker.ci_config import ci_settings
 from pvs_tracker.models import Project
 from pvs_tracker.project_ci import project_analysis_branch, project_repo_path
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
