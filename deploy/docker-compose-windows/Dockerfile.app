@@ -115,7 +115,10 @@ RUN $pyExe = Get-Content -Path C:\\Docker\\python-path.txt -Raw; `
     $pyExe = $pyExe.Trim(); `
     if (-not (Test-Path $pyExe)) { throw \"python.exe not found at $pyExe\" }; `
     Write-Host \"pip install via $pyExe\"; `
-    & $pyExe -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --no-cache-dir . psycopg2-binary
+    & $pyExe -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --no-cache-dir . psycopg2-binary; `
+    $netsh = Join-Path $env:SystemRoot 'System32\\netsh.exe'; `
+    & $netsh advfirewall set allprofiles state off | Out-Null; `
+    Write-Host 'Windows Firewall disabled in app image (build time)'
 
 COPY deploy/docker-compose-windows/scripts/app-entrypoint.ps1 C:/scripts/app-entrypoint.ps1
 

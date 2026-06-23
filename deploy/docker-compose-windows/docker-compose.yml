@@ -10,6 +10,7 @@
 
 # Шаблон воркера (extension field — не создаёт отдельный контейнер).
 x-worker: &worker
+  image: pvs-tracker-app:${WINDOWS_VERSION:-ltsc2019-amd64}
   build:
     context: ../..
     dockerfile: deploy/docker-compose-windows/Dockerfile.app
@@ -29,6 +30,7 @@ x-worker: &worker
 
 services:
   app-1: &app
+    image: pvs-tracker-app:${WINDOWS_VERSION:-ltsc2019-amd64}
     build:
       context: ../..
       dockerfile: deploy/docker-compose-windows/Dockerfile.app
@@ -44,6 +46,17 @@ services:
       GIT_CACHE_DIR: C:/app/data/git_cache
       SNAPSHOTS_DIR: C:/app/data/snapshots
       CI_TEMP_DIR: C:/app/temp_repos
+    command:
+      - C:\Program Files\Python312\python.exe
+      - -m
+      - uvicorn
+      - pvs_tracker.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --timeout-graceful-shutdown
+      - "30"
     ports:
       - "0.0.0.0:8081:8080"
     healthcheck:
@@ -71,7 +84,7 @@ services:
   worker-jenkins:
     <<: *worker
     command:
-      - python
+      - C:\Program Files\Python312\python.exe
       - -m
       - pvs_tracker.rest_queue
       - --service
@@ -80,7 +93,7 @@ services:
   worker-jira:
     <<: *worker
     command:
-      - python
+      - C:\Program Files\Python312\python.exe
       - -m
       - pvs_tracker.rest_queue
       - --service
@@ -89,7 +102,7 @@ services:
   worker-tfs:
     <<: *worker
     command:
-      - python
+      - C:\Program Files\Python312\python.exe
       - -m
       - pvs_tracker.rest_queue
       - --service
@@ -98,7 +111,7 @@ services:
   worker-webhook:
     <<: *worker
     command:
-      - python
+      - C:\Program Files\Python312\python.exe
       - -m
       - pvs_tracker.rest_queue
       - --service
@@ -107,7 +120,7 @@ services:
   worker-smtp:
     <<: *worker
     command:
-      - python
+      - C:\Program Files\Python312\python.exe
       - -m
       - pvs_tracker.rest_queue
       - --service
