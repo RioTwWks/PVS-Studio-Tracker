@@ -1,4 +1,5 @@
-# Entrypoint for app/worker Windows containers: open port 8080 for Docker NAT, then exec CMD.
+# Entrypoint for app/worker Windows containers: firewall + exec CMD.
+# Не используем Test-NetConnection — на Windows Docker он может зависать на DNS (host.docker.internal).
 $ErrorActionPreference = "Continue"
 
 function Enable-AppFirewall {
@@ -9,55 +10,6 @@ function Enable-AppFirewall {
         Write-Host "Windows Firewall: inbound TCP 8080 allowed in app container"
     } catch {
         Write-Warning "Firewall setup skipped: $_"
-    }
-}
-
-function Test-DatabaseTcp {
-    param([string]$HostName, [int]$Port = 5432)
-
-    try {
-        $tcp = Test-NetConnection -ComputerName $HostName -Port $Port -WarningAction SilentlyContinue
-        Write-Host "TCP probe ${HostName}:${Port} -> TcpTestSucceeded=$($tcp.TcpTestSucceeded)"
-        return [bool]$tcp.TcpTestSucceeded
-    } catch {
-        Write-Warning "TCP probe ${HostName}:${Port} failed: $_"
-        return $false
-    }
-}
-
-function Resolve-DatabaseUrl {
-    $pgUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "pvs" }
-    $pgPass = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "pvs" }
-    $pgDb = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "pvs_tracker" }
-
-    $candidates = New-Object System.Collections.Generic.List[string]
-    [void]$candidates.Add("host.docker.internal")
-
-    try {
-        $route = Get-NetRoute -AddressFamily IPv4 |
-            Where-Object { $_.DestinationPrefix -eq "0.0.0.0/0" } |
-            Select-Object -First 1
-        if ($route -and $route.NextHop -and $route.NextHop -ne "0.0.0.0") {
-            [void]$candidates.Add([string]$route.NextHop)
-        }
-    } catch {
-        Write-Warning "Could not detect default gateway: $_"
-    }
-
-    [void]$candidates.Add("postgres")
-
-    foreach ($hostName in $candidates) {
-        if (-not $hostName) { continue }
-        if (Test-DatabaseTcp -HostName $hostName) {
-            $env:DATABASE_URL = "postgresql+psycopg2://${pgUser}:${pgPass}@${hostName}:5432/${pgDb}"
-            Write-Host "DATABASE_URL set to host $hostName"
-            return
-        }
-    }
-
-    Write-Warning "Database TCP probe failed for all candidates: $($candidates -join ', ')"
-    if ($env:DATABASE_URL) {
-        Write-Host "Keeping existing DATABASE_URL from environment"
     }
 }
 
@@ -93,13 +45,11 @@ if ($args.Count -gt 1) {
 Write-Host "Python:"
 & $exe --version 2>&1 | ForEach-Object { Write-Host $_ }
 
-Resolve-DatabaseUrl
-
-Write-Host "Smoke test: import pvs_tracker.main"
-& $exe -u -c "import pvs_tracker.main; print('import ok')" 2>&1 | ForEach-Object { Write-Host $_ }
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Import pvs_tracker.main failed with exit code $LASTEXITCODE"
-    exit $LASTEXITCODE
+if ($env:DATABASE_URL) {
+    $masked = $env:DATABASE_URL -replace '^([^:]+://[^:]+:)[^@]+', '$1***'
+    Write-Host "DATABASE_URL: $masked"
+} else {
+    Write-Warning "DATABASE_URL is not set"
 }
 
 Write-Host "Starting: $exe $($cmdArgs -join ' ')"

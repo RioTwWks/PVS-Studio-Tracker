@@ -283,11 +283,13 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate app-1 app-2
 ```
 
-1. Логи (ожидается `import ok`, `Uvicorn running`, `DATABASE_URL set to host ...`):
+1. Логи (ожидается `Starting:`, `Uvicorn running on http://0.0.0.0:8080`):
 
 ```powershell
 docker logs docker-compose-windows-app-1-1 --tail 100
 ```
+
+> **Не добавляйте `Test-NetConnection` в entrypoint** — на Windows Docker он часто зависает на DNS (`host.docker.internal`) и блокирует старт uvicorn.
 
 2. Проверка HTTP (live должен отвечать сразу, ready — после init БД):
 
