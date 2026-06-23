@@ -10,21 +10,6 @@ from pvs_tracker.models import ErrorClassifier, Issue, Project
 from pvs_tracker.platforms import PLATFORMS, PlatformFilter, normalize_platform_filter
 from pvs_tracker.run_queries import common_cross_fps, get_analysis_set_runs, get_latest_run
 
-# PVS classifier type → SonarQube-style software quality label
-SOFTWARE_QUALITY_LABELS: dict[str, str] = {
-    "BUG": "Reliability",
-    "SECURITY": "Security",
-    "VULNERABILITY": "Security",
-    "CODE_SMELL": "Maintainability",
-    "DEFECT": "Reliability",
-}
-
-
-def software_quality_label(classifier_type: str | None) -> str:
-    if not classifier_type:
-        return "Maintainability"
-    return SOFTWARE_QUALITY_LABELS.get(classifier_type.upper(), "Maintainability")
-
 
 def format_relative_time(dt: datetime | None) -> str:
     """Human-readable relative time for issue cards."""

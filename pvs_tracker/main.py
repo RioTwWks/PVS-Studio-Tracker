@@ -492,9 +492,7 @@ def _load_error_classifiers(session: Session) -> None:
 # Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 from pvs_tracker.project_urls import project_ui_path, register_project_url_globals
-
-register_project_url_globals(templates.env)
-from pvs_tracker.issues_query import software_quality_label
+from pvs_tracker.template_helpers import software_quality_label
 from pvs_tracker.rule_documentation import (
     build_classifier_maps,
     fetch_rule_documentation,
@@ -502,6 +500,7 @@ from pvs_tracker.rule_documentation import (
     rule_documentation_url,
 )
 
+register_project_url_globals(templates.env)
 templates.env.globals["software_quality_label"] = software_quality_label
 templates.env.globals["resolve_issue_classifier"] = resolve_issue_classifier
 
