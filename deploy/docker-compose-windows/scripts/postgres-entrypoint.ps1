@@ -1,6 +1,75 @@
 # Запуск PostgreSQL (zip binaries) в Windows-контейнере.
 $ErrorActionPreference = "Stop"
 
+function Update-PostgresConfig {
+    param([Parameter(Mandatory)][string]$DataDir)
+
+    $conf = Join-Path $DataDir "postgresql.conf"
+    $hba = Join-Path $DataDir "pg_hba.conf"
+
+    if (Test-Path $conf) {
+        $text = Get-Content -Raw -Path $conf
+        if ($text -notmatch "listen_addresses") {
+            Add-Content -Path $conf -Value "listen_addresses = '*'"
+        } else {
+            $text = $text -replace "listen_addresses\s*=\s*'[^']*'", "listen_addresses = '*'"
+            Set-Content -Path $conf -Value $text -NoNewline
+        }
+    }
+
+    if (Test-Path $hba) {
+        $hbaText = Get-Content -Raw -Path $hba
+        if ($hbaText -notmatch "127\.0\.0\.1/32") {
+            Add-Content -Path $hba -Value "host all all 127.0.0.1/32 trust"
+        }
+        if ($hbaText -notmatch "0\.0\.0\.0/0") {
+            Add-Content -Path $hba -Value "host all all 0.0.0.0/0 md5"
+            Add-Content -Path $hba -Value "host all all ::/0 md5"
+        }
+    }
+}
+
+function Initialize-PostgresDataDir {
+    param(
+        [Parameter(Mandatory)][string]$TargetDir,
+        [Parameter(Mandatory)][string]$InitdbExe,
+        [Parameter(Mandatory)][string]$TempParent
+    )
+
+    $initTmp = Join-Path $TempParent ".initdb-tmp"
+    if (Test-Path $initTmp) {
+        Remove-Item $initTmp -Recurse -Force
+    }
+
+    Write-Host "Running initdb in $initTmp (temp; Docker volume ACL workaround) ..."
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $initLines = & $InitdbExe -D $initTmp -U postgres -E UTF8 -A trust 2>&1
+    $initExit = $LASTEXITCODE
+    $ErrorActionPreference = $prevEap
+    $initLines | ForEach-Object { Write-Host $_ }
+    if ($initExit -ne 0) {
+        if (Test-Path $initTmp) {
+            Remove-Item $initTmp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        throw "initdb failed with exit code $initExit"
+    }
+
+    Update-PostgresConfig -DataDir $initTmp
+
+    New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
+    Get-ChildItem -Path $TargetDir -Force -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+    Write-Host "Copying initialized cluster to $TargetDir ..."
+    & robocopy.exe $initTmp $TargetDir /E /NFL /NDL /NJH /NJS /NC /NS | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+        throw "robocopy to data dir failed with exit code $LASTEXITCODE"
+    }
+
+    Remove-Item $initTmp -Recurse -Force
+}
+
 $pgRoot = $env:POSTGRES_ROOT
 $pgBin = Join-Path $pgRoot "bin"
 $env:Path = "$pgBin;" + $env:Path
@@ -10,49 +79,18 @@ $pgPass = $env:POSTGRES_PASSWORD
 $pgDb = $env:POSTGRES_DB
 $initFlag = Join-Path $pgData ".pvs_tracker_initialized"
 
-if (-not (Test-Path $pgData)) {
-    New-Item -ItemType Directory -Force -Path $pgData | Out-Null
-}
+New-Item -ItemType Directory -Force -Path $pgData | Out-Null
 
 $pgVersionFile = Join-Path $pgData "PG_VERSION"
 if (-not (Test-Path $pgVersionFile)) {
-    Write-Host "Initializing PostgreSQL data directory at $pgData ..."
     $initdb = Join-Path $pgBin "initdb.exe"
     if (-not (Test-Path $initdb)) {
         throw "initdb.exe not found at $initdb"
     }
-    $initOut = & $initdb -D $pgData -U postgres -E UTF8 -A trust 2>&1
-    $initOut | ForEach-Object { Write-Host $_ }
-    if ($LASTEXITCODE -ne 0) {
-        Get-ChildItem -Path $pgData -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        $hex = '{0:X}' -f [int32]$LASTEXITCODE
-        throw "initdb failed with exit code $LASTEXITCODE (0x$hex). On Windows containers this often means missing VC++ runtime in the image."
-    }
+    Initialize-PostgresDataDir -TargetDir $pgData -InitdbExe $initdb -TempParent $pgRoot
 }
 
-$conf = Join-Path $pgData "postgresql.conf"
-$hba = Join-Path $pgData "pg_hba.conf"
-
-if (Test-Path $conf) {
-    $text = Get-Content -Raw -Path $conf
-    if ($text -notmatch "listen_addresses") {
-        Add-Content -Path $conf -Value "listen_addresses = '*'"
-    } else {
-        $text = $text -replace "listen_addresses\s*=\s*'[^']*'", "listen_addresses = '*'"
-        Set-Content -Path $conf -Value $text -NoNewline
-    }
-}
-
-if (Test-Path $hba) {
-    $hbaText = Get-Content -Raw -Path $hba
-    if ($hbaText -notmatch "127\.0\.0\.1/32") {
-        Add-Content -Path $hba -Value "host all all 127.0.0.1/32 trust"
-    }
-    if ($hbaText -notmatch "0\.0\.0\.0/0") {
-        Add-Content -Path $hba -Value "host all all 0.0.0.0/0 md5"
-        Add-Content -Path $hba -Value "host all all ::/0 md5"
-    }
-}
+Update-PostgresConfig -DataDir $pgData
 
 $pgCtl = Join-Path $pgBin "pg_ctl.exe"
 $psql = Join-Path $pgBin "psql.exe"
@@ -60,7 +98,7 @@ $logFile = Join-Path $pgData "postgresql.log"
 
 & $pgCtl -D $pgData -l $logFile start -w
 if ($LASTEXITCODE -ne 0) {
-    throw "pg_ctl start failed"
+    throw "pg_ctl start failed with exit code $LASTEXITCODE"
 }
 
 if (-not (Test-Path $initFlag)) {

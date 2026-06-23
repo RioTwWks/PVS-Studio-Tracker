@@ -264,17 +264,30 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgr
 
 Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-deps/README.md`](build-deps/README.md)).
 
+### `initdb: Permission denied` на `C:/pgsql/data`
+
+На Windows **named volume** не даёт `initdb` менять ACL каталога. Решение в compose: **bind mount** `./pgdata` (уже в `docker-compose.postgres.yml`). Entrypoint инициализирует кластер во временной папке образа и копирует в `pgdata`.
+
+Сброс БД на dev-стенде:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml down
+Remove-Item -Recurse -Force .\pgdata\*
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+```
+
 ### Volume `pvs_pg_data` не удаляется / network in use
 
-Остался старый контейнер `worker-1` или `x-worker-1`:
+Старый named volume можно удалить вручную при остановленной службе Docker:
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml down --remove-orphans
-docker rm -f docker-compose-windows-worker-1 docker-compose-windows-x-worker-1 2>$null
-docker volume rm docker-compose-windows_pvs_pg_data
+Stop-Service docker
+Remove-Item -Recurse -Force C:\Docker\volumes\docker-compose-windows_pvs_pg_data -ErrorAction SilentlyContinue
+Start-Service docker
 ```
 
-Если volume всё ещё занят — `Restart-Service docker`, затем снова `docker volume rm`.
+Текущий стек использует `./pgdata` вместо named volume — старый `pvs_pg_data` можно просто игнорировать.
 
 ### Orphan containers после обновления compose
 
