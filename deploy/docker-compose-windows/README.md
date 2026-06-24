@@ -264,6 +264,48 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgr
 
 Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-deps/README.md`](build-deps/README.md)).
 
+### `Incomplete source tree` при `docker build` (Step 27 verify-app-sources)
+
+Сборка **намеренно падает**, если в рабочей копии нет файлов, которые импортирует `main.py`. Обычно отсутствуют:
+
+- `pvs_tracker/rule_documentation.py`
+- `pvs_tracker/issue_activity.py`
+
+**На хосте** (до `docker compose build`):
+
+```powershell
+cd C:\Docker\win-stack\PVS-Studio-Tracker
+.\deploy\docker-compose-windows\scripts\pre-build-check.ps1
+```
+
+Если скрипт ругается — синхронизируйте репозиторий с `origin/main`:
+
+```powershell
+cd C:\Docker\win-stack\PVS-Studio-Tracker
+git fetch origin
+git checkout main
+git reset --hard origin/main
+git pull origin main
+git status
+git log -1 --oneline
+```
+
+Проверка файлов:
+
+```powershell
+Test-Path pvs_tracker\rule_documentation.py
+Test-Path pvs_tracker\issue_activity.py
+```
+
+Обе команды должны вернуть `True`. Затем:
+
+```powershell
+cd deploy\docker-compose-windows
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 app-2 --no-cache
+```
+
+> Не копируйте отдельные файлы вручную — используйте `git reset --hard origin/main`, иначе снова появятся расхождения версий.
+
 ### `ModuleNotFoundError: No module named 'pvs_tracker.rule_documentation'`
 
 `main.py` обновился из `main`, а файлы новых модулей **не попали** в рабочую копию (неполный `git pull`, конфликт слияния, локальные правки).
