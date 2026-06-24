@@ -128,8 +128,14 @@ Test-DatabaseConnection -PythonExe $exe | Out-Null
 
 $cmdLine = ($cmdArgs -join ' ')
 if ($cmdLine -match 'uvicorn') {
-    $env:PVS_SYNC_STARTUP_INIT = '1'
-    Write-Host 'PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn - Windows Docker workaround)'
+    Write-Host 'Running database startup init (python -m pvs_tracker.startup_init) ...'
+    & $exe -u -m pvs_tracker.startup_init 2>&1 | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Database startup init FAILED (exit $LASTEXITCODE)"
+        exit $LASTEXITCODE
+    }
+    $env:PVS_STARTUP_ALREADY_DONE = '1'
+    Write-Host 'PVS_STARTUP_ALREADY_DONE=1'
 }
 
 Write-Host "Starting: $exe $cmdLine"

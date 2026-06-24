@@ -334,11 +334,16 @@ git reset --hard origin/main
 
 Если в curl `"database":"initializing"` долго не меняется — фоновая инициализация БД в lifespan не завершилась.
 
-**На Windows Docker** `asyncio.to_thread` может не выполнять init-поток. Entrypoint выставляет `PVS_SYNC_STARTUP_INIT=1` — миграции и seed выполняются **синхронно до uvicorn**. В логах должны быть:
+**На Windows Docker** `asyncio.to_thread` в lifespan может не выполняться. Entrypoint запускает **`python -m pvs_tracker.startup_init`** до uvicorn, затем выставляет `PVS_STARTUP_ALREADY_DONE=1`. В логах должны быть:
 
 ```text
-PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn - Windows Docker workaround)
-Startup: synchronous initialization (PVS_SYNC_STARTUP_INIT)
+Running database startup init (python -m pvs_tracker.startup_init) ...
+Startup init: running migrations and seed...
+Startup: database initialization complete
+Startup init: OK
+PVS_STARTUP_ALREADY_DONE=1
+INFO:     Uvicorn running on http://0.0.0.0:8080
+```
 Startup: database initialization complete
 ```
 
