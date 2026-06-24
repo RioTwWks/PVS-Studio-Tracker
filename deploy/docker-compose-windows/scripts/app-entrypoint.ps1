@@ -41,7 +41,7 @@ import psycopg2, sys
 try:
     conn = psycopg2.connect(host='$pgHost', port=5432, user='$pgUser', password='$pgPass', dbname='$pgDb', connect_timeout=5, sslmode='disable')
     conn.close()
-    print('DB smoke test: OK ($pgHost:5432)')
+    print('DB smoke test: OK (${pgHost}:5432)')
 except Exception as e:
     print('DB smoke test FAILED:', e, file=sys.stderr)
     sys.exit(1)

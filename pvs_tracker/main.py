@@ -93,9 +93,6 @@ def _eager_startup_init_if_requested() -> None:
         raise
 
 
-_eager_startup_init_if_requested()
-
-
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
     from pvs_tracker.rest_queue.runtime import start_embedded_workers, stop_embedded_workers
@@ -514,6 +511,9 @@ def _load_error_classifiers(session: Session) -> None:
         session.add(ErrorClassifier(**clf))
     session.commit()
     backfill_classifier_languages(session)
+
+
+_eager_startup_init_if_requested()
 
 
 # Templates
