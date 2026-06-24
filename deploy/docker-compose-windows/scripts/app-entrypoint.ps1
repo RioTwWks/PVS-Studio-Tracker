@@ -126,7 +126,13 @@ Write-Host "Python:"
 Resolve-DatabaseUrl
 Test-DatabaseConnection -PythonExe $exe | Out-Null
 
-Write-Host "Starting: $exe $($cmdArgs -join ' ')"
+$cmdLine = ($cmdArgs -join ' ')
+if ($cmdLine -match 'uvicorn') {
+    $env:PVS_SYNC_STARTUP_INIT = '1'
+    Write-Host "PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn — Windows Docker workaround)"
+}
+
+Write-Host "Starting: $exe $cmdLine"
 & $exe @cmdArgs
 $exitCode = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } else { 0 }
 exit $exitCode

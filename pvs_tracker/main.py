@@ -42,7 +42,7 @@ from pvs_tracker.code_viewer import merge_code_snapshot, router as code_viewer_r
 from pvs_tracker.api import router as api_v2_router
 from pvs_tracker.quality_gate import create_default_quality_gate, evaluate_quality_gate
 from pvs_tracker.security import hash_password
-from pvs_tracker.startup_state import mark_startup_finished
+from pvs_tracker.startup_state import mark_startup_finished, startup_initialization_complete
 from pvs_tracker.auth_service import (
     authenticate_credentials,
     clear_session,
@@ -65,7 +65,7 @@ logger = _logging.getLogger(__name__)
 
 
 def _run_startup_init() -> None:
-    """DB migrations and seed data — runs in lifespan, not at import (uvicorn must bind first)."""
+    """DB migrations and seed data — runs in lifespan or sync import (Windows Docker)."""
     logger.info("Startup: applying database migrations and default data")
     _migrate_database()
     _initialize_default_data()
@@ -78,6 +78,24 @@ def _run_startup_init() -> None:
     logger.info("Startup: database initialization complete")
 
 
+def _eager_startup_init_if_requested() -> None:
+    """Sync DB init at import — Windows Docker containers hang in asyncio.to_thread."""
+    if os.getenv("PVS_SYNC_STARTUP_INIT", "").lower() not in ("1", "true", "yes"):
+        return
+    if startup_initialization_complete():
+        return
+    logger.info("Startup: synchronous initialization (PVS_SYNC_STARTUP_INIT)")
+    try:
+        _run_startup_init()
+        mark_startup_finished(None)
+    except BaseException as exc:
+        mark_startup_finished(exc)
+        raise
+
+
+_eager_startup_init_if_requested()
+
+
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
     from pvs_tracker.rest_queue.runtime import start_embedded_workers, stop_embedded_workers
@@ -85,6 +103,10 @@ async def _app_lifespan(_app: FastAPI):
     async def _init_background() -> None:
         error: BaseException | None = None
         try:
+            if startup_initialization_complete():
+                logger.info("Startup: database already initialized")
+                start_embedded_workers()
+                return
             timeout = float(os.getenv("DB_STARTUP_TIMEOUT", "120"))
             await asyncio.wait_for(asyncio.to_thread(_run_startup_init), timeout=timeout)
             start_embedded_workers()
@@ -95,7 +117,8 @@ async def _app_lifespan(_app: FastAPI):
             error = exc
             logger.exception("Startup initialization failed")
         finally:
-            mark_startup_finished(error)
+            if not startup_initialization_complete():
+                mark_startup_finished(error)
 
     init_task = asyncio.create_task(_init_background())
 

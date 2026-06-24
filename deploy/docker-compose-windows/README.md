@@ -332,7 +332,24 @@ git reset --hard origin/main
 
 Затем пересоберите образ. С Dockerfile v2+ сборка упадёт на шаге `Source tree verification OK`, если файлов нет.
 
-Если в curl `"database":"initializing"` долго не меняется — app не может подключиться к postgres.
+Если в curl `"database":"initializing"` долго не меняется — фоновая инициализация БД в lifespan не завершилась.
+
+**На Windows Docker** `asyncio.to_thread` может не выполнять init-поток. Entrypoint выставляет `PVS_SYNC_STARTUP_INIT=1` — миграции и seed выполняются **синхронно до uvicorn**. В логах должны быть:
+
+```text
+PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn — Windows Docker workaround)
+Startup: synchronous initialization (PVS_SYNC_STARTUP_INIT)
+Startup: database initialization complete
+```
+
+**Обязательно пересоберите образ** (`build --no-cache`), а не только `up --force-recreate`:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 app-2 --no-cache
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate postgres app-1 app-2
+```
+
+Если init всё ещё не проходит — app не может подключиться к postgres:
 
 1. Пересоздайте postgres (обновится `pg_hba` — trust для `172.28.100.0/24`, PG16 SCRAM + md5 ломали auth):
 
