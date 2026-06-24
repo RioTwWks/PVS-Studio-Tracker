@@ -9,6 +9,8 @@ from typing import Any
 
 from sqlmodel import Session, select
 
+from sqlalchemy.exc import IntegrityError
+
 from pvs_tracker.models import (
     ErrorClassifier,
     Issue,
@@ -208,6 +210,10 @@ def create_default_quality_gate(session: Session) -> QualityGate:
     existing = session.exec(
         select(QualityGate).where(QualityGate.is_default == True)  # noqa: E712
     ).first()
+    if not existing:
+        existing = session.exec(
+            select(QualityGate).where(QualityGate.name == "Default Quality Gate")
+        ).first()
     if existing:
         if existing.id is not None:
             rule_count = len(get_gate_rule_codes(session, existing.id))
@@ -217,8 +223,17 @@ def create_default_quality_gate(session: Session) -> QualityGate:
 
     gate = QualityGate(name="Default Quality Gate", is_default=True)
     session.add(gate)
-    session.commit()
-    session.refresh(gate)
+    try:
+        session.commit()
+        session.refresh(gate)
+    except IntegrityError:
+        session.rollback()
+        existing = session.exec(
+            select(QualityGate).where(QualityGate.name == "Default Quality Gate")
+        ).first()
+        if existing:
+            return existing
+        raise
 
     if gate.id is not None:
         populate_default_gate_rules(session, gate.id)
