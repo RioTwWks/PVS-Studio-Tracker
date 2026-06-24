@@ -22,6 +22,9 @@ function Update-PostgresConfig {
         if ($hbaText -notmatch "127\.0\.0\.1/32") {
             Add-Content -Path $hba -Value "host all all 127.0.0.1/32 trust"
         }
+        if ($hbaText -notmatch "172\.28\.100\.0/24") {
+            Add-Content -Path $hba -Value "host all all 172.28.100.0/24 md5"
+        }
         if ($hbaText -notmatch "172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+/12") {
             Add-Content -Path $hba -Value "host all all 172.16.0.0/12 md5"
         }

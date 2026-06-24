@@ -332,6 +332,34 @@ git reset --hard origin/main
 
 Затем пересоберите образ. С Dockerfile v2+ сборка упадёт на шаге `Source tree verification OK`, если файлов нет.
 
+### `/health/ready` → 503, `connection ... timeout expired` к gateway IP
+
+Шлюз хоста (`172.17.x.x`) **не маршрутизирует** published port `5432` из Windows-контейнера. Решение: **статический IP postgres** в общей NAT-сети `pvs_internal` (`172.28.100.10`).
+
+```ini
+POSTGRES_STATIC_IP=172.28.100.10
+USE_HOST_GATEWAY_FOR_POSTGRES=0
+```
+
+`docker-compose.postgres.yml` создаёт сеть `pvs-tracker-win` и ставит postgres на `172.28.100.10`.
+
+```powershell
+git pull origin main
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml down
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate
+docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
+docker logs docker-compose-windows-app-1-1 --tail 30
+curl http://localhost:8081/health/ready
+```
+
+Ожидается `...@172.28.100.10:5432/pvs_tracker` и HTTP 200 на `/health/ready`.
+
+Проверка сети:
+
+```powershell
+docker network inspect pvs-tracker-win
+```
+
 ### `could not translate host name "host.docker.internal"` / `/health/ready` → 503
 
 На **Windows Server Docker** DNS внутри контейнеров часто не работает (`host.docker.internal`, иногда `postgres`). Uvicorn стартует, но БД недоступна → 503 на `/health/ready`.

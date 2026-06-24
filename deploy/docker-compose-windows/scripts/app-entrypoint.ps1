@@ -34,9 +34,17 @@ function Resolve-DatabaseUrl {
         return
     }
 
-    # Windows Server Docker: DNS (postgres, host.docker.internal) часто не работает.
-    # Подключаемся к postgres через IP шлюза хоста + published port 5432 (без DNS).
-    $useGateway = ($env:USE_HOST_GATEWAY_FOR_POSTGRES -ne '0')
+    # Статический IP postgres (compose network pvs_internal) — без DNS.
+    if ($env:POSTGRES_STATIC_IP -and $env:DATABASE_URL -match '@([^:/?#]+):') {
+        $dbHost = $Matches[1]
+        if ($dbHost -ne $env:POSTGRES_STATIC_IP) {
+            $env:DATABASE_URL = $env:DATABASE_URL -replace "@${dbHost}:", "@$($env:POSTGRES_STATIC_IP):"
+            Write-Host "DATABASE_URL: ${dbHost} -> static postgres IP $($env:POSTGRES_STATIC_IP)"
+        }
+    }
+
+    # Опционально: gateway + published port (на Windows Server обычно timeout — оставлено для отладки).
+    $useGateway = ($env:USE_HOST_GATEWAY_FOR_POSTGRES -eq '1')
     if ($useGateway -and $env:DATABASE_URL -match '@([^:/?#]+):') {
         $dbHost = $Matches[1]
         if ($dbHost -eq 'postgres' -or $dbHost -eq 'host.docker.internal') {
@@ -44,8 +52,6 @@ function Resolve-DatabaseUrl {
             if ($gateway) {
                 $env:DATABASE_URL = $env:DATABASE_URL -replace "@${dbHost}:", "@${gateway}:"
                 Write-Host "DATABASE_URL: ${dbHost} -> host gateway ${gateway} (published postgres port)"
-            } else {
-                Write-Warning "Could not detect host gateway; keeping host ${dbHost}"
             }
         }
     }
