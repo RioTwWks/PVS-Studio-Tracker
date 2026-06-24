@@ -107,6 +107,21 @@ COPY pyproject.toml ./
 COPY pvs_tracker ./pvs_tracker
 COPY static ./static
 
+# Fail fast if git checkout is incomplete (main.py imports modules missing from disk).
+RUN $required = @(
+    'C:\\app\\pvs_tracker\\main.py',
+    'C:\\app\\pvs_tracker\\template_helpers.py',
+    'C:\\app\\pvs_tracker\\rule_documentation.py',
+    'C:\\app\\pvs_tracker\\startup_state.py',
+    'C:\\app\\pvs_tracker\\issue_activity.py'
+); `
+    $missing = @(); `
+    foreach ($path in $required) { if (-not (Test-Path $path)) { $missing += $path } }; `
+    if ($missing.Count -gt 0) { `
+        throw \"Incomplete source tree. Missing: $($missing -join ', '). Run: git fetch origin && git checkout main && git pull origin main\"; `
+    }; `
+    Write-Host 'Source tree verification OK'
+
 # Не затирать системный PATH полностью — иначе Step 27 не найдёт powershell.exe.
 ENV PATH="C:\\Program Files\\Python312;C:\\Program Files\\Python312\\Scripts;C:\\MinGit\\cmd;C:\\MinGit\\mingw64\\bin;C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows"
 ENV PIP_TRUSTED_HOST="pypi.org pypi.python.org files.pythonhosted.org"

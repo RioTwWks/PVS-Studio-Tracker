@@ -264,6 +264,32 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml build postgr
 
 Offline: положите `vc_redist.x64.exe` в `build-deps/` (см. [`build-deps/README.md`](build-deps/README.md)).
 
+### `ModuleNotFoundError: No module named 'pvs_tracker.rule_documentation'`
+
+`main.py` обновился из `main`, а файлы новых модулей **не попали** в рабочую копию (неполный `git pull`, конфликт слияния, локальные правки).
+
+Перед `docker compose build` проверьте на **хосте** (не в контейнере):
+
+```powershell
+cd C:\Docker\win-stack\PVS-Studio-Tracker
+git fetch origin
+git checkout main
+git pull origin main
+git status
+
+Test-Path pvs_tracker\rule_documentation.py
+Test-Path pvs_tracker\template_helpers.py
+Test-Path pvs_tracker\startup_state.py
+```
+
+Все три команды `Test-Path` должны вернуть `True`. Если `False`:
+
+```powershell
+git reset --hard origin/main
+```
+
+Затем пересоберите образ. С Dockerfile v2+ сборка упадёт на шаге `Source tree verification OK`, если файлов нет.
+
 ### `app-1` / `app-2` рестартуются, `curl :8081` timeout, nginx 502/504
 
 Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. Если **изнутри** контейнера тоже timeout — uvicorn не запустился (не firewall хоста).
