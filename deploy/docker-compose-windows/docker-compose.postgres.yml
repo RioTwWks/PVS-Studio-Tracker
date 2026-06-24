@@ -16,7 +16,7 @@ networks:
 
 x-postgres-env: &postgres_env
   POSTGRES_STATIC_IP: ${POSTGRES_STATIC_IP:-172.28.100.10}
-  DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@${POSTGRES_STATIC_IP:-172.28.100.10}:5432/pvs_tracker
+  DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@${POSTGRES_STATIC_IP:-172.28.100.10}:5432/pvs_tracker?sslmode=disable
   DB_CONNECT_TIMEOUT: ${DB_CONNECT_TIMEOUT:-10}
   USE_HOST_GATEWAY_FOR_POSTGRES: "0"
 

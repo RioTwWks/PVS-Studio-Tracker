@@ -85,8 +85,12 @@ async def _app_lifespan(_app: FastAPI):
     async def _init_background() -> None:
         error: BaseException | None = None
         try:
-            await asyncio.to_thread(_run_startup_init)
+            timeout = float(os.getenv("DB_STARTUP_TIMEOUT", "120"))
+            await asyncio.wait_for(asyncio.to_thread(_run_startup_init), timeout=timeout)
             start_embedded_workers()
+        except asyncio.TimeoutError:
+            error = TimeoutError(f"Database startup exceeded {timeout}s")
+            logger.error("Startup initialization timed out after %ss", timeout)
         except BaseException as exc:
             error = exc
             logger.exception("Startup initialization failed")

@@ -18,20 +18,22 @@ function Update-PostgresConfig {
     Set-Content -Path $autoConf -Value "listen_addresses = '*'" -Encoding Ascii
 
     if (Test-Path $hba) {
+        function Set-HbaTrustRule {
+            param([string]$Cidr)
+            $escaped = [regex]::Escape($Cidr)
+            $lines = @(Get-Content -Path $hba)
+            $lines = @($lines | Where-Object { $_ -notmatch "^\s*host\s+all\s+all\s+$escaped\s+" })
+            $lines += "host all all $Cidr trust"
+            Set-Content -Path $hba -Value $lines
+        }
+
         $hbaText = Get-Content -Raw -Path $hba
         if ($hbaText -notmatch "127\.0\.0\.1/32") {
             Add-Content -Path $hba -Value "host all all 127.0.0.1/32 trust"
         }
-        if ($hbaText -notmatch "172\.28\.100\.0/24") {
-            Add-Content -Path $hba -Value "host all all 172.28.100.0/24 md5"
-        }
-        if ($hbaText -notmatch "172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+/12") {
-            Add-Content -Path $hba -Value "host all all 172.16.0.0/12 md5"
-        }
-        if ($hbaText -notmatch "0\.0\.0\.0/0") {
-            Add-Content -Path $hba -Value "host all all 0.0.0.0/0 md5"
-            Add-Content -Path $hba -Value "host all all ::/0 md5"
-        }
+        # PG16 uses SCRAM passwords; md5 in pg_hba causes auth failures from app containers.
+        Set-HbaTrustRule -Cidr "172.28.100.0/24"
+        Set-HbaTrustRule -Cidr "172.16.0.0/12"
     }
 }
 

@@ -28,6 +28,29 @@ function Get-HostGatewayIpv4 {
     return $null
 }
 
+function Test-DatabaseConnection {
+    param([string]$PythonExe)
+
+    $pgHost = if ($env:POSTGRES_STATIC_IP) { $env:POSTGRES_STATIC_IP } else { "172.28.100.10" }
+    $pgUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "pvs" }
+    $pgPass = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "pvs" }
+    $pgDb = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "pvs_tracker" }
+
+    $py = @"
+import psycopg2, sys
+try:
+    conn = psycopg2.connect(host='$pgHost', port=5432, user='$pgUser', password='$pgPass', dbname='$pgDb', connect_timeout=5, sslmode='disable')
+    conn.close()
+    print('DB smoke test: OK ($pgHost:5432)')
+except Exception as e:
+    print('DB smoke test FAILED:', e, file=sys.stderr)
+    sys.exit(1)
+"@
+    Write-Host "DB smoke test to ${pgHost}:5432 ..."
+    & $PythonExe -u -c $py 2>&1 | ForEach-Object { Write-Host $_ }
+    return ($LASTEXITCODE -eq 0)
+}
+
 function Resolve-DatabaseUrl {
     if (-not $env:DATABASE_URL) {
         Write-Warning "DATABASE_URL is not set"
@@ -58,6 +81,14 @@ function Resolve-DatabaseUrl {
 
     $masked = $env:DATABASE_URL -replace '^([^:]+://[^:]+:)[^@]+', '$1***'
     Write-Host "DATABASE_URL: $masked"
+
+    if ($env:DATABASE_URL -notmatch 'sslmode=') {
+        if ($env:DATABASE_URL -match '\?') {
+            $env:DATABASE_URL = $env:DATABASE_URL + '&sslmode=disable'
+        } else {
+            $env:DATABASE_URL = $env:DATABASE_URL + '?sslmode=disable'
+        }
+    }
 }
 
 $defaultCmd = @(
@@ -93,6 +124,7 @@ Write-Host "Python:"
 & $exe --version 2>&1 | ForEach-Object { Write-Host $_ }
 
 Resolve-DatabaseUrl
+Test-DatabaseConnection -PythonExe $exe | Out-Null
 
 Write-Host "Starting: $exe $($cmdArgs -join ' ')"
 & $exe @cmdArgs

@@ -332,6 +332,26 @@ git reset --hard origin/main
 
 Затем пересоберите образ. С Dockerfile v2+ сборка упадёт на шаге `Source tree verification OK`, если файлов нет.
 
+Если в curl `"database":"initializing"` долго не меняется — app не может подключиться к postgres.
+
+1. Пересоздайте postgres (обновится `pg_hba` — trust для `172.28.100.0/24`, PG16 SCRAM + md5 ломали auth):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate postgres app-1 app-2
+```
+
+2. В логах app ищите `DB smoke test: OK` или `FAILED`:
+
+```powershell
+docker logs docker-compose-windows-app-1-1 --tail 40
+```
+
+3. Проверка:
+
+```powershell
+curl -s http://localhost:8081/health/ready
+```
+
 ### `/health/ready` → 503, `connection ... timeout expired` к gateway IP
 
 Шлюз хоста (`172.17.x.x`) **не маршрутизирует** published port `5432` из Windows-контейнера. Решение: **статический IP postgres** в общей NAT-сети `pvs_internal` (`172.28.100.10`).
