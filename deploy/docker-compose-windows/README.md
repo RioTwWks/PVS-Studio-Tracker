@@ -332,6 +332,36 @@ git reset --hard origin/main
 
 Затем пересоберите образ. С Dockerfile v2+ сборка упадёт на шаге `Source tree verification OK`, если файлов нет.
 
+### `could not translate host name "host.docker.internal"`
+
+На **Windows Server Docker** (не Docker Desktop) DNS-имя `host.docker.internal` **часто отсутствует**. Uvicorn стартует, но `/health/ready` → 503, в логах:
+
+```text
+could not translate host name "host.docker.internal" to address
+```
+
+**Решение:** в режиме `docker-compose.postgres.yml` используйте service DNS `postgres` (оба контейнера в одной compose-сети):
+
+```ini
+# .env
+POSTGRES_HOST=postgres
+POSTGRES_PASSWORD=pvs
+```
+
+`DATABASE_URL` в compose: `@postgres:5432`. Entrypoint заменяет `host.docker.internal` → `postgres`, если осталось в `.env`.
+
+```powershell
+git pull origin main
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate app-1 app-2
+docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
+```
+
+Ожидается: `...@postgres:5432/pvs_tracker`
+
+```powershell
+curl http://localhost:8081/health/ready
+```
+
 ### `app-1` / `app-2` рестартуются, `curl :8081` timeout, nginx 502/504
 
 Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. Если **изнутри** контейнера тоже timeout — uvicorn не запустился (не firewall хоста).
@@ -341,8 +371,8 @@ Healthcheck внутри контейнера ходит на `127.0.0.1:8080`. 
 Исправления:
 
 - инициализация БД в **фоне** (lifespan не блокирует bind);
-- `DATABASE_URL` в compose **жёстко** `@host.docker.internal:5432` (игнорирует `.env POSTGRES_HOST=postgres`);
-- entrypoint сам подбирает хост БД (gateway / postgres) и делает smoke-import.
+- `DATABASE_URL` в compose: `@postgres:5432` (service DNS в одной compose-сети);
+- entrypoint заменяет устаревший `host.docker.internal` на `postgres`.
 
 Пересоберите app:
 

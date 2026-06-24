@@ -13,6 +13,26 @@ function Enable-AppFirewall {
     }
 }
 
+function Resolve-DatabaseUrl {
+    if (-not $env:DATABASE_URL) {
+        Write-Warning "DATABASE_URL is not set"
+        return
+    }
+
+    # Windows Server Docker: host.docker.internal отсутствует (нет DNS). Заменяем без Test-NetConnection.
+    if ($env:DATABASE_URL -match '@host\.docker\.internal:') {
+        $target = $env:POSTGRES_HOST
+        if (-not $target -or $target -eq 'host.docker.internal') {
+            $target = 'postgres'
+        }
+        $env:DATABASE_URL = $env:DATABASE_URL -replace '@host\.docker\.internal:', "@${target}:"
+        Write-Host "DATABASE_URL: host.docker.internal replaced with $target"
+    }
+
+    $masked = $env:DATABASE_URL -replace '^([^:]+://[^:]+:)[^@]+', '$1***'
+    Write-Host "DATABASE_URL: $masked"
+}
+
 $defaultCmd = @(
     "C:\Program Files\Python312\python.exe",
     "-u",
@@ -45,12 +65,7 @@ if ($args.Count -gt 1) {
 Write-Host "Python:"
 & $exe --version 2>&1 | ForEach-Object { Write-Host $_ }
 
-if ($env:DATABASE_URL) {
-    $masked = $env:DATABASE_URL -replace '^([^:]+://[^:]+:)[^@]+', '$1***'
-    Write-Host "DATABASE_URL: $masked"
-} else {
-    Write-Warning "DATABASE_URL is not set"
-}
+Resolve-DatabaseUrl
 
 Write-Host "Starting: $exe $($cmdArgs -join ' ')"
 & $exe @cmdArgs
