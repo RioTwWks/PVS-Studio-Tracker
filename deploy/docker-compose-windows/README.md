@@ -337,7 +337,7 @@ git reset --hard origin/main
 **На Windows Docker** `asyncio.to_thread` может не выполнять init-поток. Entrypoint выставляет `PVS_SYNC_STARTUP_INIT=1` — миграции и seed выполняются **синхронно до uvicorn**. В логах должны быть:
 
 ```text
-PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn — Windows Docker workaround)
+PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn - Windows Docker workaround)
 Startup: synchronous initialization (PVS_SYNC_STARTUP_INIT)
 Startup: database initialization complete
 ```

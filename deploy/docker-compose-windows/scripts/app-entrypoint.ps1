@@ -129,7 +129,7 @@ Test-DatabaseConnection -PythonExe $exe | Out-Null
 $cmdLine = ($cmdArgs -join ' ')
 if ($cmdLine -match 'uvicorn') {
     $env:PVS_SYNC_STARTUP_INIT = '1'
-    Write-Host "PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn — Windows Docker workaround)"
+    Write-Host 'PVS_SYNC_STARTUP_INIT=1 (DB init before uvicorn - Windows Docker workaround)'
 }
 
 Write-Host "Starting: $exe $cmdLine"

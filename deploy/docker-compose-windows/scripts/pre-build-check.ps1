@@ -34,4 +34,4 @@ if ($missing.Count -gt 0) {
 }
 
 Write-Host ""
-Write-Host "Source tree OK — safe to run docker compose build" -ForegroundColor Green
+Write-Host 'Source tree OK - safe to run docker compose build' -ForegroundColor Green
