@@ -5,9 +5,10 @@
 # POSTGRES_HOST=postgres (service DNS). extra_hosts/host-gateway не поддерживается на Windows Docker.
 
 x-postgres-env: &postgres_env
-  # Service DNS postgres (одна compose-сеть). host.docker.internal на Windows Server часто не резолвится.
+  # compose URL uses postgres; entrypoint rewrites to host gateway IP (no DNS on Windows Server).
   DATABASE_URL: postgresql+psycopg2://pvs:${POSTGRES_PASSWORD:-pvs}@postgres:5432/pvs_tracker
   DB_CONNECT_TIMEOUT: ${DB_CONNECT_TIMEOUT:-10}
+  USE_HOST_GATEWAY_FOR_POSTGRES: ${USE_HOST_GATEWAY_FOR_POSTGRES:-1}
 
 services:
   postgres:

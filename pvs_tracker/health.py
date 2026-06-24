@@ -31,6 +31,7 @@ def readiness(session: Session = Depends(get_session)) -> JSONResponse:
     if not startup_initialization_complete():
         err = startup_initialization_error()
         detail = "initializing" if err is None else str(err)
+        logger.info("Readiness unavailable: %s", detail)
         return JSONResponse(
             {"status": "unavailable", "database": detail},
             status_code=503,

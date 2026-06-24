@@ -332,35 +332,31 @@ git reset --hard origin/main
 
 Затем пересоберите образ. С Dockerfile v2+ сборка упадёт на шаге `Source tree verification OK`, если файлов нет.
 
-### `could not translate host name "host.docker.internal"`
+### `could not translate host name "host.docker.internal"` / `/health/ready` → 503
 
-На **Windows Server Docker** (не Docker Desktop) DNS-имя `host.docker.internal` **часто отсутствует**. Uvicorn стартует, но `/health/ready` → 503, в логах:
+На **Windows Server Docker** DNS внутри контейнеров часто не работает (`host.docker.internal`, иногда `postgres`). Uvicorn стартует, но БД недоступна → 503 на `/health/ready`.
 
-```text
-could not translate host name "host.docker.internal" to address
-```
-
-**Решение:** в режиме `docker-compose.postgres.yml` используйте service DNS `postgres` (оба контейнера в одной compose-сети):
+**Решение (по умолчанию в compose):** entrypoint подменяет `postgres` на **IP шлюза хоста** (published port `5432`), без DNS:
 
 ```ini
-# .env
-POSTGRES_HOST=postgres
-POSTGRES_PASSWORD=pvs
+USE_HOST_GATEWAY_FOR_POSTGRES=1
 ```
 
-`DATABASE_URL` в compose: `@postgres:5432`. Entrypoint заменяет `host.docker.internal` → `postgres`, если осталось в `.env`.
+В логах app:
+
+```text
+DATABASE_URL: postgres -> host gateway 172.x.x.x (published postgres port)
+```
 
 ```powershell
 git pull origin main
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml build app-1 app-2
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate app-1 app-2
-docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
-```
-
-Ожидается: `...@postgres:5432/pvs_tracker`
-
-```powershell
+docker logs docker-compose-windows-app-1-1 --tail 40
 curl http://localhost:8081/health/ready
 ```
+
+Отключить подмену (если service DNS работает): `USE_HOST_GATEWAY_FOR_POSTGRES=0` в `.env`.
 
 ### `app-1` / `app-2` рестартуются, `curl :8081` timeout, nginx 502/504
 
@@ -396,7 +392,7 @@ docker exec docker-compose-windows-app-1-1 powershell -Command "(Invoke-WebReque
 docker exec docker-compose-windows-app-1-1 powershell -Command "(Invoke-WebRequest http://127.0.0.1:8080/health/ready -UseBasicParsing).StatusCode"
 ```
 
-3. Убедитесь, что compose подставил правильный URL (не `@postgres:`):
+3. Убедитесь, что `DATABASE_URL` указывает на `@postgres:5432`:
 
 ```powershell
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
@@ -419,7 +415,7 @@ New-NetFirewallRule -DisplayName "PVS-Tracker 8082" -Direction Inbound -Protocol
 
 4. В `.env` не должно быть пустых `GIT_CACHE_DIR=` / `SNAPSHOTS_DIR=` (см. compose: `C:/app/data/...`).
 
-5. `DATABASE_URL` должен указывать на доступный хост (`@host.docker.internal:5432` или `@postgres:5432`):
+5. `DATABASE_URL` для postgres-контейнера: `@postgres:5432` (не `host.docker.internal` на Windows Server):
 
 ```powershell
 docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{println .}}{{end}}" | findstr DATABASE
@@ -428,11 +424,11 @@ docker inspect docker-compose-windows-app-1-1 --format "{{range .Config.Env}}{{p
 
 ### Postgres connection errors
 
-Корневая причина: PostgreSQL слушал только `127.0.0.1:5432` (закомментированный `listen_addresses` в postgresql.conf). Entrypoint теперь принудительно ставит `listen_addresses=*`.
+Корневая причина: PostgreSQL слушал только `127.0.0.1:5432`. Entrypoint postgres ставит `listen_addresses=*`.
 
 ```powershell
-# .env — host.docker.internal надёжнее service DNS postgres на Windows Docker:
-POSTGRES_HOST=host.docker.internal
+# .env
+POSTGRES_HOST=postgres
 POSTGRES_PASSWORD=pvs
 DB_CONNECT_TIMEOUT=10
 

@@ -13,20 +13,41 @@ function Enable-AppFirewall {
     }
 }
 
+function Get-HostGatewayIpv4 {
+    try {
+        $route = Get-NetRoute -AddressFamily IPv4 |
+            Where-Object { $_.DestinationPrefix -eq '0.0.0.0/0' } |
+            Sort-Object RouteMetric |
+            Select-Object -First 1
+        if ($route -and $route.NextHop -and $route.NextHop -ne '0.0.0.0') {
+            return [string]$route.NextHop
+        }
+    } catch {
+        Write-Warning "Get-HostGatewayIpv4 failed: $_"
+    }
+    return $null
+}
+
 function Resolve-DatabaseUrl {
     if (-not $env:DATABASE_URL) {
         Write-Warning "DATABASE_URL is not set"
         return
     }
 
-    # Windows Server Docker: host.docker.internal отсутствует (нет DNS). Заменяем без Test-NetConnection.
-    if ($env:DATABASE_URL -match '@host\.docker\.internal:') {
-        $target = $env:POSTGRES_HOST
-        if (-not $target -or $target -eq 'host.docker.internal') {
-            $target = 'postgres'
+    # Windows Server Docker: DNS (postgres, host.docker.internal) часто не работает.
+    # Подключаемся к postgres через IP шлюза хоста + published port 5432 (без DNS).
+    $useGateway = ($env:USE_HOST_GATEWAY_FOR_POSTGRES -ne '0')
+    if ($useGateway -and $env:DATABASE_URL -match '@([^:/?#]+):') {
+        $dbHost = $Matches[1]
+        if ($dbHost -eq 'postgres' -or $dbHost -eq 'host.docker.internal') {
+            $gateway = Get-HostGatewayIpv4
+            if ($gateway) {
+                $env:DATABASE_URL = $env:DATABASE_URL -replace "@${dbHost}:", "@${gateway}:"
+                Write-Host "DATABASE_URL: ${dbHost} -> host gateway ${gateway} (published postgres port)"
+            } else {
+                Write-Warning "Could not detect host gateway; keeping host ${dbHost}"
+            }
         }
-        $env:DATABASE_URL = $env:DATABASE_URL -replace '@host\.docker\.internal:', "@${target}:"
-        Write-Host "DATABASE_URL: host.docker.internal replaced with $target"
     }
 
     $masked = $env:DATABASE_URL -replace '^([^:]+://[^:]+:)[^@]+', '$1***'
