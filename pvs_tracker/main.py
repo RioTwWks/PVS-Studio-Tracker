@@ -65,9 +65,11 @@ logger = _logging.getLogger(__name__)
 
 
 def _run_startup_init() -> None:
-    """DB migrations and seed data — runs in lifespan or sync import (Windows Docker)."""
+    """DB migrations and seed data — lifespan or startup_init CLI (Windows Docker)."""
     logger.info("Startup: applying database migrations and default data")
+    print("Startup: migrate_database", flush=True)
     _migrate_database()
+    print("Startup: initialize_default_data", flush=True)
     _initialize_default_data()
     with Session(engine) as session:
         _sync_project_groups(session)
@@ -76,22 +78,20 @@ def _run_startup_init() -> None:
 
         backfill_classifier_languages(lang_session)
     logger.info("Startup: database initialization complete")
+    print("Startup: database initialization complete", flush=True)
 
 
-def _eager_startup_init_if_requested() -> None:
-    """Sync DB init at import — Windows Docker containers hang in asyncio.to_thread."""
-    if os.getenv("PVS_SYNC_STARTUP_INIT", "").lower() not in ("1", "true", "yes"):
+def _mark_startup_done_if_preinitialized() -> None:
+    """Entrypoint ran startup_init before uvicorn — mark readiness without asyncio.to_thread."""
+    if os.getenv("PVS_STARTUP_ALREADY_DONE", "").lower() not in ("1", "true", "yes"):
         return
     if startup_initialization_complete():
         return
-    logger.info("Startup: synchronous initialization (PVS_SYNC_STARTUP_INIT)")
-    try:
-        _run_startup_init()
-        mark_startup_finished(None)
-    except BaseException as exc:
-        mark_startup_finished(exc)
-        raise
+    logger.info("Startup: marked complete (PVS_STARTUP_ALREADY_DONE)")
+    mark_startup_finished(None)
 
+
+_mark_startup_done_if_preinitialized()
 
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
@@ -191,72 +191,21 @@ def _sync_project_release_version(project: Project, release_version: Optional[st
 
 def _migrate_database() -> None:
     """Apply schema migrations for existing databases."""
-    # Create all tables (safe if they already exist)
     SQLModel.metadata.create_all(engine)
     from pvs_tracker.db_migrate_ci import apply_ci_schema_migration
 
     apply_ci_schema_migration()
 
-    with Session(engine) as session:
-        # Check if migration is needed
-        try:
-            projects = session.exec(select(Project).limit(1)).all()
-            if projects and hasattr(projects[0], "source_root_win"):
-                # Already migrated
-                pass
-        except Exception:
-            pass
-
-        # Execute raw SQL to add new columns (SQLite)
+    if engine.dialect.name == "sqlite":
         from sqlalchemy import text
 
         try:
             with engine.connect() as conn:
-                # Add source_root_win
-                try:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE project ADD COLUMN source_root_win VARCHAR"
-                        )
-                    )
-                    conn.commit()
-                except Exception:
-                    pass  # Column may already exist
-
-                # Add source_root_linux
-                try:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE project ADD COLUMN source_root_linux VARCHAR"
-                        )
-                    )
-                    conn.commit()
-                except Exception:
-                    pass  # Column may already exist
-
-                # Add quality_gate_id
-                try:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE project ADD COLUMN quality_gate_id INTEGER"
-                        )
-                    )
-                    conn.commit()
-                except Exception:
-                    pass  # Column may already exist
-
-                # Add description
-                try:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE project ADD COLUMN description VARCHAR"
-                        )
-                    )
-                    conn.commit()
-                except Exception:
-                    pass  # Column may already exist
-
                 for col_sql in (
+                    "ALTER TABLE project ADD COLUMN source_root_win VARCHAR",
+                    "ALTER TABLE project ADD COLUMN source_root_linux VARCHAR",
+                    "ALTER TABLE project ADD COLUMN quality_gate_id INTEGER",
+                    "ALTER TABLE project ADD COLUMN description VARCHAR",
                     "ALTER TABLE user ADD COLUMN first_name VARCHAR",
                     "ALTER TABLE user ADD COLUMN last_name VARCHAR",
                     "ALTER TABLE user ADD COLUMN notify_api_uploads BOOLEAN DEFAULT 0",
@@ -284,70 +233,68 @@ def _migrate_database() -> None:
                         pass
 
                 try:
-                    with engine.connect() as conn:
-                        # Проверяем, есть ли у колонки password_hash ограничение NOT NULL
-                        res = conn.exec_driver_sql("PRAGMA table_info(user)").fetchall()
-                        for col in res:
-                            if col[1] == "password_hash" and col[3] == 1:  # notnull = 1
-                                # Создаём временную таблицу без NOT NULL
-                                conn.exec_driver_sql("BEGIN TRANSACTION")
-                                # Скопируем структуру
-                                conn.exec_driver_sql("CREATE TABLE user_new (id INTEGER PRIMARY KEY, username VARCHAR NOT NULL, first_name VARCHAR, last_name VARCHAR, display_name VARCHAR, email VARCHAR, notify_api_uploads BOOLEAN, password_hash VARCHAR, auth_provider VARCHAR, role VARCHAR, is_active BOOLEAN, created_at DATETIME, last_login DATETIME)")
-                                # Скопируем данные
-                                conn.exec_driver_sql("INSERT INTO user_new SELECT id, username, first_name, last_name, display_name, email, notify_api_uploads, password_hash, auth_provider, role, is_active, created_at, last_login FROM user")
-                                # Удалим старую таблицу
-                                conn.exec_driver_sql("DROP TABLE user")
-                                # Переименуем новую
-                                conn.exec_driver_sql("ALTER TABLE user_new RENAME TO user")
-                                # Пересоздадим индексы и триггеры (если есть)
-                                conn.exec_driver_sql("CREATE INDEX ix_user_username ON user (username)")
-                                conn.exec_driver_sql("CREATE INDEX ix_user_auth_provider ON user (auth_provider)")
-                                conn.exec_driver_sql("COMMIT")
-                                break
+                    res = conn.exec_driver_sql("PRAGMA table_info(user)").fetchall()
+                    for col in res:
+                        if col[1] == "password_hash" and col[3] == 1:
+                            conn.exec_driver_sql("BEGIN TRANSACTION")
+                            conn.exec_driver_sql(
+                                "CREATE TABLE user_new (id INTEGER PRIMARY KEY, username VARCHAR NOT NULL, "
+                                "first_name VARCHAR, last_name VARCHAR, display_name VARCHAR, email VARCHAR, "
+                                "notify_api_uploads BOOLEAN, password_hash VARCHAR, auth_provider VARCHAR, "
+                                "role VARCHAR, is_active BOOLEAN, created_at DATETIME, last_login DATETIME)"
+                            )
+                            conn.exec_driver_sql(
+                                "INSERT INTO user_new SELECT id, username, first_name, last_name, display_name, "
+                                "email, notify_api_uploads, password_hash, auth_provider, role, is_active, "
+                                "created_at, last_login FROM user"
+                            )
+                            conn.exec_driver_sql("DROP TABLE user")
+                            conn.exec_driver_sql("ALTER TABLE user_new RENAME TO user")
+                            conn.exec_driver_sql("CREATE INDEX ix_user_username ON user (username)")
+                            conn.exec_driver_sql("CREATE INDEX ix_user_auth_provider ON user (auth_provider)")
+                            conn.exec_driver_sql("COMMIT")
+                            break
                 except Exception as e:
                     _logging.warning("Failed to remove NOT NULL from password_hash: %s", e)
 
-                # === Создание таблицы ProjectGroup и заполнение начальными данными ===
                 try:
-                    with engine.connect() as conn:
-                        # Проверяем существование таблицы
-                        res = conn.exec_driver_sql(
-                            "SELECT name FROM sqlite_master WHERE type='table' AND name='projectgroup'"
-                        ).fetchone()
-                        if not res:
-                            # Создаём таблицу
-                            conn.exec_driver_sql("""
-                                CREATE TABLE projectgroup (
-                                    id INTEGER PRIMARY KEY,
-                                    name VARCHAR(100) NOT NULL UNIQUE,
-                                    display_order INTEGER NOT NULL DEFAULT 0,
-                                    created_at DATETIME NOT NULL
-                                )
-                            """)
-                            # Индекс
-                            conn.exec_driver_sql("CREATE INDEX ix_projectgroup_name ON projectgroup (name)")
-                            conn.commit()
+                    res = conn.exec_driver_sql(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='projectgroup'"
+                    ).fetchone()
+                    if not res:
+                        conn.exec_driver_sql(
+                            """
+                            CREATE TABLE projectgroup (
+                                id INTEGER PRIMARY KEY,
+                                name VARCHAR(100) NOT NULL UNIQUE,
+                                display_order INTEGER NOT NULL DEFAULT 0,
+                                created_at DATETIME NOT NULL
+                            )
+                            """
+                        )
+                        conn.exec_driver_sql("CREATE INDEX ix_projectgroup_name ON projectgroup (name)")
+                        conn.commit()
 
-                            # Заполняем уникальными значениями group_name из существующих проектов
-                            existing_groups = conn.exec_driver_sql(
-                                "SELECT DISTINCT group_name FROM project WHERE group_name IS NOT NULL AND group_name != ''"
-                            ).fetchall()
-                            group_names = {row[0] for row in existing_groups}
-                            # Добавляем стандартные группы, если их нет
-                            default_groups = ["QA", "QD", "QF", "QG", "QS", "QW", "Other_Projects", "Ungrouped"]
-                            for gn in sorted(set(default_groups) | group_names):
-                                order = default_groups.index(gn) if gn in default_groups else 999
-                                conn.exec_driver_sql(
-                                    "INSERT INTO projectgroup (name, display_order, created_at) VALUES (?, ?, ?)",
-                                    (gn, order, datetime.utcnow())
-                                )
-                            conn.commit()
+                        existing_groups = conn.exec_driver_sql(
+                            "SELECT DISTINCT group_name FROM project WHERE group_name IS NOT NULL AND group_name != ''"
+                        ).fetchall()
+                        group_names = {row[0] for row in existing_groups}
+                        default_groups = [
+                            "QA", "QD", "QF", "QG", "QS", "QW", "Other_Projects", "Ungrouped",
+                        ]
+                        for gn in sorted(set(default_groups) | group_names):
+                            order = default_groups.index(gn) if gn in default_groups else 999
+                            conn.exec_driver_sql(
+                                "INSERT INTO projectgroup (name, display_order, created_at) VALUES (?, ?, ?)",
+                                (gn, order, datetime.utcnow()),
+                            )
+                        conn.commit()
                 except Exception as e:
                     _logging.warning("ProjectGroup migration failed: %s", e)
-
         except Exception:
-            pass  # Migration failed, continue anyway
+            pass
 
+    with Session(engine) as session:
         _backfill_cross_platform_fps(session)
         _backfill_issue_authors(session)
 
@@ -511,9 +458,6 @@ def _load_error_classifiers(session: Session) -> None:
         session.add(ErrorClassifier(**clf))
     session.commit()
     backfill_classifier_languages(session)
-
-
-_eager_startup_init_if_requested()
 
 
 # Templates
