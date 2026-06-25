@@ -1,4 +1,4 @@
-"""CLI: python -m pvs_tracker.startup_init — sync DB init before uvicorn (Windows Docker)."""
+"""CLI: python -m pvs_tracker.startup_init — sync DB init before uvicorn (Docker compose)."""
 
 from __future__ import annotations
 

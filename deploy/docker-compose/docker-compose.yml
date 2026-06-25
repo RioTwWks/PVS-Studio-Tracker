@@ -28,17 +28,19 @@ services:
     build: *app-build
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker
+      DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker?sslmode=disable
       REST_QUEUE_MODE: external
+      DB_CONNECT_TIMEOUT: "10"
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health/ready"]
       interval: 10s
       timeout: 5s
-      retries: 6
-      start_period: 20s
+      retries: 12
+      start_period: 90s
     stop_grace_period: 45s
 
   app-2:
@@ -48,10 +50,12 @@ services:
     build: *app-build
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker
+      DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker?sslmode=disable
       REST_QUEUE_MODE: external
     depends_on:
       postgres:
+        condition: service_healthy
+      app-1:
         condition: service_healthy
     restart: unless-stopped
 
