@@ -13,7 +13,7 @@
 | Linux compose | `CMD ["uvicorn", ...]` в Dockerfile |
 | Windows compose | `ENTRYPOINT app-entrypoint.ps1` + `command` в compose |
 
-На Linux фоновая инициализация БД в lifespan работает штатно; отдельный `startup_init` в entrypoint не нужен.
+На Linux фоновая инициализация БД в lifespan может не успеть до healthcheck. Как на Windows: **entrypoint** запускает `python -m pvs_tracker.startup_init` до uvicorn, затем `PVS_STARTUP_ALREADY_DONE=1`.
 
 Переопределить команду можно в `docker-compose.yml` (`command:`), как у воркеров.
 
@@ -177,6 +177,24 @@ cp .env.example .env
 
 curl -s http://localhost:8080/health/ready
 ```
+
+### app-1 / app-2 `unhealthy`
+
+```bash
+docker compose logs app-1 --tail 80
+docker compose logs app-2 --tail 80
+```
+
+Ожидается в логах app:
+
+```text
+Running database startup init ...
+Startup init: OK
+PVS_STARTUP_ALREADY_DONE=1
+INFO:     Uvicorn running on http://0.0.0.0:8080
+```
+
+Если `Startup init FAILED` — смотрите traceback (часто гонка при параллельном старте; перезапуск: `docker compose up -d app-1 app-2`).
 
 ## Rolling update
 
