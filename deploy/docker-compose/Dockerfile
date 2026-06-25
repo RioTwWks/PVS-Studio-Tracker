@@ -16,6 +16,6 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-# gunicorn на Windows недоступен; в контейнере тоже используем uvicorn (1 процесс на контейнер).
-# Масштабирование — через несколько контейнеров за nginx.
+# Linux container: default process on start (override via compose command: for workers).
+# gunicorn не используем — один uvicorn на контейнер, масштабирование через app-1/app-2 + nginx.
 CMD ["uvicorn", "pvs_tracker.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-graceful-shutdown", "30"]
