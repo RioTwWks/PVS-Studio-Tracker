@@ -9,6 +9,14 @@ x-app-build: &app-build
     HTTPS_PROXY: ${HTTPS_PROXY:-}
     NO_PROXY: ${NO_PROXY:-}
 
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker?sslmode=disable
+  REST_QUEUE_MODE: external
+  DB_CONNECT_TIMEOUT: "10"
+  # Обязательно при HTTP_PROXY в .env — иначе curl healthcheck идёт в proxy, а не на 127.0.0.1
+  NO_PROXY: localhost,127.0.0.1,postgres
+  no_proxy: localhost,127.0.0.1,postgres
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -28,15 +36,21 @@ services:
     build: *app-build
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker?sslmode=disable
-      REST_QUEUE_MODE: external
-      DB_CONNECT_TIMEOUT: "10"
+      <<: *app-env
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health/ready"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "--noproxy",
+          "*",
+          "http://127.0.0.1:8080/health/ready",
+        ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -52,6 +66,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker?sslmode=disable
       REST_QUEUE_MODE: external
+      NO_PROXY: localhost,127.0.0.1,postgres
+      no_proxy: localhost,127.0.0.1,postgres
     depends_on:
       postgres:
         condition: service_healthy
