@@ -24,10 +24,10 @@
 ```bash
 # Правильно: поднять весь стек
 cd deploy/docker-compose
-docker compose up -d --build
+./compose.sh up -d --build
 
 # Проверить конфиг nginx в контейнере
-docker compose exec nginx nginx -t
+./compose.sh exec nginx nginx -t
 ```
 
 ```bash
@@ -51,6 +51,50 @@ app-2:
 
 Либо оставьте nginx в compose (рекомендуется) — отдельный nginx на хосте не нужен.
 
+## Требования: Docker + Compose
+
+Нужны **Docker Engine** и **Compose** (один из вариантов):
+
+| Команда | Что это |
+|---------|---------|
+| `docker compose` | Compose **v2** (плагин к Docker CLI) — рекомендуется |
+| `docker-compose` | Compose **v1** (отдельный бинарник) — тоже подходит |
+
+Проверка:
+
+```bash
+docker --version
+docker compose version    # v2
+# или
+docker-compose --version  # v1
+```
+
+Если `docker compose up -d` выдаёт `unknown shorthand flag: 'd' in -d` — плагин Compose **не установлен**. Docker не понимает подкоманду `compose`, флаги попадают не туда.
+
+**Установка (Ubuntu/Debian):**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-plugin
+sudo usermod -aG docker "$USER"   # перелогиниться после этого
+docker compose version
+```
+
+Альтернатива v1:
+
+```bash
+sudo apt-get install -y docker-compose
+docker-compose --version
+```
+
+**Запуск через wrapper** (сам подберёт v2 или v1):
+
+```bash
+cd deploy/docker-compose
+chmod +x compose.sh
+./compose.sh up -d --build
+```
+
 ## Быстрый старт
 
 ```bash
@@ -58,7 +102,10 @@ cd deploy/docker-compose
 cp ../../.env.example .env
 # SECRET_KEY, WEBHOOK_* и т.д.
 
-docker compose up -d --build
+./compose.sh up -d --build
+# или: docker compose up -d --build
+# или: docker-compose up -d --build
+
 curl -s http://localhost:8080/health/ready
 ```
 
