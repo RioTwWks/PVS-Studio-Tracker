@@ -1,5 +1,13 @@
-# Скопируйте в .env рядом с docker-compose.yml (см. .env.example в корне репозитория).
+# Скопируйте deploy/docker-compose/.env.example в .env рядом с этим файлом.
 # Обязательно: DATABASE_URL на PostgreSQL, не SQLite.
+
+x-app-build: &app-build
+  context: ../..
+  dockerfile: deploy/docker-compose/Dockerfile
+  args:
+    HTTP_PROXY: ${HTTP_PROXY:-}
+    HTTPS_PROXY: ${HTTPS_PROXY:-}
+    NO_PROXY: ${NO_PROXY:-}
 
 services:
   postgres:
@@ -17,9 +25,7 @@ services:
       retries: 10
 
   app-1: &app
-    build:
-      context: ../..
-      dockerfile: deploy/docker-compose/Dockerfile
+    build: *app-build
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker
@@ -39,9 +45,7 @@ services:
     <<: *app
 
   worker: &worker
-    build:
-      context: ../..
-      dockerfile: deploy/docker-compose/Dockerfile
+    build: *app-build
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg2://pvs:pvs@postgres:5432/pvs_tracker
