@@ -178,23 +178,30 @@ cp .env.example .env
 curl -s http://localhost:8080/health/ready
 ```
 
-### app-1 / app-2 `unhealthy`
+### app-1 / app-2 `unhealthy` (uvicorn запущен, но healthcheck failed)
+
+Частая причина: в `.env` задан `HTTP_PROXY`, а `NO_PROXY` **не включает** `127.0.0.1`. Тогда `curl` в healthcheck идёт в Squid, а не на uvicorn — в логах app **нет** строк `GET /health/ready`.
+
+В compose для app уже заданы `NO_PROXY` и `curl --noproxy '*'`. Проверка из контейнера:
 
 ```bash
-docker compose logs app-1 --tail 80
-docker compose logs app-2 --tail 80
+docker compose exec app-1 curl -fsS --noproxy '*' http://127.0.0.1:8080/health/ready
 ```
 
-Ожидается в логах app:
+Проверка с хоста (если в shell настроен proxy — обходите его для localhost):
 
-```text
-Running database startup init ...
-Startup init: OK
-PVS_STARTUP_ALREADY_DONE=1
-INFO:     Uvicorn running on http://0.0.0.0:8080
+```bash
+curl --noproxy '*' -s http://127.0.0.1:8080/health/ready
+# или после старта nginx:
+curl --noproxy '*' -s http://localhost:8080/health/ready
 ```
 
-Если `Startup init FAILED` — смотрите traceback (часто гонка при параллельном старте; перезапуск: `docker compose up -d app-1 app-2`).
+Пересоздать app после обновления compose:
+
+```bash
+docker compose up -d --force-recreate app-1 app-2 nginx
+docker compose ps
+```
 
 ## Rolling update
 
