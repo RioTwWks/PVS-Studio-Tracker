@@ -95,12 +95,81 @@ chmod +x compose.sh
 ./compose.sh up -d --build
 ```
 
+## Корпоративный proxy
+
+Ошибка `Get "https://registry-1.docker.io/v2/": ... Client.Timeout` при `docker compose up` — **Docker daemon не ходит в интернет** (или Docker Hub недоступен). Переменные `HTTP_PROXY` в `.env` **не влияют** на `docker pull` базовых образов (`postgres`, `nginx`, `python`).
+
+### Где какой proxy
+
+| Уровень | Файл / место | Для чего |
+|---------|--------------|----------|
+| **Docker daemon** | `/etc/docker/daemon.json` | `docker pull`, скачивание `postgres:16-alpine`, `nginx:1.27-alpine`, `python:3.12-slim` |
+| **compose build** | `.env` → `HTTP_PROXY` / `HTTPS_PROXY` | `apt-get`, `pip install` внутри Dockerfile |
+| **running app** | `.env` → те же переменные | исходящие HTTP из контейнеров (Jenkins, Jira, …) |
+
+### 1. Proxy для Docker daemon (обязательно для pull)
+
+Скопируйте [`daemon.json.example`](daemon.json.example), подставьте адрес proxy:
+
+```bash
+sudo cp deploy/docker-compose/daemon.json.example /etc/docker/daemon.json
+# отредактируйте httpProxy / httpsProxy / noProxy
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+# проверка
+docker pull hello-world
+docker pull postgres:16-alpine
+```
+
+Альтернатива (systemd, если `daemon.json` не подхватывает proxies):
+
+```bash
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf <<'EOF'
+[Service]
+Environment="HTTP_PROXY=http://proxy.corp.local:8080"
+Environment="HTTPS_PROXY=http://proxy.corp.local:8080"
+Environment="NO_PROXY=localhost,127.0.0.1,.corp.local"
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+### 2. Proxy для сборки app (pip / apt)
+
+```bash
+cd deploy/docker-compose
+cp .env.example .env
+```
+
+Раскомментируйте в `.env`:
+
+```ini
+HTTP_PROXY=http://proxy.corp.local:8080
+HTTPS_PROXY=http://proxy.corp.local:8080
+NO_PROXY=localhost,127.0.0.1,.corp.local,postgres
+```
+
+```bash
+./compose.sh build --no-cache app-1
+```
+
+### 3. Проверка всего стека
+
+```bash
+./compose.sh up -d --build
+./compose.sh ps
+curl -s http://localhost:8080/health/ready
+```
+
 ## Быстрый старт
 
 ```bash
 cd deploy/docker-compose
-cp ../../.env.example .env
-# SECRET_KEY, WEBHOOK_* и т.д.
+cp .env.example .env
+# SECRET_KEY, WEBHOOK_*; при proxy — см. раздел выше
 
 ./compose.sh up -d --build
 # или: docker compose up -d --build
