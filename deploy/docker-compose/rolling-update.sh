@@ -3,14 +3,15 @@
 set -euo pipefail
 
 COMPOSE_FILE="$(dirname "$0")/docker-compose.yml"
+COMPOSE="$(dirname "$0")/compose.sh"
 SERVICES=(app-1 app-2)
 
 for svc in "${SERVICES[@]}"; do
   echo "==> Rebuild and restart $svc"
-  docker compose -f "$COMPOSE_FILE" up -d --no-deps --build "$svc"
+  "$COMPOSE" -f "$COMPOSE_FILE" up -d --no-deps --build "$svc"
   echo "==> Wait until $svc is healthy"
   for _ in $(seq 1 60); do
-    cid=$(docker compose -f "$COMPOSE_FILE" ps -q "$svc")
+    cid=$("$COMPOSE" -f "$COMPOSE_FILE" ps -q "$svc")
     status=$(docker inspect --format='{{.State.Health.Status}}' "$cid" 2>/dev/null || echo "starting")
     if [ "$status" = "healthy" ]; then
       echo "$svc is healthy"
