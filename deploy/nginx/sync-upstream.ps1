@@ -27,4 +27,5 @@ foreach ($p in $drained) {
     }
 }
 
-Sync-PvsNginxUpstream -Config $cfg -ActivePorts $active -ReloadNginx:$ReloadNginx
+$null = Sync-PvsNginxUpstream -Config $cfg -ActivePorts $active -ReloadNginx:$ReloadNginx
+Write-Host "Upstream backends: $($active -join ', ')"
