@@ -232,10 +232,113 @@ function Start-PvsNssmService {
     }
 
     $svc = Get-Service -Name $ServiceName
+    $appRoot = Get-PvsNssmSetting -NssmExe $NssmExe -ServiceName $ServiceName -Setting 'AppDirectory'
+    Write-PvsInstanceLogHint -AppRoot $appRoot -Port $Port
     throw "Service $ServiceName did not become healthy (SCM: $($svc.Status), port: $Port). Check logs in AppRoot\logs\"
 }
 
-function Get-PvsNginxConfig {
+function Get-PvsNssmSetting {
+    param(
+        [string] $NssmExe,
+        [string] $ServiceName,
+        [string] $Setting
+    )
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $lines = @(& $NssmExe get $ServiceName $Setting 2>&1 | ForEach-Object { "$_" })
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+    foreach ($line in $lines) {
+        $t = $line.Trim()
+        if ($t) {
+            return $t
+        }
+    }
+    return $null
+}
+
+function Write-PvsInstanceLogHint {
+    param(
+        [string] $AppRoot,
+        [int] $Port
+    )
+    if (-not $AppRoot) {
+        return
+    }
+    $errPath = Join-Path $AppRoot "logs\uvicorn-$Port.err.log"
+    $tail = @()
+    if (Test-Path -LiteralPath $errPath) {
+        $tail = @(Get-Content -LiteralPath $errPath -Tail 8 -ErrorAction SilentlyContinue)
+        if ($tail.Count -gt 0) {
+            Write-Host "--- tail $errPath ---"
+            $tail | ForEach-Object { Write-Host $_ }
+        }
+    }
+    $tailText = $tail -join "`n"
+    if ($tailText -match 'ModuleNotFoundError|ImportError') {
+        Write-Host ""
+        Write-Host "Hint: install deps in venv, then restart the service:"
+        Write-Host "  cd $AppRoot"
+        Write-Host "  .\.venv\Scripts\python.exe -m pip install psycopg2-binary"
+        Write-Host "  .\.venv\Scripts\python.exe -m pip install -e ."
+    }
+}
+
+function Test-PvsPythonRuntime {
+    param(
+        [string] $Python,
+        [string] $AppRoot
+    )
+    $prevAppRoot = $env:PVS_APP_ROOT
+    $env:PVS_APP_ROOT = $AppRoot
+    try {
+        $check = @'
+import os
+import sys
+
+try:
+    import psycopg2
+except ImportError:
+    print("MISSING: psycopg2 (pip install psycopg2-binary)", file=sys.stderr)
+    sys.exit(1)
+try:
+    import uvicorn
+except ImportError:
+    print("MISSING: uvicorn", file=sys.stderr)
+    sys.exit(1)
+sys.path.insert(0, os.environ["PVS_APP_ROOT"])
+try:
+    import pvs_tracker.main  # noqa: F401
+except Exception as exc:
+    print(f"IMPORT pvs_tracker.main failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+'@
+        $lines = @(& $Python -c $check 2>&1 | ForEach-Object { "$_" })
+    } finally {
+        if ($null -eq $prevAppRoot) {
+            Remove-Item Env:PVS_APP_ROOT -ErrorAction SilentlyContinue
+        } else {
+            $env:PVS_APP_ROOT = $prevAppRoot
+        }
+    }
+    if ($LASTEXITCODE -ne 0) {
+        $msg = ($lines -join "`n").Trim()
+        throw @"
+Python runtime check failed ($Python):
+
+$msg
+
+Fix:
+  cd $AppRoot
+  & '$Python' -m pip install psycopg2-binary
+  & '$Python' -m pip install -e .
+"@
+    }
+    Write-Host "Python runtime OK: $Python"
+}
+
     param([string] $ConfigPath)
 
     if (-not $ConfigPath) {
