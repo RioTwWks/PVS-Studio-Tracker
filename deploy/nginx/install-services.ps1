@@ -108,6 +108,9 @@ Write-Host ""
 Write-Host "Installed pool ports: $($cfg.PortPool -join ', ')"
 Write-Host "Started $started instance(s); min healthy = $minStart"
 Write-Host "Next:"
-Write-Host "  1. Copy nginx.conf to $($cfg.NginxConfDir) (include upstream-active.conf)"
-Write-Host '  2. .\sync-upstream.ps1 -ReloadNginx'
-Write-Host '  3. .\register-watchdog.ps1'
+Write-Host "  1. Install/start nginx (reverse proxy :8080):"
+Write-Host '     .\install-nginx.ps1          # first time: download + start'
+Write-Host '     .\start-nginx.ps1 -CopyConf  # if nginx already in C:\nginx'
+Write-Host "  2. Or copy nginx.conf manually to $($cfg.NginxConfDir) and run nginx.exe"
+Write-Host '  3. .\sync-upstream.ps1 -ReloadNginx'
+Write-Host '  4. .\register-watchdog.ps1'

@@ -11,10 +11,13 @@
 
     ServicePrefix = 'PVS-Tracker'
 
+    # Каталог nginx (prefix): conf/, logs/, nginx.exe
+    NginxRoot = 'C:\nginx'
+
     # Каталог nginx conf (upstream-active.conf и drained-ports.txt рядом с nginx.conf).
     NginxConfDir = 'C:\nginx\conf'
 
-    NginxExe = 'nginx'
+    NginxExe = 'C:\nginx\nginx.exe'
 
     # Таймаут readiness при старте spare.
     ReadyTimeoutSeconds = 120

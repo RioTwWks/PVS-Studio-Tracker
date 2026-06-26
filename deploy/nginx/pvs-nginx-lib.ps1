@@ -238,7 +238,111 @@ function Get-PvsServiceName {
     return "{0}-{1}" -f $Config.ServicePrefix, $Port
 }
 
-function Get-PvsUpstreamIncludePath {
+function Get-PvsNginxPaths {
+    param([hashtable] $Config)
+
+    $confDir = $Config.NginxConfDir
+    $root = if ($Config.NginxRoot) { $Config.NginxRoot } else { Split-Path $confDir -Parent }
+
+    $exe = $Config.NginxExe
+    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {
+        $candidate = Join-Path $root 'nginx.exe'
+        if (Test-Path -LiteralPath $candidate) {
+            $exe = $candidate
+        } else {
+            $exe = 'nginx'
+        }
+    }
+
+    return @{
+        Root    = $root
+        Exe     = $exe
+        ConfDir = $confDir
+        LogsDir = Join-Path $root 'logs'
+    }
+}
+
+function Test-PvsNginxListening {
+    param([int] $Port = 8080)
+    try {
+        $r = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/health/live" -UseBasicParsing -TimeoutSec 3
+        return ($r.StatusCode -eq 200)
+    } catch {
+        return $false
+    }
+}
+
+function Invoke-PvsNginxTest {
+    param([hashtable] $Config)
+    $paths = Get-PvsNginxPaths -Config $Config
+    if (-not (Test-Path -LiteralPath $paths.Exe)) {
+        throw "nginx.exe not found: $($paths.Exe)"
+    }
+    & $paths.Exe -t -p $paths.Root
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        throw "nginx -t failed (exit $LASTEXITCODE)"
+    }
+}
+
+function Invoke-PvsNginxReload {
+    param([hashtable] $Config)
+    $paths = Get-PvsNginxPaths -Config $Config
+    if (-not (Test-Path -LiteralPath $paths.Exe)) {
+        throw "nginx.exe not found: $($paths.Exe)"
+    }
+    & $paths.Exe -s reload -p $paths.Root
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        throw "nginx reload failed (exit $LASTEXITCODE)"
+    }
+}
+
+function Start-PvsNginx {
+    param([hashtable] $Config)
+    $paths = Get-PvsNginxPaths -Config $Config
+    if (-not (Test-Path -LiteralPath $paths.Exe)) {
+        throw @"
+nginx.exe not found: $($paths.Exe)
+
+Скачайте nginx for Windows и распакуйте в $($paths.Root), либо:
+  cd deploy\nginx
+  .\install-nginx.ps1
+"@
+    }
+
+    if (-not (Test-Path $paths.LogsDir)) {
+        New-Item -ItemType Directory -Path $paths.LogsDir -Force | Out-Null
+    }
+    if (-not (Test-Path $paths.ConfDir)) {
+        New-Item -ItemType Directory -Path $paths.ConfDir -Force | Out-Null
+    }
+
+    Invoke-PvsNginxTest -Config $Config
+
+    if (Test-PvsNginxListening) {
+        Write-Host 'nginx already listens on :8080 - reload'
+        Invoke-PvsNginxReload -Config $Config
+        return
+    }
+
+    Write-Host "Starting nginx (prefix $($paths.Root)) ..."
+    Push-Location -LiteralPath $paths.Root
+    try {
+        & $paths.Exe -p $paths.Root
+    } finally {
+        Pop-Location
+    }
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        throw "nginx start failed (exit $LASTEXITCODE)"
+    }
+
+    Start-Sleep -Seconds 2
+    if (-not (Test-PvsNginxListening)) {
+        $errLog = Join-Path $paths.LogsDir 'pvs-tracker-error.log'
+        throw "nginx did not open :8080. Check $errLog and $($paths.ConfDir)\nginx.conf"
+    }
+    Write-Host 'nginx is listening on http://127.0.0.1:8080'
+}
+
     param([hashtable] $Config)
     return Join-Path $Config.NginxConfDir 'upstream-active.conf'
 }
@@ -468,13 +572,19 @@ function Sync-PvsNginxUpstream {
         Write-Host $block
     }
 
-    if ($ReloadNginx -and $changed) {
+    if ($ReloadNginx) {
         $nginxConf = Get-PvsNginxConfPath -Config $Config
         if (-not (Test-Path $nginxConf)) {
             throw "nginx.conf not found: $nginxConf"
         }
-        & $Config.NginxExe -s reload
-        Write-Host "nginx reloaded"
+        if (-not (Test-PvsNginxListening)) {
+            Write-Host 'nginx is not running on :8080 - start it with .\start-nginx.ps1'
+        } elseif ($changed) {
+            Invoke-PvsNginxReload -Config $Config
+            Write-Host 'nginx reloaded'
+        } else {
+            Write-Host 'upstream unchanged; nginx already running'
+        }
     }
 
     return $changed
