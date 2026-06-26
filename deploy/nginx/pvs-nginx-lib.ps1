@@ -339,6 +339,7 @@ Fix:
     Write-Host "Python runtime OK: $Python"
 }
 
+function Get-PvsNginxConfig {
     param([string] $ConfigPath)
 
     if (-not $ConfigPath) {
