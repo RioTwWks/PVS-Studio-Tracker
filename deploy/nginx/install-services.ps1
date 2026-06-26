@@ -38,19 +38,13 @@ if (-not $EnvFile) {
     $EnvFile = Join-Path $AppRoot '.env'
 }
 
-$databaseUrl = $null
-if (Test-Path $EnvFile) {
-    foreach ($line in Get-Content $EnvFile) {
-        if ($line -match '^\s*DATABASE_URL\s*=\s*(.+)\s*$') {
-            $databaseUrl = $Matches[1].Trim().Trim('"').Trim("'")
-            break
-        }
-    }
+$envVars = Read-PvsDotEnvFile -Path $EnvFile
+if (-not $envVars['DATABASE_URL']) {
+    Write-Warning "DATABASE_URL not found in $EnvFile"
+    $envVars['DATABASE_URL'] = 'postgresql+psycopg2://user:pass@localhost/pvs_tracker'
 }
-if (-not $databaseUrl) {
-    Write-Warning "DATABASE_URL not found in $EnvFile - set AppEnvironmentExtra manually in NSSM"
-    $databaseUrl = 'postgresql+psycopg2://user:pass@localhost/pvs_tracker'
-}
+
+Test-PvsDatabaseConnection -Python $Python -DatabaseUrl ([string]$envVars['DATABASE_URL'])
 
 $logsDir = Join-Path $AppRoot 'logs'
 if (-not (Test-Path $logsDir)) {
@@ -88,7 +82,7 @@ foreach ($port in $cfg.PortPool) {
 
     Invoke-Nssm -NssmExe $nssmExe set $serviceName AppParameters $uvicornArgs
     Invoke-Nssm -NssmExe $nssmExe set $serviceName AppDirectory $AppRoot
-    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppEnvironmentExtra "DATABASE_URL=$databaseUrl"
+    Set-PvsNssmAppEnvironment -NssmExe $nssmExe -ServiceName $serviceName -EnvVars $envVars
     Invoke-Nssm -NssmExe $nssmExe set $serviceName AppStdout (Join-Path $logsDir "uvicorn-$port.log")
     Invoke-Nssm -NssmExe $nssmExe set $serviceName AppStderr (Join-Path $logsDir "uvicorn-$port.err.log")
     Invoke-Nssm -NssmExe $nssmExe set $serviceName AppRotateFiles 1

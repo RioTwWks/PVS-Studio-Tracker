@@ -59,12 +59,14 @@ cd deploy\nginx
 
 `-NssmPath` можно опустить, если `nssm` в PATH или файл лежит в `C:\nssm\nssm.exe`.
 
-Перед установкой служб скрипт проверяет venv (`psycopg2`, импорт приложения). Если spare (8083) падает с `ModuleNotFoundError: psycopg2`:
+Перед установкой служб скрипт проверяет venv и подключение к PostgreSQL. Все переменные из `.env` попадают в NSSM.
+
+Если spare отвечает на `/health/live`, но не на `/health/ready` — неверный `DATABASE_URL` в NSSM:
 
 ```powershell
-cd C:\opt\pvs-tracker
-.\.venv\Scripts\python.exe -m pip install psycopg2-binary
-.\.venv\Scripts\python.exe -m pip install -e .
+cd deploy\nginx
+.\sync-nssm-env.ps1 -AppRoot "C:\opt\pvs-tracker" -RestartServices
+C:\nssm\nssm.exe get PVS-Tracker-8083 AppEnvironmentExtra DATABASE_URL
 ```
 
 **Важно:** `install-services.ps1` поднимает только **backend** (8081+). Браузер открывает **`:8080`** — это nginx. Без `.\start-nginx.ps1` страница не откроется.
@@ -137,6 +139,7 @@ Resume-Service опционален и не обязателен для рабо
 | `sync-upstream.ps1` | Генерация `upstream-active.conf` |
 | `watch-instances.ps1` | Watchdog |
 | `register-watchdog.ps1` | Задача в Планировщике |
+| `sync-nssm-env.ps1` | Синхронизация `.env` -> NSSM для всех служб |
 | `install-services.ps1` | Установка пула NSSM (8081+) |
 | `install-nginx.ps1` | Скачать nginx for Windows в `C:\nginx` |
 | `start-nginx.ps1` | Запуск / reload nginx на :8080 |

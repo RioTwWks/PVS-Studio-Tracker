@@ -36,6 +36,15 @@ foreach ($port in $cfg.PortPool) {
         $ready = @(Get-PvsReadyPorts -Config $cfg)
     } else {
         Write-Warning "Port $port not ready within $($cfg.ReadyTimeoutSeconds)s"
+        $name = Get-PvsServiceName -Config $cfg -Port $port
+        try {
+            $nssmExe = Resolve-NssmExe
+            $appRoot = Get-PvsNssmSetting -NssmExe $nssmExe -ServiceName $name -Setting 'AppDirectory'
+            $envFile = if ($appRoot) { Join-Path $appRoot '.env' } else { $null }
+            Write-PvsDatabaseUrlHint -NssmExe $nssmExe -ServiceName $name -EnvFile $envFile
+        } catch {
+            Write-Host 'Hint: run .\sync-nssm-env.ps1 -AppRoot <AppRoot> -RestartServices'
+        }
     }
 }
 

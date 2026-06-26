@@ -48,10 +48,179 @@ function Invoke-Nssm {
         [Parameter(ValueFromRemainingArguments = $true)]
         [string[]] $NssmArgs
     )
-    & $NssmExe @NssmArgs
-    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-        throw "nssm failed (exit $LASTEXITCODE): $($NssmArgs -join ' ')"
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $NssmExe @NssmArgs
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prevEap
     }
+    if ($null -ne $exitCode -and $exitCode -ne 0) {
+        throw "nssm failed (exit $exitCode): $($NssmArgs -join ' ')"
+    }
+}
+
+function Read-PvsDotEnvFile {
+    param([string] $Path)
+
+    $vars = [ordered]@{}
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $vars
+    }
+
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        $t = $line.Trim()
+        if (-not $t -or $t.StartsWith('#')) {
+            continue
+        }
+        if ($t -match '^\s*export\s+(.+)$') {
+            $t = $Matches[1].Trim()
+        }
+        $eq = $t.IndexOf('=')
+        if ($eq -lt 1) {
+            continue
+        }
+        $key = $t.Substring(0, $eq).Trim()
+        $val = $t.Substring($eq + 1).Trim()
+        if ($val.Length -ge 2) {
+            if (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'"))) {
+                $val = $val.Substring(1, $val.Length - 2)
+            }
+        }
+        $vars[$key] = $val
+    }
+
+    foreach ($key in @($vars.Keys)) {
+        $vars[$key] = Expand-PvsDotEnvValue -Value ([string]$vars[$key]) -Vars $vars
+    }
+    return $vars
+}
+
+function Expand-PvsDotEnvValue {
+    param(
+        [string] $Value,
+        [System.Collections.IDictionary] $Vars
+    )
+    $result = $Value
+    foreach ($key in $Vars.Keys) {
+        $replacement = [string]$Vars[$key]
+        $result = $result -replace ('\$\{' + [regex]::Escape($key) + '\}'), $replacement
+        $result = $result -replace ('\$' + [regex]::Escape($key) + '(?![A-Za-z0-9_])'), $replacement
+    }
+    return $result
+}
+
+function Set-PvsNssmAppEnvironment {
+    param(
+        [string] $NssmExe,
+        [string] $ServiceName,
+        [System.Collections.IDictionary] $EnvVars
+    )
+    if (-not $EnvVars -or $EnvVars.Count -eq 0) {
+        throw "No environment variables to set for $ServiceName"
+    }
+
+    $nssmArgs = @('set', $ServiceName, 'AppEnvironmentExtra')
+    $first = $true
+    foreach ($key in ($EnvVars.Keys | Sort-Object)) {
+        $val = [string]$EnvVars[$key]
+        if ([string]::IsNullOrWhiteSpace($val)) {
+            continue
+        }
+        if ($first) {
+            $nssmArgs += ":$key=$val"
+            $first = $false
+        } else {
+            $nssmArgs += "+$key=$val"
+        }
+    }
+    if ($nssmArgs.Count -le 3) {
+        throw "No non-empty environment variables for $ServiceName"
+    }
+
+    Invoke-Nssm -NssmExe $NssmExe -NssmArgs $nssmArgs
+}
+
+function Get-PvsNssmEnvVar {
+    param(
+        [string] $NssmExe,
+        [string] $ServiceName,
+        [string] $Name
+    )
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $lines = @(& $NssmExe get $ServiceName AppEnvironmentExtra $Name 2>&1 | ForEach-Object { "$_" })
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+    if ($lines.Count -gt 0) {
+        return $lines[-1].Trim()
+    }
+    return $null
+}
+
+function Test-PvsDatabaseConnection {
+    param(
+        [string] $Python,
+        [string] $DatabaseUrl
+    )
+    if ([string]::IsNullOrWhiteSpace($DatabaseUrl)) {
+        throw 'DATABASE_URL is empty'
+    }
+    $prev = $env:DATABASE_URL
+    $env:DATABASE_URL = $DatabaseUrl
+    try {
+        $script = @'
+import os
+import sys
+from sqlalchemy import create_engine, text
+
+url = os.environ.get("DATABASE_URL", "")
+if not url:
+    print("DATABASE_URL missing", file=sys.stderr)
+    sys.exit(1)
+try:
+    engine = create_engine(url, connect_args={"connect_timeout": 10})
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+except Exception as exc:
+    print(f"DB connect failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+'@
+        $lines = @(& $Python -c $script 2>&1 | ForEach-Object { "$_" })
+    } finally {
+        if ($null -eq $prev) {
+            Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+        } else {
+            $env:DATABASE_URL = $prev
+        }
+    }
+    if ($LASTEXITCODE -ne 0) {
+        $msg = ($lines -join "`n").Trim()
+        throw "DATABASE_URL connection test failed:`n$msg"
+    }
+    Write-Host 'DATABASE_URL connection test OK'
+}
+
+function Write-PvsDatabaseUrlHint {
+    param(
+        [string] $NssmExe,
+        [string] $ServiceName,
+        [string] $EnvFile
+    )
+    $fromNssm = Get-PvsNssmEnvVar -NssmExe $NssmExe -ServiceName $ServiceName -Name 'DATABASE_URL'
+    if ($fromNssm) {
+        Write-Host "NSSM $ServiceName DATABASE_URL=$fromNssm"
+    }
+    if ($EnvFile -and (Test-Path -LiteralPath $EnvFile)) {
+        $envVars = Read-PvsDotEnvFile -Path $EnvFile
+        if ($envVars['DATABASE_URL']) {
+            Write-Host ".env DATABASE_URL=$($envVars['DATABASE_URL'])"
+        }
+    }
+    Write-Host 'Fix: update .env then run .\sync-nssm-env.ps1 and restart services'
 }
 
 function Test-PvsInstanceLive {
@@ -150,8 +319,7 @@ function Test-PvsNssmServiceHealthy {
     if (-not $svc) {
         return $false
     }
-    if ($Port -gt 0 -and (Test-PvsInstanceLive -Port $Port)) {
-        # Порт отвечает, но SCM Stopped — не наш процесс или зомби; нужен nssm start.
+    if ($Port -gt 0 -and (Test-PvsInstanceReady -Port $Port)) {
         if ($svc.Status -in @('Running', 'Paused', 'StartPending')) {
             return $true
         }
@@ -211,11 +379,11 @@ function Start-PvsNssmService {
                 Write-Host "$ServiceName nssm reports already running"
             }
         } elseif ($svc.Status -eq 'Running') {
-            Write-Host "$ServiceName SCM Running; waiting for /health/live on port $Port"
+            Write-Host "$ServiceName SCM Running; waiting for /health/ready on port $Port"
         }
     }
 
-    Write-Host "Waiting up to ${WaitSeconds}s for /health/live on port $Port ..."
+    Write-Host "Waiting up to ${WaitSeconds}s for /health/ready on port $Port ..."
     $deadline = (Get-Date).AddSeconds($WaitSeconds)
     while ((Get-Date) -lt $deadline) {
         if (Test-PvsNssmServiceHealthy -ServiceName $ServiceName -Port $Port) {
@@ -283,6 +451,11 @@ function Write-PvsInstanceLogHint {
         Write-Host "  cd $AppRoot"
         Write-Host "  .\.venv\Scripts\python.exe -m pip install psycopg2-binary"
         Write-Host "  .\.venv\Scripts\python.exe -m pip install -e ."
+    } elseif ($tailText -match 'OperationalError|fe_sendauth|Connection refused') {
+        Write-Host ""
+        Write-Host "Hint: DATABASE_URL in NSSM does not match working .env — run:"
+        Write-Host "  cd deploy\nginx"
+        Write-Host "  .\sync-nssm-env.ps1 -AppRoot `"$AppRoot`""
     }
 }
 
