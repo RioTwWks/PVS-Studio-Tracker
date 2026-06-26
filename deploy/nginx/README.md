@@ -59,6 +59,14 @@ cd deploy\nginx
 
 `-NssmPath` можно опустить, если `nssm` в PATH или файл лежит в `C:\nssm\nssm.exe`.
 
+Перед установкой служб скрипт проверяет venv (`psycopg2`, импорт приложения). Если spare (8083) падает с `ModuleNotFoundError: psycopg2`:
+
+```powershell
+cd C:\opt\pvs-tracker
+.\.venv\Scripts\python.exe -m pip install psycopg2-binary
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
 **Важно:** `install-services.ps1` поднимает только **backend** (8081+). Браузер открывает **`:8080`** — это nginx. Без `.\start-nginx.ps1` страница не откроется.
 
 ### SCM `Paused`, но `/health/live` отвечает 200

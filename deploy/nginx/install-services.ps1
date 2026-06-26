@@ -25,6 +25,8 @@ $ErrorActionPreference = 'Stop'
 $cfg = Get-PvsNginxConfig -ConfigPath $ConfigPath
 $nssmExe = Resolve-NssmExe -NssmPath $NssmPath
 Write-Host "Using NSSM: $nssmExe"
+
+Test-PvsPythonRuntime -Python $Python -AppRoot $AppRoot
 if ($NginxConfDir) {
     $cfg.NginxConfDir = $NginxConfDir
 }
