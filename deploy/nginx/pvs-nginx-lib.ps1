@@ -161,6 +161,32 @@ function Get-PvsNssmEnvVar {
     return $null
 }
 
+function Invoke-PvsPythonFile {
+    param(
+        [string] $Python,
+        [string] $ScriptContent
+    )
+    $tmp = Join-Path $env:TEMP ("pvs-nginx-check-{0}.py" -f [guid]::NewGuid().ToString('N'))
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($tmp, $ScriptContent, $utf8NoBom)
+    try {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $lines = @(& $Python $tmp 2>&1 | ForEach-Object { "$_" })
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $prevEap
+        }
+        return @{
+            Lines    = $lines
+            ExitCode = $exitCode
+        }
+    } finally {
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Test-PvsDatabaseConnection {
     param(
         [string] $Python,
@@ -175,6 +201,7 @@ function Test-PvsDatabaseConnection {
         $script = @'
 import os
 import sys
+
 from sqlalchemy import create_engine, text
 
 url = os.environ.get("DATABASE_URL", "")
@@ -182,14 +209,18 @@ if not url:
     print("DATABASE_URL missing", file=sys.stderr)
     sys.exit(1)
 try:
-    engine = create_engine(url, connect_args={"connect_timeout": 10})
+    connect_args = {}
+    if url.startswith("postgresql"):
+        connect_args["connect_timeout"] = 10
+    engine = create_engine(url, connect_args=connect_args)
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
 except Exception as exc:
     print(f"DB connect failed: {exc}", file=sys.stderr)
     sys.exit(1)
 '@
-        $lines = @(& $Python -c $script 2>&1 | ForEach-Object { "$_" })
+        $result = Invoke-PvsPythonFile -Python $Python -ScriptContent $script
+        $lines = $result.Lines
     } finally {
         if ($null -eq $prev) {
             Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
@@ -197,7 +228,7 @@ except Exception as exc:
             $env:DATABASE_URL = $prev
         }
     }
-    if ($LASTEXITCODE -ne 0) {
+    if ($result.ExitCode -ne 0) {
         $msg = ($lines -join "`n").Trim()
         throw "DATABASE_URL connection test failed:`n$msg"
     }
