@@ -50,12 +50,9 @@ Write-Host "Waiting $($cfg.DrainSeconds)s for in-flight requests ..."
 Start-Sleep -Seconds ([int]$cfg.DrainSeconds)
 
 Write-Host "Step 2: restart $ServiceName ..."
-Restart-Service -Name $ServiceName -Force
-$svc = Get-Service -Name $ServiceName
-if ($svc.Status -eq 'Paused') {
-    Write-Host "$ServiceName is Paused after restart - Resume-Service"
-    Resume-Service -Name $ServiceName
-}
+Stop-PvsInstanceService -Config $cfg -Port $Port
+Start-Sleep -Seconds 3
+Start-PvsInstanceService -Config $cfg -Port $Port
 
 Write-Host "Step 3: wait for readiness on port $Port ..."
 if (-not (Wait-PvsInstanceReady -Port $Port -TimeoutSec ([int]$cfg.ReadyTimeoutSeconds))) {

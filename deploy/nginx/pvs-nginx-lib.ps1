@@ -101,6 +101,23 @@ function Resume-PvsNssmService {
     }
 }
 
+function Invoke-NssmStopSafe {
+    param(
+        [string] $NssmExe,
+        [string] $ServiceName
+    )
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $lines = @(& $NssmExe stop $ServiceName 2>&1 | ForEach-Object { "$_" })
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+    foreach ($line in $lines) {
+        Write-Host $line
+    }
+}
+
 function Invoke-NssmStartSafe {
     param(
         [string] $NssmExe,
@@ -119,6 +136,7 @@ function Invoke-NssmStartSafe {
     $text = (($lines -join ' ') -replace '\s+', ' ').ToLowerInvariant()
     return @{
         AlreadyRunning = ($text -match 'already running')
+        ServicePaused  = ($text -match 'service_paused|paused')
         Output         = $lines
     }
 }
@@ -144,14 +162,14 @@ function Test-PvsNssmServiceHealthy {
 
 function Start-PvsNssmService {
     <#
-    NSSM on Windows Server may leave SCM in Paused while uvicorn is already listening.
-    Prefer HTTP /health/live over nssm start when the process is up.
+    NSSM on Windows Server may leave SCM in Paused while uvicorn listens.
+    SERVICE_PAUSED on START is normal — wait for HTTP, do not spam nssm continue.
     #>
     param(
         [string] $NssmExe,
         [string] $ServiceName,
         [int] $Port = 0,
-        [int] $WaitSeconds = 30
+        [int] $WaitSeconds = 120
     )
 
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -161,53 +179,56 @@ function Start-PvsNssmService {
 
     if (Test-PvsNssmServiceHealthy -ServiceName $ServiceName -Port $Port) {
         if ($svc.Status -eq 'Paused') {
-            Write-Host "$ServiceName OK on port $Port (SCM Paused - normal for NSSM, resume skipped)"
+            Write-Host "$ServiceName OK on port $Port (SCM Paused - normal for NSSM)"
         } else {
             Write-Host "$ServiceName already healthy (SCM: $($svc.Status), port: $Port)"
         }
         return
     }
 
-    if ($svc.Status -eq 'Running') {
-        Write-Host "$ServiceName SCM Running; waiting for /health/live on port $Port"
-    } elseif ($svc.Status -eq 'Paused') {
-        Write-Host "$ServiceName is Paused - resume before start"
-        Resume-PvsNssmService -NssmExe $NssmExe -ServiceName $ServiceName
-        if (Test-PvsNssmServiceHealthy -ServiceName $ServiceName -Port $Port) {
-            return
-        }
-    } else {
-        Write-Host "Starting $ServiceName ..."
-        $startResult = Invoke-NssmStartSafe -NssmExe $NssmExe -ServiceName $ServiceName
-        if ($startResult.AlreadyRunning) {
-            Write-Host "$ServiceName nssm reports already running"
-            if (Test-PvsNssmServiceHealthy -ServiceName $ServiceName -Port $Port) {
-                return
+    # Paused без HTTP — застрявшее состояние после прошлого старта.
+    if ($svc.Status -eq 'Paused') {
+        Write-Host "$ServiceName Paused without HTTP on port $Port - nssm stop/start"
+        Invoke-NssmStopSafe -NssmExe $NssmExe -ServiceName $ServiceName
+        $stopDeadline = (Get-Date).AddSeconds(30)
+        while ((Get-Date) -lt $stopDeadline) {
+            $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+            if ($svc.Status -eq 'Stopped') {
+                break
             }
-            if ($svc.Status -eq 'Paused') {
-                Resume-PvsNssmService -NssmExe $NssmExe -ServiceName $ServiceName
-            }
+            Start-Sleep -Seconds 1
         }
     }
 
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not (Test-PvsNssmServiceHealthy -ServiceName $ServiceName -Port $Port)) {
+        if ($svc.Status -in @('Stopped', 'Paused')) {
+            Write-Host "Starting $ServiceName ..."
+            $startResult = Invoke-NssmStartSafe -NssmExe $NssmExe -ServiceName $ServiceName
+            if ($startResult.ServicePaused) {
+                Write-Host "$ServiceName nssm START -> SERVICE_PAUSED (waiting for HTTP, resume not needed)"
+            } elseif ($startResult.AlreadyRunning) {
+                Write-Host "$ServiceName nssm reports already running"
+            }
+        } elseif ($svc.Status -eq 'Running') {
+            Write-Host "$ServiceName SCM Running; waiting for /health/live on port $Port"
+        }
+    }
+
+    Write-Host "Waiting up to ${WaitSeconds}s for /health/live on port $Port ..."
     $deadline = (Get-Date).AddSeconds($WaitSeconds)
     while ((Get-Date) -lt $deadline) {
-        $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-        if (-not $svc) {
-            throw "Service disappeared: $ServiceName"
-        }
         if (Test-PvsNssmServiceHealthy -ServiceName $ServiceName -Port $Port) {
+            $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
             Write-Host "$ServiceName is healthy (SCM: $($svc.Status))"
             return
         }
-        if ($svc.Status -eq 'Paused') {
-            Resume-PvsNssmService -NssmExe $NssmExe -ServiceName $ServiceName
-        }
-        if ($svc.Status -eq 'Stopped') {
-            Start-Sleep -Seconds 2
+        $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq 'Stopped') {
+            Write-Host "$ServiceName stopped while waiting - nssm start retry"
             Invoke-NssmStartSafe -NssmExe $NssmExe -ServiceName $ServiceName | Out-Null
         }
-        Start-Sleep -Seconds 1
+        Start-Sleep -Seconds 2
     }
 
     $svc = Get-Service -Name $ServiceName
@@ -492,7 +513,9 @@ function Start-PvsInstanceService {
         }
     }
     if ($NssmExe) {
-        Start-PvsNssmService -NssmExe $NssmExe -ServiceName $name -Port $Port
+        $waitSec = [int]$Config.ReadyTimeoutSeconds
+        if ($waitSec -le 0) { $waitSec = 120 }
+        Start-PvsNssmService -NssmExe $NssmExe -ServiceName $name -Port $Port -WaitSeconds $waitSec
         return
     }
     Write-Host "Starting $name ..."
