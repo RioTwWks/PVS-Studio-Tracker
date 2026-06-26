@@ -97,7 +97,7 @@ foreach ($port in $cfg.PortPool) {
     Invoke-Nssm -NssmExe $nssmExe set $serviceName Start SERVICE_AUTO_START
 
     if ($started -lt $minStart) {
-        Start-PvsNssmService -NssmExe $nssmExe -ServiceName $serviceName
+        Start-PvsNssmService -NssmExe $nssmExe -ServiceName $serviceName -Port $port
         $started++
     } else {
         Write-Host "  Installed as hot spare (manual or watchdog start)"
