@@ -15,6 +15,7 @@ param(
     [string] $ConfigPath,
     [string] $EnvFile,
     [string] $NginxConfDir,
+    [string] $NssmPath,
     [int[]] $Ports
 )
 
@@ -22,6 +23,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'pvs-nginx-lib.ps1')
 
 $cfg = Get-PvsNginxConfig -ConfigPath $ConfigPath
+$nssmExe = Resolve-NssmExe -NssmPath $NssmPath
+Write-Host "Using NSSM: $nssmExe"
 if ($NginxConfDir) {
     $cfg.NginxConfDir = $NginxConfDir
 }
@@ -76,24 +79,24 @@ foreach ($port in $cfg.PortPool) {
     $existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
     if ($existing) {
         Write-Host "  Service exists, updating NSSM params"
-        nssm set $serviceName Application $Python
-        nssm set $serviceName AppParameters $uvicornArgs
+        Invoke-Nssm -NssmExe $nssmExe set $serviceName Application $Python
+        Invoke-Nssm -NssmExe $nssmExe set $serviceName AppParameters $uvicornArgs
     } else {
-        nssm install $serviceName $Python $uvicornArgs
+        Invoke-Nssm -NssmExe $nssmExe install $serviceName $Python $uvicornArgs
     }
 
-    nssm set $serviceName AppDirectory $AppRoot
-    nssm set $serviceName AppEnvironmentExtra "DATABASE_URL=$databaseUrl"
-    nssm set $serviceName AppStdout (Join-Path $logsDir "uvicorn-$port.log")
-    nssm set $serviceName AppStderr (Join-Path $logsDir "uvicorn-$port.err.log")
-    nssm set $serviceName AppRotateFiles 1
-    nssm set $serviceName AppRotateBytes 10485760
-    nssm set $serviceName AppExit Default Restart
-    nssm set $serviceName AppRestartDelay 5000
-    nssm set $serviceName Start SERVICE_AUTO_START
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppDirectory $AppRoot
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppEnvironmentExtra "DATABASE_URL=$databaseUrl"
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppStdout (Join-Path $logsDir "uvicorn-$port.log")
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppStderr (Join-Path $logsDir "uvicorn-$port.err.log")
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppRotateFiles 1
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppRotateBytes 10485760
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppExit Default Restart
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName AppRestartDelay 5000
+    Invoke-Nssm -NssmExe $nssmExe set $serviceName Start SERVICE_AUTO_START
 
     if ($started -lt $minStart) {
-        nssm start $serviceName
+        Invoke-Nssm -NssmExe $nssmExe start $serviceName
         $started++
     } else {
         Write-Host "  Installed as hot spare (manual or watchdog start)"
@@ -105,5 +108,5 @@ Write-Host "Installed pool ports: $($cfg.PortPool -join ', ')"
 Write-Host "Started $started instance(s); min healthy = $minStart"
 Write-Host "Next:"
 Write-Host "  1. Copy nginx.conf to $($cfg.NginxConfDir) (include upstream-active.conf)"
-Write-Host "  2. .\sync-upstream.ps1 -ReloadNginx"
-Write-Host "  3. .\register-watchdog.ps1"
+Write-Host '  2. .\sync-upstream.ps1 -ReloadNginx'
+Write-Host '  3. .\register-watchdog.ps1'

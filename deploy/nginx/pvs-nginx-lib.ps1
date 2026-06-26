@@ -1,5 +1,59 @@
 # Shared helpers for nginx + NSSM instance pool on Windows Server.
 
+function Resolve-NssmExe {
+    param([string] $NssmPath)
+
+    if ($NssmPath) {
+        if (-not (Test-Path -LiteralPath $NssmPath)) {
+            throw "NSSM not found: $NssmPath"
+        }
+        return (Resolve-Path -LiteralPath $NssmPath).Path
+    }
+
+    $cmd = Get-Command nssm -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source) {
+        return $cmd.Source
+    }
+
+    $candidates = @(
+        'C:\nssm\nssm.exe',
+        'C:\nssm\win64\nssm.exe',
+        'C:\Program Files\nssm\nssm.exe',
+        'C:\Program Files\NSSM\nssm.exe',
+        (Join-Path $env:ProgramFiles 'nssm\nssm.exe')
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    throw @"
+NSSM not found in PATH.
+
+Install (PowerShell as Administrator):
+  cd deploy\nginx
+  .\install-nssm.ps1
+
+Or download https://nssm.cc/release/nssm-2.24.zip and copy win64\nssm.exe to C:\nssm\nssm.exe
+
+Then re-run install-services.ps1 with:
+  -NssmPath C:\nssm\nssm.exe
+"@
+}
+
+function Invoke-Nssm {
+    param(
+        [string] $NssmExe,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]] $NssmArgs
+    )
+    & $NssmExe @NssmArgs
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        throw "nssm failed (exit $LASTEXITCODE): $($NssmArgs -join ' ')"
+    }
+}
+
 function Get-PvsNginxConfig {
     param([string] $ConfigPath)
 

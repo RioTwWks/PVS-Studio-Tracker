@@ -27,6 +27,16 @@ flowchart TB
 
 ## Установка
 
+0. **NSSM** (если `nssm` не в PATH):
+
+```powershell
+cd deploy\nginx
+.\install-nssm.ps1
+# при proxy: .\install-nssm.ps1 -HttpProxy http://proxy.corp.local:8080
+```
+
+Проверка: `C:\nssm\nssm.exe version` или `nssm version` после добавления в PATH.
+
 1. PostgreSQL, `.env` с `DATABASE_URL` в `AppRoot`.
 2. Скопируйте [`nginx.conf`](nginx.conf) и [`upstream-active.conf`](upstream-active.conf) в `C:\nginx\conf\`.
 3. Отредактируйте [`instances.config.ps1`](instances.config.ps1) (`NginxConfDir`, пул портов).
@@ -34,10 +44,12 @@ flowchart TB
 
 ```powershell
 cd deploy\nginx
-.\install-services.ps1 -AppRoot "C:\opt\pvs-tracker" -Python "C:\opt\pvs-tracker\.venv\Scripts\python.exe"
+.\install-services.ps1 -AppRoot "C:\opt\pvs-tracker" -Python "C:\opt\pvs-tracker\.venv\Scripts\python.exe" -NssmPath "C:\nssm\nssm.exe"
 .\sync-upstream.ps1 -ReloadNginx
 .\register-watchdog.ps1
 ```
+
+`-NssmPath` можно опустить, если `nssm` в PATH или файл лежит в `C:\nssm\nssm.exe`.
 
 5. Запустите nginx. Webhook: `http://<host>:8080/webhook/inbound`.
 
