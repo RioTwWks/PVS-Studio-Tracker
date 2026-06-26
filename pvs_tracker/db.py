@@ -1,8 +1,13 @@
 """Database engine and session management."""
 
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlmodel import Session, create_engine
+
+# .env из корня проекта (NSSM AppDirectory). Не перезаписывает уже заданные переменные.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pvs_tracker.db")
 
