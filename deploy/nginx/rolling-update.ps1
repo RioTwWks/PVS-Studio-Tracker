@@ -51,6 +51,11 @@ Start-Sleep -Seconds ([int]$cfg.DrainSeconds)
 
 Write-Host "Step 2: restart $ServiceName ..."
 Restart-Service -Name $ServiceName -Force
+$svc = Get-Service -Name $ServiceName
+if ($svc.Status -eq 'Paused') {
+    Write-Host "$ServiceName is Paused after restart - Resume-Service"
+    Resume-Service -Name $ServiceName
+}
 
 Write-Host "Step 3: wait for readiness on port $Port ..."
 if (-not (Wait-PvsInstanceReady -Port $Port -TimeoutSec ([int]$cfg.ReadyTimeoutSeconds))) {

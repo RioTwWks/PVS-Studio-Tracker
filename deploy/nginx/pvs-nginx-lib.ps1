@@ -54,6 +54,54 @@ function Invoke-Nssm {
     }
 }
 
+function Start-PvsNssmService {
+    <#
+    NSSM start may return SERVICE_PAUSED on Windows Server; resume until Running.
+    #>
+    param(
+        [string] $NssmExe,
+        [string] $ServiceName,
+        [int] $WaitSeconds = 30
+    )
+
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -eq 'Running') {
+        Write-Host "$ServiceName already Running"
+        return
+    }
+
+    Write-Host "Starting $ServiceName ..."
+    & $NssmExe start $ServiceName 2>&1 | ForEach-Object { Write-Host $_ }
+
+    $deadline = (Get-Date).AddSeconds($WaitSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if (-not $svc) {
+            throw "Service disappeared: $ServiceName"
+        }
+        if ($svc.Status -eq 'Running') {
+            Write-Host "$ServiceName is Running"
+            return
+        }
+        if ($svc.Status -eq 'Paused') {
+            Write-Host "$ServiceName is Paused - Resume-Service"
+            try {
+                Resume-Service -Name $ServiceName -ErrorAction Stop
+            } catch {
+                & $NssmExe continue $ServiceName 2>&1 | ForEach-Object { Write-Host $_ }
+            }
+        }
+        if ($svc.Status -eq 'Stopped') {
+            Start-Sleep -Seconds 2
+            & $NssmExe start $ServiceName 2>&1 | Out-Null
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    $svc = Get-Service -Name $ServiceName
+    throw "Service $ServiceName did not reach Running (status: $($svc.Status)). Check logs in AppRoot\logs\"
+}
+
 function Get-PvsNginxConfig {
     param([string] $ConfigPath)
 
@@ -203,16 +251,33 @@ function Wait-PvsInstanceReady {
 function Start-PvsInstanceService {
     param(
         [hashtable] $Config,
-        [int] $Port
+        [int] $Port,
+        [string] $NssmExe
     )
     $name = Get-PvsServiceName -Config $Config -Port $Port
     $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
     if (-not $svc) {
         throw "Service not found: $name (run install-services.ps1 first)"
     }
-    if ($svc.Status -ne 'Running') {
-        Write-Host "Starting $name ..."
-        Start-Service -Name $name
+    if ($svc.Status -eq 'Running') {
+        return
+    }
+    if (-not $NssmExe) {
+        try {
+            $NssmExe = Resolve-NssmExe
+        } catch {
+            $NssmExe = $null
+        }
+    }
+    if ($NssmExe) {
+        Start-PvsNssmService -NssmExe $NssmExe -ServiceName $name
+        return
+    }
+    Write-Host "Starting $name ..."
+    Start-Service -Name $name
+    $svc = Get-Service -Name $name
+    if ($svc.Status -eq 'Paused') {
+        Resume-Service -Name $name
     }
 }
 
