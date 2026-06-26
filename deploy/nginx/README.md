@@ -54,8 +54,8 @@ cd deploy\nginx
 ### SCM `Paused`, но `/health/live` отвечает 200
 
 На некоторых Windows Server NSSM оставляет службу в статусе **Paused**, пока uvicorn уже слушает порт.
-Скрипты считают такой экземпляр **живым** по HTTP и не вызывают повторный `nssm start`
-(иначе: *An instance of the service is already running*).
+Это нормально: скрипты считают экземпляр живым по HTTP и **не** вызывают `nssm continue`
+(он часто отвечает `Unexpected status SERVICE_PAUSED`).
 
 Проверка:
 
@@ -64,11 +64,7 @@ Get-Service PVS-Tracker-*
 Invoke-WebRequest http://127.0.0.1:8081/health/live -UseBasicParsing
 ```
 
-Обновите `deploy\nginx` (`git pull`) и перезапустите установку, либо вручную:
-
-```powershell
-Resume-Service PVS-Tracker-8081
-```
+Resume-Service опционален и не обязателен для работы nginx upstream.
 
 5. Запустите nginx. Webhook: `http://<host>:8080/webhook/inbound`.
 
