@@ -51,6 +51,13 @@ cd deploy\nginx
 
 `-NssmPath` можно опустить, если `nssm` в PATH или файл лежит в `C:\nssm\nssm.exe`.
 
+Если при первом старте `SERVICE_PAUSED` - обновите скрипты (`git pull`) или вручную:
+
+```powershell
+Resume-Service PVS-Tracker-8081
+Get-Service PVS-Tracker-*
+```
+
 5. Запустите nginx. Webhook: `http://<host>:8080/webhook/inbound`.
 
 ## Watchdog
