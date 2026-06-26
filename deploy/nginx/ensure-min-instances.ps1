@@ -30,13 +30,13 @@ foreach ($port in $cfg.PortPool) {
     }
     if (-not $st.Running) {
         Start-PvsInstanceService -Config $cfg -Port $port
-        if (Wait-PvsInstanceReady -Port $port -TimeoutSec ([int]$cfg.ReadyTimeoutSeconds)) {
-            Write-Host "Port $port is ready"
-        } else {
-            Write-Warning "Port $port started but not ready yet"
-        }
     }
-    # running but not ready — пробуем следующий порт в пуле (spare)
+    if (Wait-PvsInstanceReady -Port $port -TimeoutSec ([int]$cfg.ReadyTimeoutSeconds)) {
+        Write-Host "Port $port is ready"
+        $ready = @(Get-PvsReadyPorts -Config $cfg)
+    } else {
+        Write-Warning "Port $port not ready within $($cfg.ReadyTimeoutSeconds)s"
+    }
 }
 
 $ready = @(Get-PvsReadyPorts -Config $cfg)

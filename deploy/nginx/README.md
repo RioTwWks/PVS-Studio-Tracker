@@ -76,6 +76,10 @@ Invoke-WebRequest http://127.0.0.1:8081/health/live -UseBasicParsing
 
 Resume-Service опционален и не обязателен для работы nginx upstream.
 
+При rolling update spare (8083+) стартует через `nssm start`; ответ `SERVICE_PAUSED` — норма.
+Скрипт **ждёт HTTP**, не вызывает `nssm continue` в цикле. Если spare застрял Paused без HTTP —
+делается `nssm stop` + повторный `start`.
+
 5. UI и webhook: `http://localhost:8080/` и `http://<host>:8080/webhook/inbound`.
 
 ## Watchdog
