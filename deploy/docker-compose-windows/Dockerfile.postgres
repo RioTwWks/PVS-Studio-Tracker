@@ -9,7 +9,7 @@
 #   docker build ... --build-arg USE_OFFLINE_DEPS=1 .
 
 ARG WINDOWS_VERSION=ltsc2019-amd64
-FROM ltsc2019:latest
+FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
 
 ARG POSTGRES_VERSION=16.6-1
 ARG POSTGRES_ZIP=postgresql-16.6-1-windows-x64-binaries.zip
