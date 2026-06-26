@@ -331,7 +331,7 @@ function Test-PvsNssmServiceHealthy {
 function Start-PvsNssmService {
     <#
     NSSM on Windows Server may leave SCM in Paused while uvicorn listens.
-    SERVICE_PAUSED on START is normal — wait for HTTP, do not spam nssm continue.
+    SERVICE_PAUSED on START is normal - wait for HTTP, do not spam nssm continue.
     #>
     param(
         [string] $NssmExe,
@@ -354,7 +354,7 @@ function Start-PvsNssmService {
         return
     }
 
-    # Paused без HTTP — застрявшее состояние после прошлого старта.
+    # Paused without HTTP - stale state from a previous start attempt.
     if ($svc.Status -eq 'Paused') {
         Write-Host "$ServiceName Paused without HTTP on port $Port - nssm stop/start"
         Invoke-NssmStopSafe -NssmExe $NssmExe -ServiceName $ServiceName
@@ -453,9 +453,9 @@ function Write-PvsInstanceLogHint {
         Write-Host "  .\.venv\Scripts\python.exe -m pip install -e ."
     } elseif ($tailText -match 'OperationalError|fe_sendauth|Connection refused') {
         Write-Host ""
-        Write-Host "Hint: DATABASE_URL in NSSM does not match working .env — run:"
+        Write-Host "Hint: DATABASE_URL in NSSM does not match .env - run:"
         Write-Host "  cd deploy\nginx"
-        Write-Host "  .\sync-nssm-env.ps1 -AppRoot `"$AppRoot`""
+        Write-Host ('  .\sync-nssm-env.ps1 -AppRoot "' + $AppRoot + '" -RestartServices')
     }
 }
 
@@ -601,7 +601,7 @@ function Start-PvsNginx {
         throw @"
 nginx.exe not found: $($paths.Exe)
 
-Скачайте nginx for Windows и распакуйте в $($paths.Root), либо:
+Download nginx for Windows and extract to $($paths.Root), or:
   cd deploy\nginx
   .\install-nginx.ps1
 "@
