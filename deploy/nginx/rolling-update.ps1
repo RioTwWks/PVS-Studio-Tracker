@@ -1,70 +1,71 @@
-# Rolling update одного экземпляра uvicorn за nginx без потери веб-хуков.
+# Rolling update одного экземпляра: spare + drain + restart + sync upstream.
 #
 # Пример:
-#   .\rolling-update.ps1 -Port 8081 -NginxConf "C:\nginx\conf\nginx.conf" -ServiceName "PVS-Tracker-8081"
+#   .\rolling-update.ps1 -Port 8081
 #
-# Перед запуском обновите код в $AppRoot (git pull, pip install и т.д.) — скрипт только перезапускает службу.
+# Перед запуском обновите код в AppRoot (git pull, pip install).
 
 param(
     [Parameter(Mandatory = $true)]
     [int] $Port,
 
-    [Parameter(Mandatory = $true)]
+    [string] $ConfigPath,
     [string] $NginxConf,
-
-    [Parameter(Mandatory = $true)]
     [string] $ServiceName,
-
-    [string] $NginxExe = "nginx",
-    [int] $DrainSeconds = 35,
-    [int] $ReadyTimeoutSeconds = 120
+    [string] $NginxExe,
+    [int] $DrainSeconds = 0,
+    [int] $ReadyTimeoutSeconds = 0,
+    [switch] $StopSpareAfterUpdate
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'pvs-nginx-lib.ps1')
 
-function Wait-Ready {
-    param([int] $TargetPort, [int] $TimeoutSec)
-    $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $r = Invoke-WebRequest -Uri "http://127.0.0.1:$TargetPort/health/ready" -UseBasicParsing -TimeoutSec 5
-            if ($r.StatusCode -eq 200) { return $true }
-        } catch {
-            Start-Sleep -Seconds 2
-        }
-    }
-    return $false
+$cfg = Get-PvsNginxConfig -ConfigPath $ConfigPath
+if ($NginxConf) { $cfg.NginxConfDir = Split-Path $NginxConf -Parent }
+if ($NginxExe) { $cfg.NginxExe = $NginxExe }
+if ($DrainSeconds -gt 0) { $cfg.DrainSeconds = $DrainSeconds }
+if ($ReadyTimeoutSeconds -gt 0) { $cfg.ReadyTimeoutSeconds = $ReadyTimeoutSeconds }
+
+if (-not $ServiceName) {
+    $ServiceName = Get-PvsServiceName -Config $cfg -Port $Port
 }
 
-Write-Host "Step 1: drain backend 127.0.0.1:$Port in nginx ..."
-$conf = Get-Content -Raw -Path $NginxConf
-$marker = "server 127.0.0.1:$Port"
-if ($conf -notmatch [regex]::Escape($marker)) {
-    throw "Upstream entry not found: $marker"
+$minHealthy = [int]$cfg.MinHealthyInstances
+Write-Host "Step 0: ensure $($minHealthy + 1) healthy instances (spare for drain) ..."
+& (Join-Path $PSScriptRoot 'ensure-min-instances.ps1') `
+    -ConfigPath $ConfigPath `
+    -MinHealthy ($minHealthy + 1) `
+    -SyncUpstream `
+    -ReloadNginx
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not start spare instance before rolling update"
 }
 
-$drained = $conf -replace "($([regex]::Escape($marker)))(?! down)", '$1 down'
-if ($drained -eq $conf) {
-    Write-Host "Backend already marked down."
-} else {
-    Set-Content -Path $NginxConf -Value $drained -NoNewline
-    & $NginxExe -s reload
-    Write-Host "Waiting $DrainSeconds s for in-flight requests ..."
-    Start-Sleep -Seconds $DrainSeconds
-}
+Write-Host "Step 1: drain port $Port ..."
+Add-PvsDrainedPort -Config $cfg -Port $Port
+& (Join-Path $PSScriptRoot 'sync-upstream.ps1') -ConfigPath $ConfigPath -ReloadNginx
+
+Write-Host "Waiting $($cfg.DrainSeconds)s for in-flight requests ..."
+Start-Sleep -Seconds ([int]$cfg.DrainSeconds)
 
 Write-Host "Step 2: restart $ServiceName ..."
 Restart-Service -Name $ServiceName -Force
 
 Write-Host "Step 3: wait for readiness on port $Port ..."
-if (-not (Wait-Ready -TargetPort $Port -TimeoutSec $ReadyTimeoutSeconds)) {
+if (-not (Wait-PvsInstanceReady -Port $Port -TimeoutSec ([int]$cfg.ReadyTimeoutSeconds))) {
     throw "Instance on port $Port did not become ready"
 }
 
-Write-Host "Step 4: return backend to upstream ..."
-$conf = Get-Content -Raw -Path $NginxConf
-$restored = $conf -replace "server 127\.0\.0\.1:$Port down", "server 127.0.0.1:$Port"
-Set-Content -Path $NginxConf -Value $restored -NoNewline
-& $NginxExe -s reload
+Write-Host "Step 4: undrain port $Port ..."
+Remove-PvsDrainedPort -Config $cfg -Port $Port
+& (Join-Path $PSScriptRoot 'sync-upstream.ps1') -ConfigPath $ConfigPath -ReloadNginx
+
+if ($StopSpareAfterUpdate) {
+    Write-Host "Step 5: stop excess spares ..."
+    & (Join-Path $PSScriptRoot 'watch-instances.ps1') -ConfigPath $ConfigPath -StopExcessSpares
+} else {
+    & (Join-Path $PSScriptRoot 'ensure-min-instances.ps1') -ConfigPath $ConfigPath -SyncUpstream -ReloadNginx
+}
 
 Write-Host "Rolling update for port $Port completed."

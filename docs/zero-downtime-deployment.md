@@ -40,41 +40,47 @@ pip install psycopg2-binary
 
 | Компонент | Роль |
 |-----------|------|
-| nginx for Windows | Единая точка входа `:8080` |
-| `PVS-Tracker-8081`, `PVS-Tracker-8082` (NSSM) | Два uvicorn на `127.0.0.1` |
+| nginx for Windows | Единая точка входа `:8080`, `include upstream-active.conf` |
+| `PVS-Tracker-8081` … `8084` (NSSM) | Пул uvicorn; штатно 2, spare 8083–8084 |
+| `watch-instances.ps1` + Планировщик | Минимум 2 healthy; автозапуск spare |
 | PostgreSQL | Общая БД |
+
+Подробнее: [`deploy/nginx/README.md`](../deploy/nginx/README.md).
 
 ### Установка
 
-1. Скопируйте [`deploy/nginx/nginx.conf`](../deploy/nginx/nginx.conf) в каталог nginx (например `C:\nginx\conf\nginx.conf`).
+1. Скопируйте [`deploy/nginx/nginx.conf`](../deploy/nginx/nginx.conf) и [`upstream-active.conf`](../deploy/nginx/upstream-active.conf) в каталог nginx (например `C:\nginx\conf\`).
 2. Установите зависимости и `.env` с `DATABASE_URL` на PostgreSQL.
-3. Зарегистрируйте службы:
+3. Настройте [`instances.config.ps1`](../deploy/nginx/instances.config.ps1) и зарегистрируйте службы:
 
 ```powershell
 cd deploy\nginx
 .\install-services.ps1 -AppRoot "C:\opt\pvs-tracker" -Python "C:\opt\pvs-tracker\.venv\Scripts\python.exe"
+.\sync-upstream.ps1 -ReloadNginx
+.\register-watchdog.ps1
 ```
 
 4. Запустите nginx. Webhook URL для TFS: `http://<host>:8080/webhook/inbound`.
 
 ### Rolling update
 
-Обновляйте экземпляры **по одному**:
+Обновляйте экземпляры **по одному** (перед этим spare поднимается автоматически):
 
 ```powershell
 # После git pull / pip install в AppRoot:
-.\rolling-update.ps1 -Port 8081 -NginxConf "C:\nginx\conf\nginx.conf" -ServiceName "PVS-Tracker-8081"
-.\rolling-update.ps1 -Port 8082 -NginxConf "C:\nginx\conf\nginx.conf" -ServiceName "PVS-Tracker-8082"
+.\rolling-update.ps1 -Port 8081
+.\rolling-update.ps1 -Port 8082
 ```
 
 Скрипт:
-1. Помечает backend `down` в upstream и делает `nginx -s reload`
-2. Ждёт drain (по умолчанию 35 с)
-3. Перезапускает службу NSSM
-4. Ждёт `GET /health/ready`
-5. Возвращает backend в upstream
+1. Обеспечивает **min+1** healthy backend (запас на время drain)
+2. Помечает порт `down` в upstream (`drained-ports.txt`) и делает `nginx -s reload`
+3. Ждёт drain (по умолчанию 35 с)
+4. Перезапускает службу NSSM
+5. Ждёт `GET /health/ready`
+6. Снимает drain и пересобирает upstream
 
-Пока обновляется `8081`, трафик идёт на `8082`, и наоборот.
+Пока обновляется `8081`, трафик идёт на `8082` (+ spare `8083` при необходимости).
 
 ---
 
