@@ -547,6 +547,39 @@ Start-Service docker
 
 Текущий стек использует `./pgdata` вместо named volume — старый `pvs_pg_data` можно просто игнорировать.
 
+### После `docker system prune` — TLS timeout на `registry-1.docker.io`
+
+`prune` удаляет базовые образы. Сборка снова качает `servercore` (~5–10 ГБ). Ошибка `Get "https://registry-1.docker.io/v2/": TLS handshake timeout` — **нет доступа к Docker Hub** (proxy/DNS).
+
+**1. Восстановите proxy daemon** (если сбросили `daemon.json`):
+
+```powershell
+notepad C:\ProgramData\docker\config\daemon.json
+# см. daemon.json.example — proxies + dns
+Restart-Service docker
+```
+
+**2. Скачайте базовый образ с MCR** (не Docker Hub; Dockerfiles используют MCR):
+
+```powershell
+docker pull mcr.microsoft.com/windows/servercore:ltsc2019-amd64
+docker pull mcr.microsoft.com/windows/nanoserver:ltsc2019-amd64
+```
+
+Для LTSC 2022 замените тег в `.env`: `WINDOWS_VERSION=ltsc2022-amd64`.
+
+**3. Проверка и сборка:**
+
+```powershell
+docker pull mcr.microsoft.com/windows/servercore:ltsc2019-amd64
+cd deploy\docker-compose-windows
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+```
+
+**4. Offline** (если сеть в build-контейнере недоступна): положите zip в `build-deps/`, в `.env` `USE_OFFLINE_DEPS=1`, базовый образ должен быть уже в `docker images` (шаг 2).
+
+Старый тег `ltsc2019:latest` больше не нужен — Dockerfiles тянут `mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}`.
+
 ### Orphan containers после обновления compose
 
 ```powershell

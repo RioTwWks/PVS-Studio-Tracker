@@ -12,7 +12,8 @@
 #   docker build ... --build-arg HTTPS_PROXY=http://proxy.corp:8080 --build-arg HTTP_PROXY=http://proxy.corp:8080
 
 ARG WINDOWS_VERSION=ltsc2019-amd64
-FROM ltsc2019:latest
+# MCR, не Docker Hub (после prune не нужен локальный tag ltsc2019:latest).
+FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
 
 ARG PYTHON_VERSION=3.12.10
 ARG PYTHON_INSTALLER=python-3.12.10-amd64.exe
