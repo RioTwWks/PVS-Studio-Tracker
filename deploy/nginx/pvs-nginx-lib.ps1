@@ -343,6 +343,7 @@ nginx.exe not found: $($paths.Exe)
     Write-Host 'nginx is listening on http://127.0.0.1:8080'
 }
 
+function Get-PvsUpstreamIncludePath {
     param([hashtable] $Config)
     return Join-Path $Config.NginxConfDir 'upstream-active.conf'
 }
