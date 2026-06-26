@@ -43,7 +43,7 @@ if (Test-Path $EnvFile) {
     }
 }
 if (-not $databaseUrl) {
-    Write-Warning "DATABASE_URL not found in $EnvFile — set AppEnvironmentExtra manually in NSSM"
+    Write-Warning "DATABASE_URL not found in $EnvFile - set AppEnvironmentExtra manually in NSSM"
     $databaseUrl = 'postgresql+psycopg2://user:pass@localhost/pvs_tracker'
 }
 
