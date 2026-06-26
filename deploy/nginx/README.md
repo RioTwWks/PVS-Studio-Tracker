@@ -38,9 +38,17 @@ cd deploy\nginx
 Проверка: `C:\nssm\nssm.exe version` или `nssm version` после добавления в PATH.
 
 1. PostgreSQL, `.env` с `DATABASE_URL` в `AppRoot`.
-2. Скопируйте [`nginx.conf`](nginx.conf) и [`upstream-active.conf`](upstream-active.conf) в `C:\nginx\conf\`.
+2. **nginx for Windows** в `C:\nginx` (скрипт или вручную):
+
+```powershell
+cd deploy\nginx
+.\install-nginx.ps1
+# уже есть C:\nginx\nginx.exe:
+.\start-nginx.ps1 -CopyConf
+```
+
 3. Отредактируйте [`instances.config.ps1`](instances.config.ps1) (`NginxConfDir`, пул портов).
-4. PowerShell **от администратора**:
+4. PowerShell **от администратора** — пул uvicorn (8081–8084):
 
 ```powershell
 cd deploy\nginx
@@ -50,6 +58,8 @@ cd deploy\nginx
 ```
 
 `-NssmPath` можно опустить, если `nssm` в PATH или файл лежит в `C:\nssm\nssm.exe`.
+
+**Важно:** `install-services.ps1` поднимает только **backend** (8081+). Браузер открывает **`:8080`** — это nginx. Без `.\start-nginx.ps1` страница не откроется.
 
 ### SCM `Paused`, но `/health/live` отвечает 200
 
@@ -66,7 +76,7 @@ Invoke-WebRequest http://127.0.0.1:8081/health/live -UseBasicParsing
 
 Resume-Service опционален и не обязателен для работы nginx upstream.
 
-5. Запустите nginx. Webhook: `http://<host>:8080/webhook/inbound`.
+5. UI и webhook: `http://localhost:8080/` и `http://<host>:8080/webhook/inbound`.
 
 ## Watchdog
 
@@ -115,13 +125,32 @@ Resume-Service опционален и не обязателен для рабо
 | `sync-upstream.ps1` | Генерация `upstream-active.conf` |
 | `watch-instances.ps1` | Watchdog |
 | `register-watchdog.ps1` | Задача в Планировщике |
+| `install-services.ps1` | Установка пула NSSM (8081+) |
+| `install-nginx.ps1` | Скачать nginx for Windows в `C:\nginx` |
+| `start-nginx.ps1` | Запуск / reload nginx на :8080 |
 | `drained-ports.txt` | В `NginxConfDir`, порты в drain |
 
 ## Диагностика
 
 ```powershell
+# Backend (uvicorn)
 Get-Service PVS-Tracker-*
 Invoke-WebRequest http://127.0.0.1:8081/health/ready -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:8082/health/ready -UseBasicParsing
+
+# Reverse proxy (nginx :8080) — отдельный процесс!
+Get-Process nginx -ErrorAction SilentlyContinue
+Test-NetConnection 127.0.0.1 -Port 8080
+Invoke-WebRequest http://127.0.0.1:8080/health/ready -UseBasicParsing
+
 Get-Content C:\nginx\conf\upstream-active.conf
 Get-Content C:\nginx\conf\drained-ports.txt -ErrorAction SilentlyContinue
+Get-Content C:\nginx\logs\pvs-tracker-error.log -Tail 30 -ErrorAction SilentlyContinue
+```
+
+Если 8081/8082 OK, а **8080 не открывается** — nginx не запущен:
+
+```powershell
+cd deploy\nginx
+.\start-nginx.ps1 -CopyConf
 ```
